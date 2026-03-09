@@ -1,0 +1,66 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|View",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_input.path // \"\"' | { read file_path; if echo \"$file_path\" | grep -qE '(\\.env|\\.env\\..*)$'; then echo '{\"decision\": \"block\", \"reason\": \"BLOCKED: Reading .env files is not allowed. Access environment variables only through app/core/config.py\"}' && exit 2; fi; }",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_input.path // \"\"' | { read file_path; if echo \"$file_path\" | grep -qE '^\\.github/workflows/'; then echo '{\"decision\": \"block\", \"reason\": \"BLOCKED: Modifying CI/CD workflow files (.github/workflows/) is not allowed.\"}' >&2; exit 2; fi; }",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$(git branch --show-current 2>/dev/null)\" != \"main\" ] || { echo '{\"decision\": \"block\", \"reason\": \"BLOCKED: Cannot edit files on the main branch. Switch to a feature branch first.\"}' >&2; exit 2; }",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // \"\"' | { read cmd; if echo \"$cmd\" | grep -qE 'git\\s+push\\s+.*main|git\\s+push\\s+origin\\s+main'; then echo '{\"decision\": \"block\", \"reason\": \"BLOCKED: Pushing to main is not allowed. Open a PR instead.\"}' >&2; exit 2; fi; }",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // \"\"' | { read cmd; if echo \"$cmd\" | grep -qE 'cat\\s+\\.env|less\\s+\\.env|head\\s+\\.env|tail\\s+\\.env|source\\s+\\.env|export\\s+.*\\$\\(cat\\s+\\.env'; then echo '{\"decision\": \"block\", \"reason\": \"BLOCKED: Reading .env files via shell is not allowed. Access environment variables only through app/core/config.py\"}' >&2; exit 2; fi; }",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // \"\"' | { read cmd; if echo \"$cmd\" | grep -qE 'gh\\s+pr\\s+merge|gh\\s+pr\\s+review\\s+--approve'; then echo '{\"decision\": \"block\", \"reason\": \"BLOCKED: Approving or merging PRs is not allowed. Only open PRs.\"}' >&2; exit 2; fi; }",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
