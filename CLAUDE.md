@@ -19,6 +19,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 - **Default AI Model:** Qwen2.5-72B-Instruct
 - **API Style:** REST (not GraphQL — PackVote has a straightforward data model with one frontend client; GraphQL would add schema/resolver overhead without real benefit)
 - **Auth:** Email + password (trip creators), token-based links + trip ID/PIN (participants)
+- **Password Hashing:** `bcrypt` directly (do NOT use `passlib` — it is incompatible with `bcrypt >= 4.0` on Python 3.13; `bcrypt.hashpw`/`bcrypt.checkpw` are used in `app/core/security.py`)
 
 ### Frontend
 - **Language:** TypeScript
