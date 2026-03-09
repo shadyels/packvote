@@ -1,3 +1,7 @@
+import anyio
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+
 from app.core.config import get_settings
 
 
@@ -8,14 +12,19 @@ class EmailService:
     All emails include: tokenized direct link + trip ID + PIN.
     """
 
-    def __init__(self, api_key: str, frontend_url: str) -> None:
-        self.api_key = api_key
-        self.frontend_url = frontend_url
+    def __init__(self, api_key: str, frontend_url: str, from_email: str) -> None:
+        self._api_key = api_key
+        self._frontend_url = frontend_url
+        self._from_email = from_email
 
     @classmethod
     def from_settings(cls) -> "EmailService":
         settings = get_settings()
-        return cls(api_key=settings.SENDGRID_API_KEY, frontend_url=settings.FRONTEND_URL)
+        return cls(
+            api_key=settings.SENDGRID_API_KEY,
+            frontend_url=settings.FRONTEND_URL,
+            from_email=settings.SENDGRID_FROM_EMAIL,
+        )
 
     async def send_invitation(
         self,
@@ -27,8 +36,25 @@ class EmailService:
         token: str,
     ) -> bool:
         """Send trip invitation with preference form link."""
-        # TODO: implement in email integration step
-        raise NotImplementedError
+        mail = Mail(
+            from_email=self._from_email,
+            to_emails=to_email,
+            subject=f"You're invited to {trip_title}",
+            plain_text_content=(
+                f"Hi {participant_name or 'there'},\n\n"
+                f"You've been invited to join the trip: {trip_title}\n\n"
+                f"Join via link: {self._frontend_url}/join/{token}\n"
+                f"Or enter Trip Code: {trip_code}  PIN: {pin}\n"
+            ),
+        )
+        try:
+            sg = SendGridAPIClient(self._api_key)
+            resp = await anyio.to_thread.run_sync(
+                lambda: sg.client.mail.send.post(request_body=mail.get())
+            )
+            return resp.status_code in (200, 202)
+        except Exception:
+            return False
 
     async def send_voting_notification(
         self,
@@ -40,7 +66,6 @@ class EmailService:
         token: str,
     ) -> bool:
         """Notify participant that itineraries are ready to vote on."""
-        # TODO: implement in email integration step
         raise NotImplementedError
 
     async def send_new_iteration_notification(
@@ -54,7 +79,6 @@ class EmailService:
         survey_questions: list[str],
     ) -> bool:
         """Notify participant of a new iteration with follow-up survey."""
-        # TODO: implement in email integration step
         raise NotImplementedError
 
     async def send_finalized_notification(
@@ -68,5 +92,4 @@ class EmailService:
         destination_name: str,
     ) -> bool:
         """Notify participant that the trip has been finalized."""
-        # TODO: implement in email integration step
         raise NotImplementedError
