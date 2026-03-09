@@ -43,7 +43,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Number of itinerary options to generate (2–5, chosen by admin)
   - Participant list (email addresses)
 - Each trip gets:
-  - Unique 8-digit numeric ID
+  - Unique 8-character alphanumeric code (uppercase A-Z + 0-9)
   - Unique 4-digit numeric PIN
 - On creation, SendGrid emails are sent to all participants with:
   - Invitation text
@@ -57,7 +57,6 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Budget range (min–max in their currency)
   - Interests / activity preferences (free text and/or category tags)
 - Preferences are stored and associated with the participant
-- Admin can see all submitted preferences in their dashboard
 
 ### F4: AI-Powered Recommendation Generation
 - Once all participants have submitted preferences (or admin triggers manually), the AI pipeline runs
@@ -282,7 +281,7 @@ The project uses HuggingFace's free tier, which has significant constraints:
 
 ### Core Tables
 - `users` — trip creators (email, hashed_password, created_at)
-- `trips` — (id, trip_code_8digit, pin_4digit, creator_id, destination, proposed_dates, num_options, status, max_iterations, current_iteration, created_at)
+- `trips` — (id, trip_code_8char_alphanum, pin_4digit, creator_id, destination, proposed_dates, num_options, status, max_iterations, current_iteration, created_at)
 - `participants` — (id, trip_id, email, name, token, preferences_submitted, created_at)
 - `preferences` — (id, participant_id, trip_id, preferred_dates, budget_min, budget_max, currency, interests, submitted_at)
 - `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary_json, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at)

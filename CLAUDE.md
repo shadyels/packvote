@@ -179,7 +179,7 @@ pnpm format                      # Prettier
 
 ### Authentication
 - Trip creators: email + password (architected so OAuth/social login can be added later)
-- Participants: token-based email links OR trip ID (8 digits) + PIN (4 digits)
+- Participants: token-based email links OR trip code (8-char alphanumeric, uppercase A-Z + 0-9) + PIN (4 digits)
 - No account creation required for participants
 - No additional security beyond ID+PIN for participant access (no login, no CAPTCHA)
 - Every email to participants includes both the direct link AND the trip ID + PIN

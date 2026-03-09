@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     # Email
     SENDGRID_API_KEY: str = ""
+    SENDGRID_FROM_EMAIL: str = "noreply@packvote.app"
 
     # AI providers
     HF_API_TOKEN: str = ""
