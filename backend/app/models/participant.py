@@ -15,12 +15,16 @@ class Participant(Base):
     trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255))
-    token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )
     preferences_submitted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     trip: Mapped[Trip] = relationship("Trip", back_populates="participants")  # type: ignore[name-defined]
-    preferences: Mapped[list[Preference]] = relationship("Preference", back_populates="participant")  # type: ignore[name-defined]
+    preferences: Mapped[list[Preference]] = relationship(
+        "Preference", back_populates="participant"
+    )  # type: ignore[name-defined]
     votes: Mapped[list[Vote]] = relationship("Vote", back_populates="participant")  # type: ignore[name-defined]

@@ -52,7 +52,9 @@ _TRIP_PAYLOAD = {
 
 
 class TestCreateTrip:
-    async def test_success_returns_201(self, client: AsyncClient, auth_headers, mock_email):
+    async def test_success_returns_201(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         assert resp.status_code == 201
         data = resp.json()
@@ -85,6 +87,7 @@ class TestCreateTrip:
         assert resp.status_code == 201
         # Allow a moment for fire-and-forget gather
         import asyncio
+
         await asyncio.sleep(0)
         assert len(mock_email.sent) == 2
         sent_emails = {e["to"] for e in mock_email.sent}
@@ -127,17 +130,25 @@ class TestListTrips:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(REGISTER_URL, json={"email": email, "password": "test1234"})
+            await client.post(
+                REGISTER_URL, json={"email": email, "password": "test1234"}
+            )
 
         async def login(email: str) -> dict:
-            r = await client.post(LOGIN_URL, json={"email": email, "password": "test1234"})
+            r = await client.post(
+                LOGIN_URL, json={"email": email, "password": "test1234"}
+            )
             return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
         headers_a = await login(email_a)
         headers_b = await login(email_b)
 
-        await client.post(TRIPS_URL, json={**_TRIP_PAYLOAD, "title": "Trip A"}, headers=headers_a)
-        await client.post(TRIPS_URL, json={**_TRIP_PAYLOAD, "title": "Trip B"}, headers=headers_b)
+        await client.post(
+            TRIPS_URL, json={**_TRIP_PAYLOAD, "title": "Trip A"}, headers=headers_a
+        )
+        await client.post(
+            TRIPS_URL, json={**_TRIP_PAYLOAD, "title": "Trip B"}, headers=headers_b
+        )
 
         resp_a = await client.get(TRIPS_URL, headers=headers_a)
         assert resp_a.status_code == 200
@@ -148,7 +159,10 @@ class TestListTrips:
     async def test_participant_count_correct(
         self, client: AsyncClient, auth_headers, mock_email
     ):
-        payload = {**_TRIP_PAYLOAD, "participant_emails": ["p1@x.com", "p2@x.com", "p3@x.com"]}
+        payload = {
+            **_TRIP_PAYLOAD,
+            "participant_emails": ["p1@x.com", "p2@x.com", "p3@x.com"],
+        }
         await client.post(TRIPS_URL, json=payload, headers=auth_headers)
         resp = await client.get(TRIPS_URL, headers=auth_headers)
         assert resp.status_code == 200
@@ -171,7 +185,9 @@ class TestListTrips:
 
 class TestGetTrip:
     async def test_success(self, client: AsyncClient, auth_headers, mock_email):
-        create_resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers
+        )
         trip_id = create_resp.json()["id"]
         resp = await client.get(f"/trips/{trip_id}", headers=auth_headers)
         assert resp.status_code == 200
@@ -186,14 +202,22 @@ class TestGetTrip:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(REGISTER_URL, json={"email": email, "password": "test1234"})
+            await client.post(
+                REGISTER_URL, json={"email": email, "password": "test1234"}
+            )
 
-        r_a = await client.post(LOGIN_URL, json={"email": email_a, "password": "test1234"})
+        r_a = await client.post(
+            LOGIN_URL, json={"email": email_a, "password": "test1234"}
+        )
         headers_a = {"Authorization": f"Bearer {r_a.json()['access_token']}"}
-        r_b = await client.post(LOGIN_URL, json={"email": email_b, "password": "test1234"})
+        r_b = await client.post(
+            LOGIN_URL, json={"email": email_b, "password": "test1234"}
+        )
         headers_b = {"Authorization": f"Bearer {r_b.json()['access_token']}"}
 
-        create_resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=headers_a)
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=headers_a
+        )
         trip_id = create_resp.json()["id"]
 
         resp = await client.get(f"/trips/{trip_id}", headers=headers_b)

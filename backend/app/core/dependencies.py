@@ -4,10 +4,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.security import decode_access_token
 from app.db.session import get_db
+from app.db.session import get_session_factory as _get_session_factory
 from app.models.user import User
 from app.services.email.sendgrid import EmailService
 
@@ -41,3 +42,7 @@ async def get_current_user(
 
 def get_email_service() -> EmailService:
     return EmailService.from_settings()
+
+
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    return _get_session_factory()

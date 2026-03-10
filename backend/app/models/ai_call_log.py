@@ -11,7 +11,9 @@ class AICallLog(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     trip_id: Mapped[int | None] = mapped_column(ForeignKey("trips.id"))
-    prompt_version_id: Mapped[int | None] = mapped_column(ForeignKey("prompt_templates.id"))
+    prompt_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prompt_templates.id")
+    )
     model_used: Mapped[str] = mapped_column(String(255), nullable=False)
     provider: Mapped[str] = mapped_column(String(100), nullable=False)
     latency_ms: Mapped[int | None] = mapped_column(Integer)
