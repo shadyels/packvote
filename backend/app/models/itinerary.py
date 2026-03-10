@@ -23,7 +23,9 @@ class Itinerary(Base):
     highlights: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
 
     # AI generation metadata
-    prompt_version_id: Mapped[int | None] = mapped_column(ForeignKey("prompt_templates.id"))
+    prompt_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prompt_templates.id")
+    )
     model_used: Mapped[str | None] = mapped_column(String(255))
     provider: Mapped[str | None] = mapped_column(String(100))
     generation_latency_ms: Mapped[int | None] = mapped_column(Integer)
@@ -37,5 +39,7 @@ class Itinerary(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
-    trip: Mapped[Trip] = relationship("Trip", back_populates="itineraries", foreign_keys=[trip_id])  # type: ignore[name-defined]
+    trip: Mapped[Trip] = relationship(
+        "Trip", back_populates="itineraries", foreign_keys=[trip_id]
+    )  # type: ignore[name-defined]
     prompt_template: Mapped[PromptTemplate | None] = relationship("PromptTemplate")  # type: ignore[name-defined]

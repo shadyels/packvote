@@ -59,19 +59,26 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 - Preferences are stored and associated with the participant
 
 ### F4: AI-Powered Recommendation Generation
-- Once all participants have submitted preferences (or admin triggers manually), the AI pipeline runs
+- Generation has two triggers (both result in identical behaviour):
+  - **Auto:** fires automatically when the last participant submits their preferences
+  - **Manual:** admin hits `POST /trips/{id}/generate` at any time, even before all participants have submitted
+- If both triggers race (e.g. last preference submitted at the same moment the admin clicks generate), the second trigger is silently ignored via the status guard — only one generation runs
+- The endpoint returns **202 Accepted** immediately; generation runs as a background task. The client polls `GET /trips/{id}` until status changes from `GENERATING` to `VOTING`
+- AI receives all participant preferences in a single prompt — no separate summarisation call (one AI credit per generation)
 - AI receives:
-  - All participant preferences (dates, budgets, interests)
-  - Trip constraints (destination if specified, number of options requested)
+  - All participant preferences (dates, budgets, interests, activity tags)
+  - Trip constraints (destination if specified, or "open" if "surprise me"; number of options; proposed dates)
   - Current prompt template (from versioned prompt system)
 - AI generates N itinerary options (N = 2–5, set at trip creation), each containing:
   - Destination name and description
-  - Day-by-day itinerary
-  - Estimated budget breakdown
-  - Why this matches the group's preferences
+  - Day-by-day itinerary with 3–5 activities per day
+  - Total estimated budget and currency
+  - Why this matches the group's preferences (`match_reasoning`)
+  - Highlights list
 - All AI output is structured JSON, validated by Pydantic schemas
-- Failed/invalid AI responses are retried with exponential backoff
-- Each generation is logged with: prompt version, model used, latency, token usage
+- Failed/invalid AI responses are retried with exponential backoff (3 attempts on HuggingFace, then 1 attempt on Groq fallback)
+- If all providers fail, trip status is reset to `COLLECTING_PREFERENCES` so the admin can retry
+- Each generation is logged with: prompt version, model used, provider used, latency, response validity
 
 ### F5: Ranked-Choice Voting
 - After AI generates options, participants receive an email notification with a link
@@ -244,6 +251,27 @@ The project uses HuggingFace's free tier, which has significant constraints:
 - This is why the provider-agnostic service layer includes a Groq free tier fallback
 - AI calls should be minimized: generate only when needed, cache results, avoid redundant calls
 - Failed requests should use exponential backoff, not immediate retries
+
+### Async Generation (202 + polling) over Synchronous Response
+AI generation can take 10–30 seconds. Returning a synchronous response would risk HTTP timeouts and a poor user experience. Instead:
+- `POST /trips/{id}/generate` returns 202 immediately and schedules a background task
+- Trip status transitions from `GENERATING` → `VOTING` when complete
+- Clients poll `GET /trips/{id}` to detect the transition
+- This was chosen over WebSockets (overkill for a low-frequency status change) and server-sent events (added complexity with no benefit at this scale)
+
+### Single Prompt per Generation (No Pre-Summarisation)
+Raw participant preferences are fed directly into one generation prompt rather than using a separate AI call to summarise/organise them first. Reasons:
+- Saves AI credits (one call vs two per generation)
+- Participant data is already structured (dates, budget range, tags) — it doesn't need narrative summarisation to be useful to the model
+- A separate summarisation call would add latency to an already-slow pipeline
+- If group size grows very large (10+ participants), this decision can be revisited
+
+### BackgroundTasks over a Task Queue
+FastAPI's built-in `BackgroundTasks` is used rather than an external task queue (Celery, Redis Queue, etc.) because:
+- Generation is a single async function, not a distributed workload
+- No retry persistence is needed at this scale — if the server restarts mid-generation, the trip stays in `GENERATING` and the admin can manually re-trigger
+- Avoids adding Redis or a broker as an infrastructure dependency on the free Railway tier
+- If the app scales to high concurrency or needs durable retries in the future, migrating to a task queue is straightforward
 
 ---
 

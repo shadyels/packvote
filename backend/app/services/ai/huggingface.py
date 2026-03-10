@@ -1,35 +1,67 @@
+import json
+
+from huggingface_hub import AsyncInferenceClient
+
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
+
+
+def _split_prompt(prompt: str) -> tuple[str, str]:
+    """Split a [SYSTEM]/[USER] delimited prompt string into two messages."""
+    parts = prompt.split("\n[USER]\n", maxsplit=1)
+    system = parts[0].removeprefix("[SYSTEM]\n").strip()
+    user = parts[1].strip() if len(parts) > 1 else ""
+    return system, user
 
 
 class HuggingFaceProvider(AIProvider):
     """HuggingFace Inference Providers — default AI provider.
 
-    Routes requests via the HuggingFace Inference API which supports
-    multiple backend providers (Sambanova, Together AI, Cerebras, Groq).
+    Routes requests via the HuggingFace OpenAI-compatible inference endpoint.
     Uses Qwen2.5-72B-Instruct by default.
     """
 
-    BASE_URL = "https://api-inference.huggingface.co/models"
+    BASE_URL = "https://api-inference.huggingface.co/v1"
 
     def __init__(self, api_token: str) -> None:
         self.api_token = api_token
+
+    def _make_client(self) -> AsyncInferenceClient:
+        return AsyncInferenceClient(base_url=self.BASE_URL, api_key=self.api_token)
 
     async def generate_itineraries(
         self,
         prompt: str,
         num_options: int,
         model: str,
-    ) -> AIGenerationResponse:
-        # TODO: implement in AI pipeline step
-        raise NotImplementedError
+    ) -> tuple[AIGenerationResponse, str]:
+        system_msg, user_msg = _split_prompt(prompt)
+        client = self._make_client()
+        completion = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+            max_tokens=8192,
+        )
+        raw_text = completion.choices[0].message.content
+        data = json.loads(raw_text)
+        response = AIGenerationResponse.model_validate(data)
+        if len(response.options) != num_options:
+            raise ValueError(
+                f"AI returned {len(response.options)} options, expected {num_options}"
+            )
+        return response, "huggingface"
 
     async def generate_followup_survey(
         self,
         prompt: str,
         model: str,
     ) -> list[str]:
-        # TODO: implement in AI pipeline step
+        # TODO: implement in iteration step
         raise NotImplementedError
 
     async def organize_preferences(
@@ -37,5 +69,5 @@ class HuggingFaceProvider(AIProvider):
         prompt: str,
         model: str,
     ) -> dict:
-        # TODO: implement in AI pipeline step
+        # TODO: implement in iteration step
         raise NotImplementedError

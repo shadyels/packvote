@@ -177,6 +177,69 @@ pnpm format                      # Prettier
 - All prompts are versioned in the database with template storage
 - Basic A/B testing: traffic split between prompt versions, metrics tracked per version (response quality, vote outcomes, latency)
 
+### AI Generation Implementation Patterns
+
+**`huggingface_hub.AsyncInferenceClient` for all providers:**
+Both `HuggingFaceProvider` and `GroqProvider` use `AsyncInferenceClient` from `huggingface_hub`. Groq exposes an OpenAI-compatible API, so the same client works against both by changing `base_url` and `api_key`. Do not use raw `httpx` calls for AI inference.
+
+**Provider return type includes provider name:**
+`AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is the provider name (`"huggingface"` or `"groq"`). This is required so the generation service can accurately log which provider handled the request in `AICallLog.provider` and `Itinerary.provider`. Without it, the caller cannot tell whether HF or the Groq fallback actually answered.
+
+**Retry strategy — primary then fallback:**
+`AIService.generate_itineraries()` retries the primary provider (HuggingFace) up to 3 times with exponential backoff (1s, 2s, 4s). On exhaustion, it tries the fallback (Groq) once. If both fail, the last exception is re-raised. Never use immediate retries.
+
+**Groq ignores the `model` parameter:**
+The `model` argument passed to `GroqProvider.generate_itineraries()` is always a HuggingFace model ID and is meaningless to Groq. `GroqProvider` hardcodes `GROQ_MODEL = "llama-3.3-70b-versatile"` and ignores the argument. This is intentional — do not try to pass a Groq-specific model name through `AIService`.
+
+**Prompt template format — `[SYSTEM]`/`[USER]` delimiter:**
+Prompt templates are stored as a single text string in the `prompt_templates` table. The string uses `[SYSTEM]\n...\n[USER]\n...` as a delimiter that provider implementations split at call time to build the two-message array. This keeps a full prompt in one DB row (easy to version and A/B test) without requiring separate `system_text` / `user_text` columns.
+
+**Prompt templates seeded at runtime, not via migration:**
+`_upsert_prompt_template()` in `services/generation.py` does a SELECT then INSERT if missing, every time generation runs. This is idempotent. Do NOT create a separate Alembic data migration to seed prompt templates — runtime upsert is self-healing if the row is ever deleted and avoids migration fragility.
+
+**JSON serialization of itinerary fields:**
+`Itinerary.daily_itinerary_json` and `Itinerary.highlights` are `Text` columns storing JSON strings (not native JSON columns). This keeps the schema database-agnostic between SQLite (tests) and PostgreSQL (production). Always serialize with `json.dumps([day.model_dump() for day in ...])` and `json.dumps(list)`. Use Pydantic's `.model_dump()` (not `dict()`) to correctly handle nested models.
+
+### Background Tasks and Session Isolation
+
+**NEVER pass a request-scoped `AsyncSession` to a `BackgroundTask`.** FastAPI closes the session when the response is sent — before the background task runs. The task will receive a closed/invalid session.
+
+**Pattern: pass `session_factory`, not `session`:**
+```python
+# Route handler
+background_tasks.add_task(run_generation, trip_id, session_factory)
+
+# Background task
+async def run_generation(trip_id: int, session_factory: async_sessionmaker) -> None:
+    async with session_factory() as db:   # opens its own fresh session
+        ...
+```
+
+`get_session_factory()` in `app/core/dependencies.py` re-exports the module-level singleton from `app/db/session.py`. Inject it as a FastAPI dependency wherever a background task needs DB access.
+
+**Failure recovery opens a second fresh session:**
+If the generation task fails mid-way, the first session is rolled back automatically by the `async with` context manager. To reset trip status, open a second `async with session_factory() as db` — do not attempt to reuse the failed session.
+
+**`AIService` is constructed inside the background task:**
+Do not inject `AIService` as a FastAPI dependency. It has no I/O at construction time (just reads config), so constructing it fresh inside `run_generation` with `AIService.from_settings()` is cheap and avoids request lifecycle issues.
+
+### Generation Status Transitions
+
+**Commit `GENERATING` status before returning 202 and before scheduling the task:**
+```python
+trip.status = "GENERATING"
+await db.commit()                              # committed first
+background_tasks.add_task(run_generation, ...)
+return {"status": "accepted"}
+```
+This ensures: (1) clients polling `GET /trips/{id}` immediately see `GENERATING`, and (2) the idempotency guard inside the background task sees the correct status.
+
+**Idempotency guard at the top of every generation task:**
+Re-read the trip from the DB at the start of `run_generation` and exit early if `trip.status != "GENERATING"`. This prevents a second task (from a race between manual and auto-trigger) from running twice.
+
+**Auto-trigger guard in `submit_preferences`:**
+After saving a preference, check if all participants have now submitted AND `trip.status == "COLLECTING_PREFERENCES"`. Only trigger if both conditions are true. The status check prevents double-triggering when the creator has already hit `POST /trips/{id}/generate` manually.
+
 ### Authentication
 - Trip creators: email + password (architected so OAuth/social login can be added later)
 - Participants: token-based email links OR trip code (8-char alphanumeric, uppercase A-Z + 0-9) + PIN (4 digits)

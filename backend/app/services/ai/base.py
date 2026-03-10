@@ -16,8 +16,11 @@ class AIProvider(ABC):
         prompt: str,
         num_options: int,
         model: str,
-    ) -> AIGenerationResponse:
-        """Generate N itinerary options from the rendered prompt."""
+    ) -> tuple[AIGenerationResponse, str]:
+        """Generate N itinerary options from the rendered prompt.
+
+        Returns (response, provider_name) where provider_name is e.g. "huggingface" or "groq".
+        """
         ...
 
     @abstractmethod

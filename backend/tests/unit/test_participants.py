@@ -1,10 +1,13 @@
 import secrets
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.dependencies import get_email_service
+from app.core.dependencies import get_email_service, get_session_factory
 from app.main import app
+from app.models.trip import Trip
 
 REGISTER_URL = "/auth/register"
 LOGIN_URL = "/auth/login"
@@ -46,7 +49,17 @@ def mock_email():
 
 
 @pytest.fixture
-async def created_trip(client: AsyncClient, auth_headers, mock_email):
+def mock_session_factory(engine):
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    app.dependency_overrides[get_session_factory] = lambda: factory
+    yield factory
+    app.dependency_overrides.pop(get_session_factory, None)
+
+
+@pytest.fixture
+async def created_trip(
+    client: AsyncClient, auth_headers, mock_email, mock_session_factory
+):
     """Returns (trip_data, mock_email_service) after creating a trip."""
     resp = await client.post(
         TRIPS_URL,
@@ -55,6 +68,7 @@ async def created_trip(client: AsyncClient, auth_headers, mock_email):
     )
     assert resp.status_code == 201
     import asyncio
+
     await asyncio.sleep(0)
     return resp.json(), mock_email
 
@@ -126,7 +140,9 @@ class TestSubmitPreferences:
         resp = await client.post(f"/participants/{token}/preferences", json={})
         assert resp.status_code == 201
 
-    async def test_sets_preferences_submitted_flag(self, client: AsyncClient, created_trip):
+    async def test_sets_preferences_submitted_flag(
+        self, client: AsyncClient, created_trip
+    ):
         trip, mock_email_svc = created_trip
         token = mock_email_svc.sent[0]["token"]
         await client.post(f"/participants/{token}/preferences", json={})
@@ -136,8 +152,12 @@ class TestSubmitPreferences:
     async def test_resubmit_updates_existing(self, client: AsyncClient, created_trip):
         _, mock_email_svc = created_trip
         token = mock_email_svc.sent[0]["token"]
-        await client.post(f"/participants/{token}/preferences", json={"budget_max": 1000})
-        resp = await client.post(f"/participants/{token}/preferences", json={"budget_max": 2500})
+        await client.post(
+            f"/participants/{token}/preferences", json={"budget_max": 1000}
+        )
+        resp = await client.post(
+            f"/participants/{token}/preferences", json={"budget_max": 2500}
+        )
         assert resp.status_code == 201
         assert resp.json()["budget_max"] == 2500
 
@@ -152,3 +172,111 @@ class TestSubmitPreferences:
             f"/participants/{token}/preferences", json={"budget_min": -100}
         )
         assert resp.status_code == 422
+
+
+class TestAutoTriggerGeneration:
+    """When the last participant submits preferences, generation is auto-triggered."""
+
+    @pytest.fixture
+    async def two_participant_trip(self, client: AsyncClient, auth_headers, mock_email):
+        """Create a trip with two participants and return (trip_data, tokens)."""
+        resp = await client.post(
+            TRIPS_URL,
+            json={
+                "title": "Auto Trigger Trip",
+                "participant_emails": ["p1@test.com", "p2@test.com"],
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
+        import asyncio
+
+        await asyncio.sleep(0)
+        trip = resp.json()
+        tokens = [e["token"] for e in mock_email.sent]
+        return trip, tokens
+
+    async def test_last_submission_triggers_generation(
+        self,
+        client: AsyncClient,
+        two_participant_trip,
+        db: AsyncSession,
+        mock_session_factory,
+    ):
+
+        trip, tokens = two_participant_trip
+        trip_id = trip["id"]
+
+        mock_run = AsyncMock()
+        with patch("app.services.generation.run_generation", mock_run):
+            # First participant — should NOT trigger
+            await client.post(f"/participants/{tokens[0]}/preferences", json={})
+            mock_run.assert_not_called()
+
+            # Second (last) participant — should trigger
+            await client.post(f"/participants/{tokens[1]}/preferences", json={})
+
+        mock_run.assert_called_once_with(trip_id, mock_session_factory)
+
+    async def test_non_last_submission_does_not_trigger(
+        self,
+        client: AsyncClient,
+        two_participant_trip,
+        mock_session_factory,
+    ):
+        _, tokens = two_participant_trip
+
+        mock_run = AsyncMock()
+        with patch("app.services.generation.run_generation", mock_run):
+            await client.post(f"/participants/{tokens[0]}/preferences", json={})
+
+        mock_run.assert_not_called()
+
+    async def test_trip_status_set_to_generating_on_auto_trigger(
+        self,
+        client: AsyncClient,
+        two_participant_trip,
+        db: AsyncSession,
+        mock_session_factory,
+    ):
+        from sqlalchemy import select
+
+        trip, tokens = two_participant_trip
+        trip_id = trip["id"]
+
+        with patch("app.services.generation.run_generation", AsyncMock()):
+            await client.post(f"/participants/{tokens[0]}/preferences", json={})
+            await client.post(f"/participants/{tokens[1]}/preferences", json={})
+
+        db.expire_all()
+        result = await db.execute(select(Trip).where(Trip.id == trip_id))
+        updated_trip = result.scalar_one()
+        assert updated_trip.status == "GENERATING"
+
+    async def test_manual_trigger_blocks_auto_trigger(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        two_participant_trip,
+        db: AsyncSession,
+        mock_session_factory,
+    ):
+        """If creator already triggered manually (status=GENERATING), auto-trigger is skipped."""
+        from sqlalchemy import select
+
+        trip, tokens = two_participant_trip
+        trip_id = trip["id"]
+
+        # Manually set status to GENERATING (simulating creator hit /generate first)
+        result = await db.execute(select(Trip).where(Trip.id == trip_id))
+        t = result.scalar_one()
+        t.status = "GENERATING"
+        await db.commit()
+
+        mock_run = AsyncMock()
+        with patch("app.services.generation.run_generation", mock_run):
+            await client.post(f"/participants/{tokens[0]}/preferences", json={})
+            await client.post(f"/participants/{tokens[1]}/preferences", json={})
+
+        # run_generation should NOT have been called again
+        mock_run.assert_not_called()

@@ -1,14 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, BackgroundTasks, Depends
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.dependencies import get_session_factory
 from app.db.session import get_db
 from app.schemas.participant import ParticipantResponse, TripAccessByCode
 from app.schemas.preference import PreferenceCreate, PreferenceResponse
 from app.services.participants import (
     access_trip_by_code,
     get_participant_by_token,
+)
+from app.services.participants import (
     submit_preferences as svc_submit_preferences,
 )
 
@@ -35,6 +38,10 @@ async def get_participant_by_token_handler(
 async def submit_preferences(
     token: str,
     payload: PreferenceCreate,
+    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
+    session_factory: Annotated[async_sessionmaker, Depends(get_session_factory)],
 ) -> PreferenceResponse:
-    return await svc_submit_preferences(token, payload, db)
+    return await svc_submit_preferences(
+        token, payload, db, background_tasks, session_factory
+    )

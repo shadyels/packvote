@@ -15,8 +15,12 @@ class VoteRound(Base):
     trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), nullable=False)
     iteration_number: Mapped[int] = mapped_column(Integer, default=1)
     round_number: Mapped[int] = mapped_column(Integer, default=1)
-    eliminated_option_id: Mapped[int | None] = mapped_column(ForeignKey("itineraries.id"))
-    results_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON: {itinerary_id: vote_count}
+    eliminated_option_id: Mapped[int | None] = mapped_column(
+        ForeignKey("itineraries.id")
+    )
+    results_json: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # JSON: {itinerary_id: vote_count}
     winner_id: Mapped[int | None] = mapped_column(ForeignKey("itineraries.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

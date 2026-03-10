@@ -142,7 +142,11 @@ async def get_trip(trip_id: int, user_id: int, db: AsyncSession) -> Trip:
     result = await db.execute(select(Trip).where(Trip.id == trip_id))
     trip = result.scalar_one_or_none()
     if trip is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
+        )
     if trip.creator_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        )
     return trip
