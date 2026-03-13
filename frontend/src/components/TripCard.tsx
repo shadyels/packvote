@@ -5,7 +5,7 @@ interface TripCardProps {
 }
 
 export default function TripCard({ trip }: TripCardProps) {
-  // TODO: flesh out in admin dashboard step
+  // TODO: flesh out in Trip Creator Dashboard step
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="font-semibold text-cream">{trip.title}</h3>

@@ -117,7 +117,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Final result (when finalized)
 - Fully responsive — must work well on mobile (participants will open email links on phones)
 
-### F8: Admin Dashboard
+### F8: Trip Creator Dashboard
 - Authenticated, creator-only view
 - Shows:
   - All trips with status badges
@@ -125,13 +125,6 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Voting results and round details
   - AI generation history (prompt version, model, latency)
   - Controls: trigger generation, trigger new iteration, pick winner, close voting
-- Phase 1 monitoring metrics page (internal only):
-  - API request counts and latency
-  - Active trips and users
-  - AI pipeline response times
-  - Vote completion rates
-  - Error rates
-  - Email delivery success rates
 
 ### F9: Email Notifications (SendGrid)
 - Triggered at each stage:
@@ -223,6 +216,32 @@ An agent that fetches live prices for finalized trip itineraries so the group ca
   - `estimated_cost` on daily itinerary items
   - `price_last_updated` timestamp
   - `price_source` string
+
+---
+
+## Phase 3 Feature: System Monitoring Dashboard
+
+**Do not build in Phase 1 or Phase 2. Document only.**
+
+### Overview
+An ops-level monitoring dashboard for the platform administrator only. Not accessible to registered trip creators.
+
+### Metrics to Track
+- API request counts and latency
+- Active trips and users
+- AI pipeline response times
+- Vote completion rates
+- Error rates
+- Email delivery success rates
+
+### Tech Stack (TBD)
+- Option A: PostgreSQL (existing) + Grafana — simpler, no new infra
+- Option B: Prometheus + Grafana — industry standard, more powerful for time-series
+- Decision deferred to Phase 3
+
+### Access Control
+- Accessible only to the platform admin, NOT to regular registered users
+- Separate from the Trip Creator Dashboard (F8)
 
 ---
 
@@ -355,10 +374,11 @@ Build in this order:
 5. **Email integration** — SendGrid setup, invitation emails
 6. **AI pipeline** — Service layer, HuggingFace integration, prompt versioning, itinerary generation
 7. **Voting system** — Ranked-choice voting logic, voting UI, iteration flow
-8. **Admin dashboard** — Trip management, voting results, AI logs
-9. **Monitoring** — Metrics logging, admin metrics page
-10. **Frontend polish** — Design system (black/cream/orange), Unsplash images, responsive refinement
-11. **Testing** — Full test suite, CI integration
-12. **Deployment** — Railway setup, environment config, live demo
+8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls
+9. **Frontend polish** — Design system (black/cream/orange), Unsplash images, responsive refinement
+10. **Testing** — Full test suite, CI integration
+11. **Deployment** — Railway setup, environment config, live demo
 
 **Phase 2 (later):** Price monitoring agent
+
+**Phase 3 (later):** System monitoring dashboard (Grafana, admin-only)
