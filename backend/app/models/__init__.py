@@ -1,6 +1,5 @@
 from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
-from app.models.metric import Metric
 from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.prompt_template import PromptTemplate
@@ -19,5 +18,4 @@ __all__ = [
     "VoteRound",
     "PromptTemplate",
     "AICallLog",
-    "Metric",
 ]

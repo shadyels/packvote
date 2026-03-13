@@ -31,8 +31,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 ### Infrastructure
 - **Deployment:** Railway (single platform for all services)
 - **CI/CD:** GitHub Actions (on push/PR)
-- **Monitoring Phase 1:** Metrics logged to PostgreSQL + admin dashboard page
-- **Monitoring Phase 2 (future):** Prometheus + Grafana
+- **Monitoring (Phase 3, future):** Grafana dashboard for platform admin only (tech stack TBD)
 
 ---
 
@@ -260,10 +259,10 @@ After saving a preference, check if all participants have now submitted AND `tri
 - Emails contain: invitation/notification text, direct tokenized link, trip ID + PIN
 - Trip page is a persistent in-app page showing current status, votes, itineraries
 
-### Monitoring (Phase 1)
-- All metrics logged to PostgreSQL
-- Admin-only dashboard page (not exposed to users)
-- Metrics: API request counts/latency, active trips/users, AI pipeline response times, vote completion rates, error rates, email delivery success rates
+### AI Call Logging (Phase 1)
+- `ai_call_logs` table records each AI generation: prompt version, model, provider, latency, token counts, response validity
+- This is part of the AI pipeline, not a monitoring dashboard
+- The ops-level metrics *dashboard* is Phase 3 (Grafana, admin-only, separate from Trip Creator Dashboard)
 
 ### Phase 2 Feature: Price Monitoring Agent (DO NOT BUILD YET)
 - Manual "Update Prices" button on finalized trips
