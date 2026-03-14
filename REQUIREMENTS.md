@@ -109,7 +109,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 
 **F6 implementation status:** The iteration *mechanics* are built — `POST /trips/{id}/new-iteration` triggers a new AI generation round and resets voting. What is **not yet built** is the *survey phase*: after a no-majority result, the AI should analyse the previous round and generate targeted follow-up questions before re-generation. This requires a new AI prompt, a survey response data model, a participant survey UI, and the `ITERATING` status (currently unused — new iteration goes `VOTING → GENERATING` directly, skipping `ITERATING`). The `send_new_iteration_notification` email exists but the `survey_questions` param was removed until this is built.
 
-### F7: Trip Page (Participant View)
+### F7: Trip Page (Participant View) ✅
 - Persistent page accessible via link or ID+PIN
 - Shows:
   - Trip status
@@ -372,7 +372,7 @@ Build in this order:
 1. **Project scaffolding** — Monorepo setup, linting, CI/CD pipeline, database connection
 2. **Auth system** — Creator registration/login, JWT, protected routes
 3. **Trip CRUD** — Create trip, generate ID+PIN, store participants
-4. **Participant flow** — Token links, ID+PIN retrieval, preference form
+4. **Participant flow** — Token links, ID+PIN retrieval, preference form ✅
 5. **Email integration** — SendGrid setup, invitation emails
 6. **AI pipeline** — Service layer, HuggingFace integration, prompt versioning, itinerary generation
 7. **Voting system** — Ranked-choice voting logic, voting UI, iteration flow ✅ *(mechanics done; F6 follow-up survey phase deferred)*
