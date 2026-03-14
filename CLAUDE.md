@@ -272,6 +272,37 @@ After saving a preference, check if all participants have now submitted AND `tri
 
 **`new-iteration` triggers generation directly:** Status goes `VOTING` → `GENERATING` (not `VOTING` → `ITERATING` → `GENERATING`). The `ITERATING` status is reserved for future follow-up survey flow (Phase 1 skips surveys).
 
+### F8 Dashboard — Frontend Architecture
+
+**AuthContext pattern:**
+`frontend/src/contexts/AuthContext.tsx` provides shared auth state (user, isLoading, isAuthenticated, login, register, logout) to the whole app. `AuthProvider` wraps the app in `main.tsx`. `useAuth` in `hooks/useAuth.ts` re-exports from the context. Never go back to the standalone-hook pattern — that caused multiple `auth.me()` calls.
+
+**ProtectedRoute:**
+`frontend/src/components/ProtectedRoute.tsx` guards authenticated routes. Shows skeletons while loading, redirects to `/login` if unauthenticated, renders `<Outlet />` otherwise. Used in `App.tsx` for `/dashboard` and `/dashboard/trip/:tripId`.
+
+**Routing layout pattern:**
+`LayoutWrapper` in `App.tsx` wraps all non-login routes with the Layout nav via `<Outlet />`. Login renders its own full-screen layout outside this wrapper.
+
+**LoginPage** is built as part of F8 (it was a stub before).
+
+**useTripDetail hook:**
+`frontend/src/hooks/useTripDetail.ts` orchestrates parallel fetches (trip, participants, itineraries, voting results, AI logs) using `Promise.allSettled`. Starts a 5s polling interval when `trip.status === "GENERATING"` and clears it on status change or unmount.
+
+**Dashboard sub-resource endpoints (F8 backend additions):**
+- `GET /trips/{trip_id}/participants` — creator-only participant list (includes email field)
+- `GET /trips/{trip_id}/itineraries` — creator-only itinerary list for all iterations
+- `GET /trips/{trip_id}/ai-logs` — creator-only AI call log history per trip
+Schema: `backend/app/schemas/ai_call_log.py` (AICallLogResponse)
+
+**shadcn/ui is @base-ui/react:**
+The shadcn components in this project use `@base-ui/react` primitives (not `@radix-ui`). Key API differences:
+- `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
+- `Select.Root` `onValueChange` callback is `(value: string | null, eventDetails) => void` — guard against null before calling setState
+- `Tabs` uses `data-[state=active]` for active tab styling
+
+**Async event handler lint rule:**
+The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers: `onClick={() => { void handleAsync(); }}` or `onSubmit={(e) => { void handleSubmit(e); }}`.
+
 ### Email
 - SendGrid free tier (100 emails/day)
 - Emails contain: invitation/notification text, direct tokenized link, trip ID + PIN
