@@ -154,7 +154,7 @@ pnpm format                      # Prettier
 ## Design System
 
 - **Primary background:** Offwhite (#F8F8F6) via `--background` CSS var
-- **Card / Surface:** White (#FFFFFF) via `--card` CSS var
+- **Card / Surface:** Warm near-white (#FDFCFA) via `--card` CSS var
 - **Text:** Near-black (#171717) via `--foreground` CSS var
 - **Accent (brand):** Orange (#FF6B2C) — use `brand` in Tailwind classes (`text-brand`, `bg-brand`, `hover:bg-brand-hover`)
 - **Borders:** Warm-neutral (#E5E5E3) via `--border` CSS var
