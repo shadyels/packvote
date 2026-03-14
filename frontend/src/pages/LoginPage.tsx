@@ -58,12 +58,12 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <Card className="bg-card border-border">
+        <Card className="bg-white border-border">
           <CardHeader>
-            <CardTitle className="text-cream">
+            <CardTitle className="text-black">
               {mode === "login" ? "Welcome back" : "Create an account"}
             </CardTitle>
-            <CardDescription className="text-cream/60">
+            <CardDescription className="text-black/60">
               {mode === "login"
                 ? "Sign in to manage your trips"
                 : "Start planning group trips"}
@@ -73,7 +73,7 @@ export default function LoginPage() {
             <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
               {mode === "register" && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="fullName" className="text-cream/80">
+                  <Label htmlFor="fullName" className="text-black/80">
                     Name (optional)
                   </Label>
                   <Input
@@ -82,13 +82,13 @@ export default function LoginPage() {
                     placeholder="Your name"
                     value={fullName}
                     onChange={(e) => { setFullName(e.target.value); }}
-                    className="bg-background border-border text-cream placeholder:text-cream/40"
+                    className="bg-white border-border text-black placeholder:text-black/40"
                   />
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-cream/80">
+                <Label htmlFor="email" className="text-black/80">
                   Email
                 </Label>
                 <Input
@@ -98,12 +98,12 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); }}
-                  className="bg-background border-border text-cream placeholder:text-cream/40"
+                  className="bg-white border-border text-black placeholder:text-black/40"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-cream/80">
+                <Label htmlFor="password" className="text-black/80">
                   Password
                 </Label>
                 <Input
@@ -114,12 +114,12 @@ export default function LoginPage() {
                   minLength={8}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); }}
-                  className="bg-background border-border text-cream placeholder:text-cream/40"
+                  className="bg-white border-border text-black placeholder:text-black/40"
                 />
               </div>
 
               {error && (
-                <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded px-3 py-2">
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
                   {error}
                 </p>
               )}
@@ -139,7 +139,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-4 text-center text-sm text-cream/60">
+            <div className="mt-4 text-center text-sm text-black/60">
               {mode === "login" ? (
                 <>
                   Don&apos;t have an account?{" "}

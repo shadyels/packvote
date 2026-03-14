@@ -153,8 +153,8 @@ pnpm format                      # Prettier
 
 ## Design System
 
-- **Primary background:** Black (#000000)
-- **Secondary background / text:** Cream (#FFF8E7)
+- **Primary background:** Cream (#FFF8E7)
+- **Secondary background / text:** Black (#000000)
 - **Accent:** Orange (#FF6B2C)
 - **Responsive:** Fully mobile-responsive (participants will open email links on phones)
 - **Images:** Unsplash API for high-quality travel photography (can be static/curated)

@@ -24,7 +24,7 @@ export function VotingSection({
 }: VotingSectionProps) {
   if (!votingResults || votingResults.rounds.length === 0) {
     return (
-      <p className="text-sm text-cream/40 py-4 text-center">
+      <p className="text-sm text-black/40 py-4 text-center">
         No votes recorded yet.
       </p>
     );
@@ -33,8 +33,8 @@ export function VotingSection({
   return (
     <div className="space-y-6">
       {votingResults.winner_id && (
-        <div className="rounded-lg border border-green-500/30 bg-green-950/10 p-4">
-          <p className="text-sm text-green-300">
+        <div className="rounded-lg border border-green-500/30 bg-green-50 p-4">
+          <p className="text-sm text-green-700">
             🏆 Winner:{" "}
             <span className="font-semibold">
               {itineraryName(votingResults.winner_id, itineraries)}
@@ -44,24 +44,24 @@ export function VotingSection({
       )}
 
       <div className="space-y-4">
-        <h3 className="text-xs text-cream/40 uppercase tracking-wide">
+        <h3 className="text-xs text-black/40 uppercase tracking-wide">
           Iteration {votingResults.iteration_number} · Rounds
         </h3>
 
         {votingResults.rounds.map((round) => (
           <div key={round.round_number} className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-cream/50">
+              <span className="text-xs text-black/50">
                 Round {round.round_number}
               </span>
               {round.eliminated_option_id && (
-                <Badge className="bg-red-900/40 text-red-300 text-xs hover:bg-red-900/40">
+                <Badge className="bg-red-100 text-red-700 text-xs hover:bg-red-100">
                   Eliminated:{" "}
                   {itineraryName(round.eliminated_option_id, itineraries)}
                 </Badge>
               )}
               {round.winner_id && (
-                <Badge className="bg-green-900/40 text-green-300 text-xs hover:bg-green-900/40">
+                <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">
                   ✓ {itineraryName(round.winner_id, itineraries)}
                 </Badge>
               )}
@@ -70,8 +70,8 @@ export function VotingSection({
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-cream/50">Option</TableHead>
-                  <TableHead className="text-cream/50 text-right">
+                  <TableHead className="text-black/50">Option</TableHead>
+                  <TableHead className="text-black/50 text-right">
                     Votes
                   </TableHead>
                 </TableRow>
@@ -89,11 +89,11 @@ export function VotingSection({
                         className={`border-border ${isEliminated ? "opacity-40" : "hover:bg-muted/20"}`}
                       >
                         <TableCell
-                          className={`text-sm ${isWinner ? "text-green-300 font-medium" : "text-cream"}`}
+                          className={`text-sm ${isWinner ? "text-green-700 font-medium" : "text-black"}`}
                         >
                           {itineraryName(id, itineraries)}
                         </TableCell>
-                        <TableCell className="text-right text-cream/70 text-sm">
+                        <TableCell className="text-right text-black/70 text-sm">
                           {count}
                         </TableCell>
                       </TableRow>
