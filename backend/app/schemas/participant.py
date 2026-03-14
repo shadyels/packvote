@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ParticipantResponse(BaseModel):
     id: int
     trip_id: int
+    email: str
     name: str | None
     preferences_submitted: bool
     created_at: datetime

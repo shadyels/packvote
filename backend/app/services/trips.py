@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.ai_call_log import AICallLog
+from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.trip import Trip
 from app.schemas.trip import TripCreate, TripSummary
@@ -150,3 +152,39 @@ async def get_trip(trip_id: int, user_id: int, db: AsyncSession) -> Trip:
             status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
         )
     return trip
+
+
+async def list_participants_for_trip(
+    trip_id: int, user_id: int, db: AsyncSession
+) -> list[Participant]:
+    await get_trip(trip_id, user_id, db)
+    result = await db.execute(
+        select(Participant)
+        .where(Participant.trip_id == trip_id)
+        .order_by(Participant.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def list_itineraries_for_trip(
+    trip_id: int, user_id: int, db: AsyncSession
+) -> list[Itinerary]:
+    await get_trip(trip_id, user_id, db)
+    result = await db.execute(
+        select(Itinerary)
+        .where(Itinerary.trip_id == trip_id)
+        .order_by(Itinerary.iteration_number, Itinerary.id)
+    )
+    return list(result.scalars().all())
+
+
+async def list_ai_logs_for_trip(
+    trip_id: int, user_id: int, db: AsyncSession
+) -> list[AICallLog]:
+    await get_trip(trip_id, user_id, db)
+    result = await db.execute(
+        select(AICallLog)
+        .where(AICallLog.trip_id == trip_id)
+        .order_by(AICallLog.created_at.desc())
+    )
+    return list(result.scalars().all())
