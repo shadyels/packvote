@@ -94,13 +94,13 @@ export default function TripDetailPage() {
               <TabsList className="bg-muted border border-border mb-6 h-auto flex-wrap gap-0.5">
                 <TabsTrigger
                   value="overview"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
                 >
                   Overview
                 </TabsTrigger>
                 <TabsTrigger
                   value="participants"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
                 >
                   Participants
                   <span className="ml-1.5 text-xs text-black/40">
@@ -109,7 +109,7 @@ export default function TripDetailPage() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="itineraries"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
                 >
                   Itineraries
                   <span className="ml-1.5 text-xs text-black/40">
@@ -118,13 +118,13 @@ export default function TripDetailPage() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="voting"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
                 >
                   Voting
                 </TabsTrigger>
                 <TabsTrigger
                   value="ai-logs"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
                 >
                   AI Logs
                   <span className="ml-1.5 text-xs text-black/40">

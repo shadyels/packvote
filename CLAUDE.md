@@ -153,9 +153,11 @@ pnpm format                      # Prettier
 
 ## Design System
 
-- **Primary background:** Cream (#FFF8E7)
-- **Secondary background / text:** Black (#000000)
-- **Accent:** Orange (#FF6B2C)
+- **Primary background:** Offwhite (#F8F8F6) via `--background` CSS var
+- **Card / Surface:** Warm near-white (#FDFCFA) via `--card` CSS var
+- **Text:** Near-black (#171717) via `--foreground` CSS var
+- **Accent (brand):** Orange (#FF6B2C) — use `brand` in Tailwind classes (`text-brand`, `bg-brand`, `hover:bg-brand-hover`)
+- **Borders:** Warm-neutral (#E5E5E3) via `--border` CSS var
 - **Responsive:** Fully mobile-responsive (participants will open email links on phones)
 - **Images:** Unsplash API for high-quality travel photography (can be static/curated)
 - **Style:** Modern, captivating, user-friendly — travel app aesthetic

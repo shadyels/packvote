@@ -15,7 +15,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-4 py-4">
         <nav className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link to="/" className="text-xl font-bold text-accent">
+          <Link to="/" className="text-xl font-bold text-brand">
             PackVote
           </Link>
           <div className="flex items-center gap-4">
@@ -49,7 +49,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
                 <Link
                   to="/login"
-                  className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
+                  className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
                 >
                   Sign In
                 </Link>

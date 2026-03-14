@@ -6,16 +6,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#FFF8E7",
-        black: "#000000",
-        cream: {
-          DEFAULT: "#FFF8E7",
-          50: "#FFFDF5",
-          100: "#FFF8E7",
-          200: "#FFF0C4",
-          300: "#FFE8A1",
-        },
-        accent: {
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        brand: {
           DEFAULT: "#FF6B2C",
           hover: "#E55A1F",
           light: "#FF8A57",
@@ -23,7 +16,6 @@ const config: Config = {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
-        foreground: "hsl(var(--foreground))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -39,6 +31,13 @@ const config: Config = {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
         },
       },
       fontFamily: {

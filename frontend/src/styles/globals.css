@@ -7,23 +7,23 @@
 
 @layer base {
   :root {
-    --background: 39 100% 95%;
+    --background: 60 7% 97%;
     --foreground: 0 0% 9%;
-    --card: 0 0% 100%;
+    --card: 40 33% 99%;
     --card-foreground: 0 0% 9%;
     --primary: 0 0% 9%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 39 50% 96%;
+    --secondary: 60 4% 95%;
     --secondary-foreground: 0 0% 9%;
-    --muted: 39 40% 94%;
+    --muted: 60 4% 93%;
     --muted-foreground: 0 0% 45%;
-    --border: 39 20% 82%;
-    --input: 39 20% 82%;
-    --ring: 25 100% 57%;
+    --border: 60 3% 89%;
+    --input: 60 3% 89%;
+    --ring: 18 100% 59%;
     --radius: 0.625rem;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
-    --accent: 39 40% 94%;
+    --accent: 60 4% 94%;
     --accent-foreground: 0 0% 9%;
     --destructive: 0 84% 60%;
     --chart-1: oklch(0.809 0.105 251.813);
@@ -31,14 +31,14 @@
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
-    --sidebar: 39 100% 98%;
+    --sidebar: 60 7% 97%;
     --sidebar-foreground: 0 0% 9%;
     --sidebar-primary: 0 0% 9%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 39 40% 94%;
+    --sidebar-accent: 60 4% 94%;
     --sidebar-accent-foreground: 0 0% 9%;
-    --sidebar-border: 39 20% 82%;
-    --sidebar-ring: 25 100% 57%;
+    --sidebar-border: 60 3% 89%;
+    --sidebar-ring: 18 100% 59%;
   }
   .dark {
     --background: oklch(0.145 0 0);
@@ -80,19 +80,10 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", system-ui, sans-serif;
   }
   html {
     @apply font-sans;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-black antialiased;
-    font-family: "Inter", system-ui, sans-serif;
   }
 }
