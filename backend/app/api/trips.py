@@ -12,11 +12,21 @@ from app.core.dependencies import (
 from app.db.session import get_db
 from app.models.trip import Trip
 from app.models.user import User
+from app.schemas.ai_call_log import AICallLogResponse
+from app.schemas.itinerary import ItineraryResponse
+from app.schemas.participant import ParticipantResponse
 from app.schemas.trip import TripCreate, TripResponse, TripSummary
 from app.schemas.vote import PickWinnerRequest
 from app.services.email.sendgrid import EmailService
 from app.services.generation import run_generation
-from app.services.trips import create_trip, get_trip, list_trips_for_user
+from app.services.trips import (
+    create_trip,
+    get_trip,
+    list_ai_logs_for_trip,
+    list_itineraries_for_trip,
+    list_participants_for_trip,
+    list_trips_for_user,
+)
 from app.services.voting.service import pick_winner, trigger_new_iteration
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -103,3 +113,30 @@ async def pick_winner_handler(
 ) -> dict:
     trip = await pick_winner(current_user, trip_id, payload.itinerary_id, db)
     return {"status": "finalized", "winner_itinerary_id": trip.winner_itinerary_id}
+
+
+@router.get("/{trip_id}/participants", response_model=list[ParticipantResponse])
+async def get_trip_participants(
+    trip_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[ParticipantResponse]:
+    return await list_participants_for_trip(trip_id, current_user.id, db)
+
+
+@router.get("/{trip_id}/itineraries", response_model=list[ItineraryResponse])
+async def get_trip_itineraries(
+    trip_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[ItineraryResponse]:
+    return await list_itineraries_for_trip(trip_id, current_user.id, db)
+
+
+@router.get("/{trip_id}/ai-logs", response_model=list[AICallLogResponse])
+async def get_trip_ai_logs(
+    trip_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[AICallLogResponse]:
+    return await list_ai_logs_for_trip(trip_id, current_user.id, db)

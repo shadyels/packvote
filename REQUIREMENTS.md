@@ -376,7 +376,7 @@ Build in this order:
 5. **Email integration** — SendGrid setup, invitation emails
 6. **AI pipeline** — Service layer, HuggingFace integration, prompt versioning, itinerary generation
 7. **Voting system** — Ranked-choice voting logic, voting UI, iteration flow ✅ *(mechanics done; F6 follow-up survey phase deferred)*
-8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls
+8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls ✅
 9. **Frontend polish** — Design system (black/cream/orange), Unsplash images, responsive refinement
 10. **Testing** — Full test suite, CI integration
 11. **Deployment** — Railway setup, environment config, live demo

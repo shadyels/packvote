@@ -18,6 +18,7 @@ export interface Trip {
   status: TripStatus;
   current_iteration: number;
   max_iterations: number;
+  winner_itinerary_id: number | null;
   created_at: string;
 }
 
@@ -43,8 +44,23 @@ export interface TripSummary {
 export interface Participant {
   id: number;
   trip_id: number;
+  email: string;
   name: string | null;
   preferences_submitted: boolean;
+  created_at: string;
+}
+
+export interface AICallLog {
+  id: number;
+  trip_id: number | null;
+  prompt_version_id: number | null;
+  model_used: string;
+  provider: string;
+  latency_ms: number | null;
+  token_count_input: number | null;
+  token_count_output: number | null;
+  response_valid: boolean;
+  error_message: string | null;
   created_at: string;
 }
 

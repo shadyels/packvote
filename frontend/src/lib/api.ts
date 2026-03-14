@@ -1,4 +1,5 @@
 import type {
+  AICallLog,
   Itinerary,
   Participant,
   Preference,
@@ -10,7 +11,7 @@ import type {
   VotingResults,
 } from "@/types";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const BASE_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
 class ApiError extends Error {
   constructor(
@@ -123,24 +124,41 @@ export const participants = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  listByTrip: (tripId: number) =>
+    request<Participant[]>(`/trips/${tripId.toString()}/participants`),
 };
 
 // Votes
 export const votes = {
-  submit: (tripId: number, rankings: number[]) =>
-    request<Vote>(`/votes/trips/${tripId.toString()}/vote`, {
+  submit: (tripId: number, token: string, rankings: number[]) =>
+    request<Vote>(`/votes/trips/${tripId.toString()}/vote/${token}`, {
       method: "POST",
       body: JSON.stringify({ rankings }),
     }),
 
-  getResults: (tripId: number) =>
-    request<VotingResults>(`/votes/trips/${tripId.toString()}/results`),
+  adminVote: (tripId: number, rankings: number[]) =>
+    request<Vote>(`/votes/trips/${tripId.toString()}/admin-vote`, {
+      method: "POST",
+      body: JSON.stringify({ rankings }),
+    }),
+
+  getResults: (tripId: number, iteration?: number) => {
+    const qs = iteration !== undefined ? `?iteration=${iteration.toString()}` : "";
+    return request<VotingResults>(`/votes/trips/${tripId.toString()}/results${qs}`);
+  },
 };
 
-// Itineraries (fetched as part of trip data)
+// Itineraries
 export const itineraries = {
   getByTrip: (tripId: number) =>
     request<Itinerary[]>(`/trips/${tripId.toString()}/itineraries`),
+};
+
+// AI logs (dashboard use)
+export const aiLogs = {
+  getByTrip: (tripId: number) =>
+    request<AICallLog[]>(`/trips/${tripId.toString()}/ai-logs`),
 };
 
 export { ApiError };

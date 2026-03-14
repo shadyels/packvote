@@ -33,5 +33,5 @@ export function useTrip(tripId: number | null): UseTripResult {
       });
   }, [tripId, tick]);
 
-  return { trip, isLoading, error, refetch: () => setTick((t) => t + 1) };
+  return { trip, isLoading, error, refetch: () => { setTick((t) => t + 1); } };
 }
