@@ -24,12 +24,12 @@ const STATUS_LABELS: Record<TripStatus, string> = {
 };
 
 const STATUS_BADGE: Record<TripStatus, string> = {
-  CREATED: "bg-zinc-700 text-zinc-200 hover:bg-zinc-700",
-  COLLECTING_PREFERENCES: "bg-blue-900/60 text-blue-300 hover:bg-blue-900/60",
-  GENERATING: "bg-amber-900/60 text-amber-300 hover:bg-amber-900/60",
+  CREATED: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100",
+  COLLECTING_PREFERENCES: "bg-blue-100 text-blue-700 hover:bg-blue-100",
+  GENERATING: "bg-amber-100 text-amber-700 hover:bg-amber-100",
   VOTING: "bg-accent/20 text-accent hover:bg-accent/20",
-  ITERATING: "bg-purple-900/60 text-purple-300 hover:bg-purple-900/60",
-  FINALIZED: "bg-green-900/60 text-green-300 hover:bg-green-900/60",
+  ITERATING: "bg-purple-100 text-purple-700 hover:bg-purple-100",
+  FINALIZED: "bg-green-100 text-green-700 hover:bg-green-100",
 };
 
 interface TripOverviewSectionProps {
@@ -126,36 +126,36 @@ export function TripOverviewSection({
       {/* Trip metadata */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div>
-          <p className="text-xs text-cream/40 uppercase tracking-wide mb-1">Status</p>
+          <p className="text-xs text-black/40 uppercase tracking-wide mb-1">Status</p>
           <Badge className={STATUS_BADGE[trip.status]}>
             {STATUS_LABELS[trip.status]}
           </Badge>
         </div>
         <div>
-          <p className="text-xs text-cream/40 uppercase tracking-wide mb-1">Trip Code</p>
-          <p className="text-cream font-mono text-sm">{trip.trip_code}</p>
+          <p className="text-xs text-black/40 uppercase tracking-wide mb-1">Trip Code</p>
+          <p className="text-black font-mono text-sm">{trip.trip_code}</p>
         </div>
         <div>
-          <p className="text-xs text-cream/40 uppercase tracking-wide mb-1">PIN</p>
-          <p className="text-cream font-mono text-sm">{trip.pin}</p>
+          <p className="text-xs text-black/40 uppercase tracking-wide mb-1">PIN</p>
+          <p className="text-black font-mono text-sm">{trip.pin}</p>
         </div>
         {trip.destination && (
           <div>
-            <p className="text-xs text-cream/40 uppercase tracking-wide mb-1">Destination</p>
-            <p className="text-cream text-sm">{trip.destination}</p>
+            <p className="text-xs text-black/40 uppercase tracking-wide mb-1">Destination</p>
+            <p className="text-black text-sm">{trip.destination}</p>
           </div>
         )}
         {(trip.proposed_start_date || trip.proposed_end_date) && (
           <div>
-            <p className="text-xs text-cream/40 uppercase tracking-wide mb-1">Dates</p>
-            <p className="text-cream text-sm">
+            <p className="text-xs text-black/40 uppercase tracking-wide mb-1">Dates</p>
+            <p className="text-black text-sm">
               {trip.proposed_start_date ?? "?"} → {trip.proposed_end_date ?? "?"}
             </p>
           </div>
         )}
         <div>
-          <p className="text-xs text-cream/40 uppercase tracking-wide mb-1">Iteration</p>
-          <p className="text-cream text-sm">
+          <p className="text-xs text-black/40 uppercase tracking-wide mb-1">Iteration</p>
+          <p className="text-black text-sm">
             {trip.current_iteration} / {trip.max_iterations}
           </p>
         </div>
@@ -167,7 +167,7 @@ export function TripOverviewSection({
       {(trip.status === "CREATED" ||
         trip.status === "COLLECTING_PREFERENCES") && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-cream/70">Actions</h3>
+          <h3 className="text-sm font-medium text-black/70">Actions</h3>
           <Button
             onClick={() => { void handleGenerate(); }}
             disabled={isActing}
@@ -180,18 +180,18 @@ export function TripOverviewSection({
             )}
             Generate Itineraries
           </Button>
-          <p className="text-xs text-cream/40">
+          <p className="text-xs text-black/40">
             You can trigger generation before all participants have responded.
           </p>
         </div>
       )}
 
       {trip.status === "GENERATING" && (
-        <div className="flex items-center gap-3 text-amber-300">
+        <div className="flex items-center gap-3 text-amber-700">
           <Loader2 className="w-5 h-5 animate-spin" />
           <div>
             <p className="text-sm font-medium">Generating itineraries…</p>
-            <p className="text-xs text-amber-300/60">
+            <p className="text-xs text-amber-700/60">
               This page will update automatically when ready.
             </p>
           </div>
@@ -200,11 +200,11 @@ export function TripOverviewSection({
 
       {(trip.status === "VOTING" || trip.status === "ITERATING") && (
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-cream/70">Actions</h3>
+          <h3 className="text-sm font-medium text-black/70">Actions</h3>
 
           {/* Pick winner */}
           <div className="space-y-2">
-            <p className="text-xs text-cream/50">Manually pick winner</p>
+            <p className="text-xs text-black/50">Manually pick winner</p>
             <div className="flex gap-2">
               <Select
                 value={pickWinnerId}
@@ -212,10 +212,10 @@ export function TripOverviewSection({
                   if (v !== null) setPickWinnerId(v);
                 }}
               >
-                <SelectTrigger className="bg-background border-border text-cream w-64">
+                <SelectTrigger className="bg-white border-border text-black w-64">
                   <SelectValue placeholder="Choose itinerary…" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-border text-cream">
+                <SelectContent className="bg-white border-border text-black">
                   {currentIterationItineraries.map((it) => (
                     <SelectItem key={it.id} value={String(it.id)}>
                       {it.destination_name}
@@ -241,12 +241,12 @@ export function TripOverviewSection({
                 variant="ghost"
                 onClick={() => { void handleNewIteration(); }}
                 disabled={isActing}
-                className="text-cream/60 hover:text-cream border border-border hover:bg-muted/20"
+                className="text-black/60 hover:text-black border border-border hover:bg-muted/20"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Start new iteration
               </Button>
-              <p className="text-xs text-cream/30">
+              <p className="text-xs text-black/30">
                 Iteration {trip.current_iteration + 1} of {trip.max_iterations} max
               </p>
             </div>
@@ -255,9 +255,9 @@ export function TripOverviewSection({
       )}
 
       {trip.status === "FINALIZED" && (
-        <div className="rounded-lg border border-green-500/30 bg-green-950/10 p-4">
-          <p className="text-green-300 font-medium">🏆 Trip finalized</p>
-          <p className="text-xs text-green-300/60 mt-1">
+        <div className="rounded-lg border border-green-500/30 bg-green-50 p-4">
+          <p className="text-green-700 font-medium">🏆 Trip finalized</p>
+          <p className="text-xs text-green-700/60 mt-1">
             The group has a winner. Check the Itineraries tab to view it.
           </p>
         </div>
@@ -268,8 +268,8 @@ export function TripOverviewSection({
         <>
           <Separator className="bg-border" />
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-cream/70">Your vote</h3>
-            <p className="text-xs text-cream/40">
+            <h3 className="text-sm font-medium text-black/70">Your vote</h3>
+            <p className="text-xs text-black/40">
               Rank each option (1 = most preferred).
             </p>
             <div className="space-y-2">
@@ -282,10 +282,10 @@ export function TripOverviewSection({
                         setAdminRankings((prev) => ({ ...prev, [it.id]: v }));
                     }}
                   >
-                    <SelectTrigger className="bg-background border-border text-cream w-16 shrink-0">
+                    <SelectTrigger className="bg-white border-border text-black w-16 shrink-0">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
-                    <SelectContent className="bg-card border-border text-cream">
+                    <SelectContent className="bg-white border-border text-black">
                       {currentIterationItineraries.map((_, i) => (
                         <SelectItem key={i + 1} value={String(i + 1)}>
                           {i + 1}
@@ -293,7 +293,7 @@ export function TripOverviewSection({
                       ))}
                     </SelectContent>
                   </Select>
-                  <span className="text-sm text-cream">{it.destination_name}</span>
+                  <span className="text-sm text-black">{it.destination_name}</span>
                 </div>
               ))}
             </div>

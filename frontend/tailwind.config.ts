@@ -6,7 +6,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#000000",
+        background: "#FFF8E7",
+        black: "#000000",
         cream: {
           DEFAULT: "#FFF8E7",
           50: "#FFFDF5",

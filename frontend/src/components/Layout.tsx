@@ -21,12 +21,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
               <>
-                <span className="hidden text-sm text-cream/60 sm:block">
+                <span className="hidden text-sm text-black/60 sm:block">
                   {user?.email}
                 </span>
                 <Link
                   to="/dashboard"
-                  className="text-sm text-cream/70 hover:text-cream"
+                  className="text-sm text-black/70 hover:text-black"
                 >
                   Dashboard
                 </Link>
@@ -34,7 +34,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   variant="ghost"
                   size="sm"
                   onClick={handleLogout}
-                  className="text-cream/70 hover:text-cream hover:bg-transparent"
+                  className="text-black/70 hover:text-black hover:bg-transparent"
                 >
                   Logout
                 </Button>
@@ -43,7 +43,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <>
                 <Link
                   to="/join"
-                  className="text-sm text-cream/70 hover:text-cream"
+                  className="text-sm text-black/70 hover:text-black"
                 >
                   Join a Trip
                 </Link>

@@ -14,15 +14,15 @@ const STATUS_CONFIG: Record<
 > = {
   CREATED: {
     label: "Created",
-    className: "bg-zinc-700 text-zinc-200 hover:bg-zinc-700",
+    className: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100",
   },
   COLLECTING_PREFERENCES: {
     label: "Collecting",
-    className: "bg-blue-900/60 text-blue-300 hover:bg-blue-900/60",
+    className: "bg-blue-100 text-blue-700 hover:bg-blue-100",
   },
   GENERATING: {
     label: "Generating",
-    className: "bg-amber-900/60 text-amber-300 hover:bg-amber-900/60",
+    className: "bg-amber-100 text-amber-700 hover:bg-amber-100",
   },
   VOTING: {
     label: "Voting",
@@ -30,11 +30,11 @@ const STATUS_CONFIG: Record<
   },
   ITERATING: {
     label: "Iterating",
-    className: "bg-purple-900/60 text-purple-300 hover:bg-purple-900/60",
+    className: "bg-purple-100 text-purple-700 hover:bg-purple-100",
   },
   FINALIZED: {
     label: "Finalized",
-    className: "bg-green-900/60 text-green-300 hover:bg-green-900/60",
+    className: "bg-green-100 text-green-700 hover:bg-green-100",
   },
 };
 
@@ -54,26 +54,26 @@ export default function TripCard({ trip }: TripCardProps) {
 
   return (
     <Card
-      className="bg-card border-border cursor-pointer transition-colors hover:border-accent/50"
+      className="bg-white border-border cursor-pointer transition-colors hover:border-accent/50"
       onClick={() => { navigate(`/dashboard/trip/${trip.id.toString()}`); }}
     >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-cream text-base leading-tight">
+          <CardTitle className="text-black text-base leading-tight">
             {trip.title}
           </CardTitle>
           <Badge className={`shrink-0 text-xs ${statusCfg.className}`}>
             {statusCfg.label}
           </Badge>
         </div>
-        <p className="text-sm text-cream/50 mt-0.5">
+        <p className="text-sm text-black/50 mt-0.5">
           {trip.destination ?? "Destination: surprise me"}
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Preferences progress */}
         <div>
-          <div className="flex justify-between text-xs text-cream/50 mb-1">
+          <div className="flex justify-between text-xs text-black/50 mb-1">
             <span>Preferences</span>
             <span>
               {trip.preferences_submitted_count}/{trip.participant_count}
@@ -87,7 +87,7 @@ export default function TripCard({ trip }: TripCardProps) {
           </div>
         </div>
 
-        <p className="text-xs text-cream/40">
+        <p className="text-xs text-black/40">
           {new Date(trip.created_at).toLocaleDateString(undefined, {
             year: "numeric",
             month: "short",

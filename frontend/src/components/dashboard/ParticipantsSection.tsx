@@ -19,10 +19,10 @@ export function ParticipantsSection({ participants }: ParticipantsSectionProps) 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-cream/70">
+        <h3 className="text-sm font-medium text-black/70">
           {submitted} of {participants.length} preferences submitted
         </h3>
-        <span className="text-xs text-cream/40">
+        <span className="text-xs text-black/40">
           {participants.length} participant{participants.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -41,36 +41,36 @@ export function ParticipantsSection({ participants }: ParticipantsSectionProps) 
       </div>
 
       {participants.length === 0 ? (
-        <p className="text-sm text-cream/40 py-4 text-center">
+        <p className="text-sm text-black/40 py-4 text-center">
           No participants yet.
         </p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-cream/50">Email</TableHead>
-              <TableHead className="text-cream/50">Name</TableHead>
-              <TableHead className="text-cream/50 text-center">
+              <TableHead className="text-black/50">Email</TableHead>
+              <TableHead className="text-black/50">Name</TableHead>
+              <TableHead className="text-black/50 text-center">
                 Preferences
               </TableHead>
-              <TableHead className="text-cream/50">Joined</TableHead>
+              <TableHead className="text-black/50">Joined</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {participants.map((p) => (
               <TableRow key={p.id} className="border-border hover:bg-muted/20">
-                <TableCell className="text-cream text-sm">{p.email}</TableCell>
-                <TableCell className="text-cream/60 text-sm">
-                  {p.name ?? <span className="text-cream/30 italic">—</span>}
+                <TableCell className="text-black text-sm">{p.email}</TableCell>
+                <TableCell className="text-black/60 text-sm">
+                  {p.name ?? <span className="text-black/30 italic">—</span>}
                 </TableCell>
                 <TableCell className="text-center">
                   {p.preferences_submitted ? (
-                    <CheckCircle className="w-4 h-4 text-green-400 mx-auto" />
+                    <CheckCircle className="w-4 h-4 text-green-600 mx-auto" />
                   ) : (
-                    <XCircle className="w-4 h-4 text-cream/20 mx-auto" />
+                    <XCircle className="w-4 h-4 text-black/20 mx-auto" />
                   )}
                 </TableCell>
-                <TableCell className="text-cream/40 text-xs">
+                <TableCell className="text-black/40 text-xs">
                   {new Date(p.created_at).toLocaleDateString()}
                 </TableCell>
               </TableRow>

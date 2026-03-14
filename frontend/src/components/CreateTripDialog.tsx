@@ -110,15 +110,15 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
         }
       />
 
-      <DialogContent className="bg-card border-border text-cream max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-white border-border text-black max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-cream">Create a new trip</DialogTitle>
+          <DialogTitle className="text-black">Create a new trip</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4 mt-2">
           {/* Title */}
           <div className="space-y-1.5">
-            <Label htmlFor="ct-title" className="text-cream/80">
+            <Label htmlFor="ct-title" className="text-black/80">
               Trip title <span className="text-accent">*</span>
             </Label>
             <Input
@@ -127,29 +127,29 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               placeholder="Summer adventure 2025"
               value={title}
               onChange={(e) => { setTitle(e.target.value); }}
-              className="bg-background border-border text-cream placeholder:text-cream/30"
+              className="bg-white border-border text-black placeholder:text-black/30"
             />
           </div>
 
           {/* Destination */}
           <div className="space-y-1.5">
-            <Label htmlFor="ct-dest" className="text-cream/80">
+            <Label htmlFor="ct-dest" className="text-black/80">
               Destination{" "}
-              <span className="text-cream/40 text-xs">(leave blank for AI surprise)</span>
+              <span className="text-black/40 text-xs">(leave blank for AI surprise)</span>
             </Label>
             <Input
               id="ct-dest"
               placeholder="e.g. Barcelona, Spain"
               value={destination}
               onChange={(e) => { setDestination(e.target.value); }}
-              className="bg-background border-border text-cream placeholder:text-cream/30"
+              className="bg-white border-border text-black placeholder:text-black/30"
             />
           </div>
 
           {/* Dates */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="ct-start" className="text-cream/80">
+              <Label htmlFor="ct-start" className="text-black/80">
                 Start date
               </Label>
               <Input
@@ -157,11 +157,11 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                 type="date"
                 value={startDate}
                 onChange={(e) => { setStartDate(e.target.value); }}
-                className="bg-background border-border text-cream"
+                className="bg-white border-border text-black"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ct-end" className="text-cream/80">
+              <Label htmlFor="ct-end" className="text-black/80">
                 End date
               </Label>
               <Input
@@ -169,19 +169,19 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                 type="date"
                 value={endDate}
                 onChange={(e) => { setEndDate(e.target.value); }}
-                className="bg-background border-border text-cream"
+                className="bg-white border-border text-black"
               />
             </div>
           </div>
 
           {/* Num options */}
           <div className="space-y-1.5">
-            <Label className="text-cream/80">Itinerary options to generate</Label>
+            <Label className="text-black/80">Itinerary options to generate</Label>
             <Select value={numOptions} onValueChange={(v) => { if (v !== null) setNumOptions(v); }}>
-              <SelectTrigger className="bg-background border-border text-cream w-32">
+              <SelectTrigger className="bg-white border-border text-black w-32">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-card border-border text-cream">
+              <SelectContent className="bg-white border-border text-black">
                 {[2, 3, 4, 5].map((n) => (
                   <SelectItem key={n} value={String(n)}>
                     {n}
@@ -195,7 +195,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
 
           {/* Participant emails */}
           <div className="space-y-2">
-            <Label className="text-cream/80">
+            <Label className="text-black/80">
               Participant emails <span className="text-accent">*</span>
             </Label>
             {emails.map((email, idx) => (
@@ -205,7 +205,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                   placeholder={`participant${(idx + 1).toString()}@example.com`}
                   value={email}
                   onChange={(e) => { updateEmail(idx, e.target.value); }}
-                  className="bg-background border-border text-cream placeholder:text-cream/30"
+                  className="bg-white border-border text-black placeholder:text-black/30"
                 />
                 {emails.length > 1 && (
                   <Button
@@ -213,7 +213,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => { removeEmail(idx); }}
-                    className="shrink-0 text-cream/40 hover:text-red-400 hover:bg-transparent"
+                    className="shrink-0 text-black/40 hover:text-red-600 hover:bg-transparent"
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -234,8 +234,8 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="ct-notes" className="text-cream/80">
-              Notes <span className="text-cream/40 text-xs">(optional)</span>
+            <Label htmlFor="ct-notes" className="text-black/80">
+              Notes <span className="text-black/40 text-xs">(optional)</span>
             </Label>
             <Textarea
               id="ct-notes"
@@ -243,12 +243,12 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               value={notes}
               onChange={(e) => { setNotes(e.target.value); }}
               rows={3}
-              className="bg-background border-border text-cream placeholder:text-cream/30 resize-none"
+              className="bg-white border-border text-black placeholder:text-black/30 resize-none"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded px-3 py-2">
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
               {error}
             </p>
           )}
@@ -258,7 +258,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               type="button"
               variant="ghost"
               onClick={() => { setOpen(false); }}
-              className="text-cream/60 hover:text-cream hover:bg-transparent"
+              className="text-black/60 hover:text-black hover:bg-transparent"
             >
               Cancel
             </Button>

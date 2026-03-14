@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 function TripCardSkeleton() {
   return (
-    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+    <div className="rounded-lg border border-border bg-white p-4 space-y-3">
       <Skeleton className="h-5 w-3/4" />
       <Skeleton className="h-4 w-1/2" />
       <Skeleton className="h-1.5 w-full rounded-full" />
@@ -25,8 +25,8 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-cream">My Trips</h1>
-            <p className="text-cream/50 mt-1 text-sm">
+            <h1 className="text-3xl font-bold text-black">My Trips</h1>
+            <p className="text-black/50 mt-1 text-sm">
               Plan and manage your group adventures
             </p>
           </div>
@@ -35,13 +35,13 @@ export default function DashboardPage() {
 
         {/* Error state */}
         {error && (
-          <div className="rounded-lg border border-red-900 bg-red-950/30 p-4 mb-6 flex items-center justify-between">
-            <p className="text-sm text-red-400">{error}</p>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-6 flex items-center justify-between">
+            <p className="text-sm text-red-600">{error}</p>
             <Button
               variant="ghost"
               size="sm"
               onClick={refetch}
-              className="text-red-400 hover:text-red-300 hover:bg-transparent"
+              className="text-red-600 hover:text-red-700 hover:bg-transparent"
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Retry
@@ -62,8 +62,8 @@ export default function DashboardPage() {
         {!isLoading && !error && trips.length === 0 && (
           <div className="text-center py-24 space-y-4">
             <p className="text-5xl">🗺️</p>
-            <h2 className="text-xl font-semibold text-cream">No trips yet</h2>
-            <p className="text-cream/50 text-sm max-w-xs mx-auto">
+            <h2 className="text-xl font-semibold text-black">No trips yet</h2>
+            <p className="text-black/50 text-sm max-w-xs mx-auto">
               Create your first trip to start collecting preferences and
               planning with your group.
             </p>

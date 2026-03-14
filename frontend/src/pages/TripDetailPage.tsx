@@ -42,12 +42,12 @@ export default function TripDetailPage() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
-      <Toaster theme="dark" />
+      <Toaster theme="light" />
       <div className="max-w-6xl mx-auto">
         {/* Back link */}
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-cream/50 hover:text-cream mb-6"
+          className="inline-flex items-center gap-1.5 text-sm text-black/50 hover:text-black mb-6"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to dashboard
@@ -55,13 +55,13 @@ export default function TripDetailPage() {
 
         {/* Error */}
         {error && (
-          <div className="rounded-lg border border-red-900 bg-red-950/30 p-4 mb-6 flex items-center justify-between">
-            <p className="text-sm text-red-400">{error}</p>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-6 flex items-center justify-between">
+            <p className="text-sm text-red-600">{error}</p>
             <Button
               variant="ghost"
               size="sm"
               onClick={refetch}
-              className="text-red-400 hover:text-red-300 hover:bg-transparent"
+              className="text-red-600 hover:text-red-700 hover:bg-transparent"
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Retry
@@ -75,8 +75,8 @@ export default function TripDetailPage() {
           <>
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h1 className="text-3xl font-bold text-cream">{trip.title}</h1>
-                <p className="text-cream/50 text-sm mt-1">
+                <h1 className="text-3xl font-bold text-black">{trip.title}</h1>
+                <p className="text-black/50 text-sm mt-1">
                   {trip.destination ?? "Destination: surprise me"}
                 </p>
               </div>
@@ -84,7 +84,7 @@ export default function TripDetailPage() {
                 variant="ghost"
                 size="sm"
                 onClick={refetch}
-                className="text-cream/40 hover:text-cream hover:bg-transparent"
+                className="text-black/40 hover:text-black hover:bg-transparent"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </Button>
@@ -94,40 +94,40 @@ export default function TripDetailPage() {
               <TabsList className="bg-muted border border-border mb-6 h-auto flex-wrap gap-0.5">
                 <TabsTrigger
                   value="overview"
-                  className="text-cream/60 data-[state=active]:text-cream data-[state=active]:bg-card"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
                 >
                   Overview
                 </TabsTrigger>
                 <TabsTrigger
                   value="participants"
-                  className="text-cream/60 data-[state=active]:text-cream data-[state=active]:bg-card"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
                 >
                   Participants
-                  <span className="ml-1.5 text-xs text-cream/40">
+                  <span className="ml-1.5 text-xs text-black/40">
                     ({participants.length})
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="itineraries"
-                  className="text-cream/60 data-[state=active]:text-cream data-[state=active]:bg-card"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
                 >
                   Itineraries
-                  <span className="ml-1.5 text-xs text-cream/40">
+                  <span className="ml-1.5 text-xs text-black/40">
                     ({itineraries.length})
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="voting"
-                  className="text-cream/60 data-[state=active]:text-cream data-[state=active]:bg-card"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
                 >
                   Voting
                 </TabsTrigger>
                 <TabsTrigger
                   value="ai-logs"
-                  className="text-cream/60 data-[state=active]:text-cream data-[state=active]:bg-card"
+                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-white"
                 >
                   AI Logs
-                  <span className="ml-1.5 text-xs text-cream/40">
+                  <span className="ml-1.5 text-xs text-black/40">
                     ({aiLogs.length})
                   </span>
                 </TabsTrigger>

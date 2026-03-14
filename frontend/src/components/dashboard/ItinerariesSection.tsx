@@ -40,20 +40,20 @@ function ItineraryCard({
 
   return (
     <Card
-      className={`border ${isWinner ? "border-green-500/50 bg-green-950/10" : "border-border bg-card"}`}
+      className={`border ${isWinner ? "border-green-500/50 bg-green-50" : "border-border bg-white"}`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-cream text-base flex items-center gap-2">
+            <CardTitle className="text-black text-base flex items-center gap-2">
               {itinerary.destination_name}
               {isWinner && (
-                <Badge className="bg-green-900/60 text-green-300 text-xs hover:bg-green-900/60">
+                <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">
                   Winner
                 </Badge>
               )}
             </CardTitle>
-            <p className="text-xs text-cream/40 mt-0.5">
+            <p className="text-xs text-black/40 mt-0.5">
               Iteration {itinerary.iteration_number}
             </p>
           </div>
@@ -63,13 +63,13 @@ function ItineraryCard({
               {itinerary.total_estimated_budget.toLocaleString()}
             </p>
             {voteCount !== undefined && (
-              <p className="text-xs text-cream/50 mt-0.5">
+              <p className="text-xs text-black/50 mt-0.5">
                 {voteCount} vote{voteCount !== 1 ? "s" : ""}
               </p>
             )}
           </div>
         </div>
-        <p className="text-sm text-cream/60 leading-relaxed">
+        <p className="text-sm text-black/60 leading-relaxed">
           {itinerary.destination_description}
         </p>
       </CardHeader>
@@ -77,10 +77,10 @@ function ItineraryCard({
       <CardContent className="space-y-3">
         {/* Match reasoning */}
         <div>
-          <p className="text-xs text-cream/40 uppercase tracking-wide mb-1">
+          <p className="text-xs text-black/40 uppercase tracking-wide mb-1">
             Why this fits the group
           </p>
-          <p className="text-sm text-cream/70">{itinerary.match_reasoning}</p>
+          <p className="text-sm text-black/70">{itinerary.match_reasoning}</p>
         </div>
 
         {/* Highlights */}
@@ -98,7 +98,7 @@ function ItineraryCard({
         )}
 
         {/* AI metadata */}
-        <p className="text-xs text-cream/30">
+        <p className="text-xs text-black/30">
           {itinerary.model_used && itinerary.model_used}
           {itinerary.provider && ` · ${itinerary.provider}`}
         </p>
@@ -111,7 +111,7 @@ function ItineraryCard({
               variant="ghost"
               size="sm"
               onClick={() => { setExpanded((e) => !e); }}
-              className="text-cream/50 hover:text-cream hover:bg-transparent px-0 h-auto"
+              className="text-black/50 hover:text-black hover:bg-transparent px-0 h-auto"
             >
               {expanded ? (
                 <>
@@ -129,21 +129,21 @@ function ItineraryCard({
               <div className="space-y-4 pt-1">
                 {days.map((day) => (
                   <div key={day.day_number}>
-                    <p className="text-sm font-medium text-cream mb-1.5">
+                    <p className="text-sm font-medium text-black mb-1.5">
                       Day {day.day_number}: {day.title}
                     </p>
                     <div className="space-y-1.5 pl-3 border-l border-border">
                       {day.activities.map((act, i) => (
                         <div key={i}>
-                          <p className="text-sm text-cream/80">
+                          <p className="text-sm text-black/80">
                             {act.time && (
-                              <span className="text-cream/40 mr-1.5">
+                              <span className="text-black/40 mr-1.5">
                                 {act.time}
                               </span>
                             )}
                             {act.title}
                           </p>
-                          <p className="text-xs text-cream/50">
+                          <p className="text-xs text-black/50">
                             {act.description}
                           </p>
                         </div>
@@ -167,7 +167,7 @@ export function ItinerariesSection({
 }: ItinerariesSectionProps) {
   if (itineraries.length === 0) {
     return (
-      <p className="text-sm text-cream/40 py-4 text-center">
+      <p className="text-sm text-black/40 py-4 text-center">
         No itineraries generated yet.
       </p>
     );
@@ -198,7 +198,7 @@ export function ItinerariesSection({
         .sort(([a], [b]) => parseInt(b, 10) - parseInt(a, 10))
         .map(([iter, items]) => (
           <div key={iter}>
-            <h3 className="text-xs text-cream/40 uppercase tracking-wide mb-3">
+            <h3 className="text-xs text-black/40 uppercase tracking-wide mb-3">
               Iteration {iter}
             </h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
