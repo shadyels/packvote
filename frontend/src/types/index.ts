@@ -18,6 +18,7 @@ export interface Trip {
   status: TripStatus;
   current_iteration: number;
   max_iterations: number;
+  winner_itinerary_id: number | null;
   created_at: string;
 }
 
