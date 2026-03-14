@@ -99,7 +99,7 @@ function ItineraryCard({
 
         {/* AI metadata */}
         <p className="text-xs text-cream/30">
-          {itinerary.model_used && `${itinerary.model_used}`}
+          {itinerary.model_used && itinerary.model_used}
           {itinerary.provider && ` · ${itinerary.provider}`}
         </p>
 
@@ -110,7 +110,7 @@ function ItineraryCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setExpanded((e) => !e)}
+              onClick={() => { setExpanded((e) => !e); }}
               className="text-cream/50 hover:text-cream hover:bg-transparent px-0 h-auto"
             >
               {expanded ? (
@@ -185,7 +185,7 @@ export function ItinerariesSection({
   // Group by iteration
   const byIteration = itineraries.reduce<Record<number, Itinerary[]>>(
     (acc, it) => {
-      if (!acc[it.iteration_number]) acc[it.iteration_number] = [];
+      acc[it.iteration_number] = acc[it.iteration_number] ?? [];
       acc[it.iteration_number].push(it);
       return acc;
     },

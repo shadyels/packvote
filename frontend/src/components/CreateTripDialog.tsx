@@ -50,13 +50,13 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
     setError(null);
   };
 
-  const addEmail = () => setEmails((prev) => [...prev, ""]);
+  const addEmail = () => { setEmails((prev) => [...prev, ""]); };
 
   const removeEmail = (idx: number) =>
-    setEmails((prev) => prev.filter((_, i) => i !== idx));
+    { setEmails((prev) => prev.filter((_, i) => i !== idx)); };
 
   const updateEmail = (idx: number, val: string) =>
-    setEmails((prev) => prev.map((e, i) => (i === idx ? val : e)));
+    { setEmails((prev) => prev.map((e, i) => (i === idx ? val : e))); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +115,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
           <DialogTitle className="text-cream">Create a new trip</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+        <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4 mt-2">
           {/* Title */}
           <div className="space-y-1.5">
             <Label htmlFor="ct-title" className="text-cream/80">
@@ -126,7 +126,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               required
               placeholder="Summer adventure 2025"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => { setTitle(e.target.value); }}
               className="bg-background border-border text-cream placeholder:text-cream/30"
             />
           </div>
@@ -141,7 +141,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               id="ct-dest"
               placeholder="e.g. Barcelona, Spain"
               value={destination}
-              onChange={(e) => setDestination(e.target.value)}
+              onChange={(e) => { setDestination(e.target.value); }}
               className="bg-background border-border text-cream placeholder:text-cream/30"
             />
           </div>
@@ -156,7 +156,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                 id="ct-start"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => { setStartDate(e.target.value); }}
                 className="bg-background border-border text-cream"
               />
             </div>
@@ -168,7 +168,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                 id="ct-end"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => { setEndDate(e.target.value); }}
                 className="bg-background border-border text-cream"
               />
             </div>
@@ -204,7 +204,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                   type="email"
                   placeholder={`participant${(idx + 1).toString()}@example.com`}
                   value={email}
-                  onChange={(e) => updateEmail(idx, e.target.value)}
+                  onChange={(e) => { updateEmail(idx, e.target.value); }}
                   className="bg-background border-border text-cream placeholder:text-cream/30"
                 />
                 {emails.length > 1 && (
@@ -212,7 +212,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={() => removeEmail(idx)}
+                    onClick={() => { removeEmail(idx); }}
                     className="shrink-0 text-cream/40 hover:text-red-400 hover:bg-transparent"
                   >
                     <X className="w-4 h-4" />
@@ -241,7 +241,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               id="ct-notes"
               placeholder="Any special requirements or context for the group…"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => { setNotes(e.target.value); }}
               rows={3}
               className="bg-background border-border text-cream placeholder:text-cream/30 resize-none"
             />
@@ -257,7 +257,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setOpen(false)}
+              onClick={() => { setOpen(false); }}
               className="text-cream/60 hover:text-cream hover:bg-transparent"
             >
               Cancel

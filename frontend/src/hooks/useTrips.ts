@@ -15,7 +15,7 @@ export function useTrips(): UseTripsResult {
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  const refetch = useCallback(() => setTick((t) => t + 1), []);
+  const refetch = useCallback(() => { setTick((t) => t + 1); }, []);
 
   useEffect(() => {
     let cancelled = false;

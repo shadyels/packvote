@@ -70,7 +70,7 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
               {mode === "register" && (
                 <div className="space-y-1.5">
                   <Label htmlFor="fullName" className="text-cream/80">
@@ -81,7 +81,7 @@ export default function LoginPage() {
                     type="text"
                     placeholder="Your name"
                     value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    onChange={(e) => { setFullName(e.target.value); }}
                     className="bg-background border-border text-cream placeholder:text-cream/40"
                   />
                 </div>
@@ -97,7 +97,7 @@ export default function LoginPage() {
                   placeholder="you@example.com"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); }}
                   className="bg-background border-border text-cream placeholder:text-cream/40"
                 />
               </div>
@@ -113,7 +113,7 @@ export default function LoginPage() {
                   required
                   minLength={8}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); }}
                   className="bg-background border-border text-cream placeholder:text-cream/40"
                 />
               </div>

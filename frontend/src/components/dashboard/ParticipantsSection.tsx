@@ -34,7 +34,7 @@ export function ParticipantsSection({ participants }: ParticipantsSectionProps) 
           style={{
             width:
               participants.length > 0
-                ? `${Math.round((submitted / participants.length) * 100)}%`
+                ? `${Math.round((submitted / participants.length) * 100).toString()}%`
                 : "0%",
           }}
         />

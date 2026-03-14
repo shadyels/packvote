@@ -76,7 +76,7 @@ export function useTripDetail(tripId: number): UseTripDetailResult {
   const [tick, setTick] = useState(0);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refetch = useCallback(() => setTick((t) => t + 1), []);
+  const refetch = useCallback(() => { setTick((t) => t + 1); }, []);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current !== null) {

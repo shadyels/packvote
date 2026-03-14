@@ -169,7 +169,7 @@ export function TripOverviewSection({
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-cream/70">Actions</h3>
           <Button
-            onClick={handleGenerate}
+            onClick={() => { void handleGenerate(); }}
             disabled={isActing}
             className="bg-accent hover:bg-accent-hover text-white"
           >
@@ -224,7 +224,7 @@ export function TripOverviewSection({
                 </SelectContent>
               </Select>
               <Button
-                onClick={handlePickWinner}
+                onClick={() => { void handlePickWinner(); }}
                 disabled={!pickWinnerId || isActing}
                 className="bg-green-700 hover:bg-green-600 text-white"
               >
@@ -239,7 +239,7 @@ export function TripOverviewSection({
             <div className="space-y-1">
               <Button
                 variant="ghost"
-                onClick={handleNewIteration}
+                onClick={() => { void handleNewIteration(); }}
                 disabled={isActing}
                 className="text-cream/60 hover:text-cream border border-border hover:bg-muted/20"
               >
@@ -298,7 +298,7 @@ export function TripOverviewSection({
               ))}
             </div>
             <Button
-              onClick={handleAdminVote}
+              onClick={() => { void handleAdminVote(); }}
               disabled={isActing}
               className="bg-accent hover:bg-accent-hover text-white"
             >

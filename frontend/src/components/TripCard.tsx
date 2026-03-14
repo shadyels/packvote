@@ -55,7 +55,7 @@ export default function TripCard({ trip }: TripCardProps) {
   return (
     <Card
       className="bg-card border-border cursor-pointer transition-colors hover:border-accent/50"
-      onClick={() => navigate(`/dashboard/trip/${trip.id.toString()}`)}
+      onClick={() => { navigate(`/dashboard/trip/${trip.id.toString()}`); }}
     >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
@@ -82,7 +82,7 @@ export default function TripCard({ trip }: TripCardProps) {
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-accent transition-all"
-              style={{ width: `${progressPercent}%` }}
+              style={{ width: `${progressPercent.toString()}%` }}
             />
           </div>
         </div>
