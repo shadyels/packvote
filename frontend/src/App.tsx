@@ -1,4 +1,5 @@
-import { Outlet, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { Outlet, Routes, Route, useNavigate, useParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import LandingPage from "@/pages/LandingPage";
@@ -16,6 +17,18 @@ function LayoutWrapper() {
   );
 }
 
+/** Redirect /join/:token → /trip/:token (for invitation email links) */
+function JoinRedirect() {
+  const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (token) {
+      navigate(`/trip/${token}`, { replace: true });
+    }
+  }, [token, navigate]);
+  return null;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -26,7 +39,9 @@ export default function App() {
       <Route element={<LayoutWrapper />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/trip/:token" element={<TripPage />} />
+        <Route path="/trip/:token/vote" element={<TripPage />} />
         <Route path="/join" element={<JoinPage />} />
+        <Route path="/join/:token" element={<JoinRedirect />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>

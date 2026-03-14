@@ -2,6 +2,8 @@ import type {
   AICallLog,
   Itinerary,
   Participant,
+  ParticipantAccessResponse,
+  ParticipantTripView,
   Preference,
   TokenResponse,
   Trip,
@@ -102,11 +104,14 @@ export const trips = {
 export const participants = {
   getByToken: (token: string) => request<Participant>(`/participants/${token}`),
 
-  accessByCode: (trip_code: string, pin: string) =>
-    request<Participant>("/participants/access-by-code", {
+  accessByCode: (trip_code: string, pin: string, email: string) =>
+    request<ParticipantAccessResponse>("/participants/access-by-code", {
       method: "POST",
-      body: JSON.stringify({ trip_code, pin }),
+      body: JSON.stringify({ trip_code, pin, email }),
     }),
+
+  getTripView: (token: string) =>
+    request<ParticipantTripView>(`/participants/${token}/trip-view`),
 
   submitPreferences: (
     token: string,
