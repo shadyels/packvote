@@ -13,9 +13,11 @@ from app.db.session import get_db
 from app.models.trip import Trip
 from app.models.user import User
 from app.schemas.trip import TripCreate, TripResponse, TripSummary
+from app.schemas.vote import PickWinnerRequest
 from app.services.email.sendgrid import EmailService
 from app.services.generation import run_generation
 from app.services.trips import create_trip, get_trip, list_trips_for_user
+from app.services.voting.service import pick_winner, trigger_new_iteration
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -79,13 +81,25 @@ async def trigger_generation(
     return {"status": "accepted", "trip_id": trip_id}
 
 
-@router.post("/{trip_id}/new-iteration")
-async def trigger_new_iteration(trip_id: int) -> dict:
-    # TODO: implement in iteration step
-    raise NotImplementedError
+@router.post("/{trip_id}/new-iteration", status_code=202)
+async def trigger_new_iteration_handler(
+    trip_id: int,
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    session_factory: Annotated[async_sessionmaker, Depends(get_session_factory)],
+) -> dict:
+    return await trigger_new_iteration(
+        current_user, trip_id, db, background_tasks, session_factory
+    )
 
 
 @router.post("/{trip_id}/pick-winner")
-async def pick_winner(trip_id: int, itinerary_id: int) -> dict:
-    # TODO: implement in voting step
-    raise NotImplementedError
+async def pick_winner_handler(
+    trip_id: int,
+    payload: PickWinnerRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    trip = await pick_winner(current_user, trip_id, payload.itinerary_id, db)
+    return {"status": "finalized", "winner_itinerary_id": trip.winner_itinerary_id}

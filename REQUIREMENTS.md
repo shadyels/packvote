@@ -97,15 +97,17 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 - If no clear majority after ranked-choice resolution → system flags for new iteration
 - Admin can also manually trigger a new iteration at any point
 - On new iteration:
-  - AI generates follow-up survey questions (decided by AI based on previous round results and feedback)
-  - Participants receive email with link to follow-up survey
-  - AI generates new itinerary options incorporating new feedback
-  - New ranked-choice vote begins
-- Maximum 10 iterations per trip
+  - AI generates follow-up survey questions (decided by AI based on previous round results and feedback) — **NOT YET BUILT** (see note below)
+  - Participants receive email with link to follow-up survey — **NOT YET BUILT**
+  - AI generates new itinerary options incorporating new feedback ✅
+  - New ranked-choice vote begins ✅
+- Maximum 10 iterations per trip ✅
 - Admin can close voting at any time by:
-  - Manually picking a winner
-  - Accepting the current ranked-choice winner
+  - Manually picking a winner ✅
+  - Accepting the current ranked-choice winner ✅
 - Trip status flow: `CREATED` → `COLLECTING_PREFERENCES` → `GENERATING` → `VOTING` → `ITERATING` → `FINALIZED`
+
+**F6 implementation status:** The iteration *mechanics* are built — `POST /trips/{id}/new-iteration` triggers a new AI generation round and resets voting. What is **not yet built** is the *survey phase*: after a no-majority result, the AI should analyse the previous round and generate targeted follow-up questions before re-generation. This requires a new AI prompt, a survey response data model, a participant survey UI, and the `ITERATING` status (currently unused — new iteration goes `VOTING → GENERATING` directly, skipping `ITERATING`). The `send_new_iteration_notification` email exists but the `survey_questions` param was removed until this is built.
 
 ### F7: Trip Page (Participant View)
 - Persistent page accessible via link or ID+PIN
@@ -332,7 +334,7 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 - `participants` — (id, trip_id, email, name, token, preferences_submitted, created_at)
 - `preferences` — (id, participant_id, trip_id, preferred_dates, budget_min, budget_max, currency, interests, submitted_at)
 - `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary_json, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at)
-- `votes` — (id, participant_id, trip_id, iteration_number, rankings_json, submitted_at)
+- `votes` — (id, participant_id nullable, user_id nullable, trip_id, iteration_number, rankings_json, submitted_at) — exactly one of participant_id or user_id must be set (participant_id for participant votes, user_id for admin/creator votes)
 - `vote_rounds` — (id, trip_id, iteration_number, round_number, eliminated_option_id, results_json, winner_id, created_at)
 
 ### AI & Monitoring Tables
@@ -373,7 +375,7 @@ Build in this order:
 4. **Participant flow** — Token links, ID+PIN retrieval, preference form
 5. **Email integration** — SendGrid setup, invitation emails
 6. **AI pipeline** — Service layer, HuggingFace integration, prompt versioning, itinerary generation
-7. **Voting system** — Ranked-choice voting logic, voting UI, iteration flow
+7. **Voting system** — Ranked-choice voting logic, voting UI, iteration flow ✅ *(mechanics done; F6 follow-up survey phase deferred)*
 8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls
 9. **Frontend polish** — Design system (black/cream/orange), Unsplash images, responsive refinement
 10. **Testing** — Full test suite, CI integration

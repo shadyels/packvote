@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import get_settings
 from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
+from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.prompt_template import PromptTemplate
 from app.models.trip import Trip
@@ -211,6 +212,8 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
         latency_ms,
     )
 
+    await _send_voting_emails(trip, iteration_number, db)
+
 
 async def _reset_trip_status(
     trip_id: int,
@@ -360,6 +363,49 @@ def _compute_trip_duration(trip: Trip, preferences: list[Preference]) -> int:
         return durations[len(durations) // 2]  # median
 
     return 7  # default
+
+
+# ---------------------------------------------------------------------------
+# Email notifications after generation
+# ---------------------------------------------------------------------------
+
+
+async def _send_voting_emails(
+    trip: Trip, iteration_number: int, db: AsyncSession
+) -> None:
+    """Send voting or new-iteration notifications to all participants (best-effort)."""
+    from app.services.email.sendgrid import EmailService
+
+    participants_result = await db.execute(
+        select(Participant).where(Participant.trip_id == trip.id)
+    )
+    participants = participants_result.scalars().all()
+
+    email_service = EmailService.from_settings()
+    for p in participants:
+        try:
+            if iteration_number == 1:
+                await email_service.send_voting_notification(
+                    to_email=p.email,
+                    participant_name=p.name,
+                    trip_title=trip.title,
+                    trip_code=trip.trip_code,
+                    pin=trip.pin,
+                    token=p.token,
+                )
+            else:
+                await email_service.send_new_iteration_notification(
+                    to_email=p.email,
+                    participant_name=p.name,
+                    trip_title=trip.title,
+                    trip_code=trip.trip_code,
+                    pin=trip.pin,
+                    token=p.token,
+                )
+        except Exception:
+            logger.warning(
+                "Failed to send voting email to %s for trip %d", p.email, trip.id
+            )
 
 
 # ---------------------------------------------------------------------------

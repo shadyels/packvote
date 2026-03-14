@@ -254,6 +254,24 @@ After saving a preference, check if all participants have now submitted AND `tri
 - Admin vote carries equal weight during voting
 - Admin can manually pick a winner at any time to close voting
 
+### Voting Implementation Patterns
+
+**Admin voting via `user_id` on Vote model:** `Vote` has both `participant_id` (nullable) and `user_id` (nullable) — exactly one must be set. This allows the trip creator to vote without creating a fake Participant row. The ranked-choice algorithm is agnostic to voter identity — it only sees `list[list[int]]`.
+
+**Pure algorithm separation:** `services/voting/ranked_choice.py` is a pure, stateless function (no DB, no I/O). `services/voting/service.py` handles all DB operations and calls the algorithm. This makes the algorithm trivially unit-testable without any DB setup.
+
+**Auto-tally on last vote:** When all eligible voters (participants + 1 admin) have submitted votes for the current iteration, the tally runs automatically and persists `VoteRound` rows. Results are also available on-demand via `GET /votes/trips/{id}/results` (computes if not already stored, uses stored rows if present).
+
+**Participant vote auth uses token-in-path:** `POST /votes/trips/{trip_id}/vote/{token}` — same pattern as `POST /participants/{token}/preferences`.
+
+**Re-voting allowed:** Submitting a vote for the same trip+iteration overwrites the previous vote (upsert semantics). Only one `Vote` row per voter per trip per iteration is kept.
+
+**Deterministic tiebreaker:** When multiple candidates tie for fewest votes during elimination, the candidate with the lowest ID is eliminated. This ensures reproducible results.
+
+**`pick_winner` bypasses voting:** Admin can set `trip.winner_itinerary_id` and transition to `FINALIZED` at any time from `VOTING` or `ITERATING` status, overriding the ranked-choice result.
+
+**`new-iteration` triggers generation directly:** Status goes `VOTING` → `GENERATING` (not `VOTING` → `ITERATING` → `GENERATING`). The `ITERATING` status is reserved for future follow-up survey flow (Phase 1 skips surveys).
+
 ### Email
 - SendGrid free tier (100 emails/day)
 - Emails contain: invitation/notification text, direct tokenized link, trip ID + PIN
