@@ -26,7 +26,7 @@ const STATUS_CONFIG: Record<
   },
   VOTING: {
     label: "Voting",
-    className: "bg-accent/20 text-accent hover:bg-accent/20",
+    className: "bg-brand/20 text-brand hover:bg-brand/20",
   },
   ITERATING: {
     label: "Iterating",
@@ -54,7 +54,7 @@ export default function TripCard({ trip }: TripCardProps) {
 
   return (
     <Card
-      className="bg-white border-border cursor-pointer transition-colors hover:border-accent/50"
+      className="bg-card border-border cursor-pointer transition-colors hover:border-brand/50"
       onClick={() => { navigate(`/dashboard/trip/${trip.id.toString()}`); }}
     >
       <CardHeader className="pb-2">
@@ -81,7 +81,7 @@ export default function TripCard({ trip }: TripCardProps) {
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full rounded-full bg-accent transition-all"
+              className="h-full rounded-full bg-brand transition-all"
               style={{ width: `${progressPercent.toString()}%` }}
             />
           </div>

@@ -103,14 +103,14 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
     >
       <DialogTrigger
         render={
-          <Button className="bg-accent hover:bg-accent-hover text-white font-semibold">
+          <Button className="bg-brand hover:bg-brand-hover text-white font-semibold">
             <Plus className="w-4 h-4 mr-1" />
             New Trip
           </Button>
         }
       />
 
-      <DialogContent className="bg-white border-border text-black max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-card border-border text-black max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-black">Create a new trip</DialogTitle>
         </DialogHeader>
@@ -119,7 +119,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
           {/* Title */}
           <div className="space-y-1.5">
             <Label htmlFor="ct-title" className="text-black/80">
-              Trip title <span className="text-accent">*</span>
+              Trip title <span className="text-brand">*</span>
             </Label>
             <Input
               id="ct-title"
@@ -127,7 +127,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               placeholder="Summer adventure 2025"
               value={title}
               onChange={(e) => { setTitle(e.target.value); }}
-              className="bg-white border-border text-black placeholder:text-black/30"
+              className="bg-card border-border text-black placeholder:text-black/30"
             />
           </div>
 
@@ -142,7 +142,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               placeholder="e.g. Barcelona, Spain"
               value={destination}
               onChange={(e) => { setDestination(e.target.value); }}
-              className="bg-white border-border text-black placeholder:text-black/30"
+              className="bg-card border-border text-black placeholder:text-black/30"
             />
           </div>
 
@@ -157,7 +157,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                 type="date"
                 value={startDate}
                 onChange={(e) => { setStartDate(e.target.value); }}
-                className="bg-white border-border text-black"
+                className="bg-card border-border text-black"
               />
             </div>
             <div className="space-y-1.5">
@@ -169,7 +169,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                 type="date"
                 value={endDate}
                 onChange={(e) => { setEndDate(e.target.value); }}
-                className="bg-white border-border text-black"
+                className="bg-card border-border text-black"
               />
             </div>
           </div>
@@ -196,7 +196,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
           {/* Participant emails */}
           <div className="space-y-2">
             <Label className="text-black/80">
-              Participant emails <span className="text-accent">*</span>
+              Participant emails <span className="text-brand">*</span>
             </Label>
             {emails.map((email, idx) => (
               <div key={idx} className="flex gap-2">
@@ -205,7 +205,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
                   placeholder={`participant${(idx + 1).toString()}@example.com`}
                   value={email}
                   onChange={(e) => { updateEmail(idx, e.target.value); }}
-                  className="bg-white border-border text-black placeholder:text-black/30"
+                  className="bg-card border-border text-black placeholder:text-black/30"
                 />
                 {emails.length > 1 && (
                   <Button
@@ -225,7 +225,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               variant="ghost"
               size="sm"
               onClick={addEmail}
-              className="text-accent hover:text-accent hover:bg-transparent px-0"
+              className="text-brand hover:text-brand hover:bg-transparent px-0"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Add participant
@@ -265,7 +265,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-accent hover:bg-accent-hover text-white font-semibold"
+              className="bg-brand hover:bg-brand-hover text-white font-semibold"
             >
               {isSubmitting ? "Creating…" : "Create trip"}
             </Button>

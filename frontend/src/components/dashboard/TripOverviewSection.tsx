@@ -27,7 +27,7 @@ const STATUS_BADGE: Record<TripStatus, string> = {
   CREATED: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100",
   COLLECTING_PREFERENCES: "bg-blue-100 text-blue-700 hover:bg-blue-100",
   GENERATING: "bg-amber-100 text-amber-700 hover:bg-amber-100",
-  VOTING: "bg-accent/20 text-accent hover:bg-accent/20",
+  VOTING: "bg-brand/20 text-brand hover:bg-brand/20",
   ITERATING: "bg-purple-100 text-purple-700 hover:bg-purple-100",
   FINALIZED: "bg-green-100 text-green-700 hover:bg-green-100",
 };
@@ -171,7 +171,7 @@ export function TripOverviewSection({
           <Button
             onClick={() => { void handleGenerate(); }}
             disabled={isActing}
-            className="bg-accent hover:bg-accent-hover text-white"
+            className="bg-brand hover:bg-brand-hover text-white"
           >
             {isActing ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -212,10 +212,10 @@ export function TripOverviewSection({
                   if (v !== null) setPickWinnerId(v);
                 }}
               >
-                <SelectTrigger className="bg-white border-border text-black w-64">
+                <SelectTrigger className="bg-card border-border text-black w-64">
                   <SelectValue placeholder="Choose itinerary…" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-border text-black">
+                <SelectContent className="bg-card border-border text-black">
                   {currentIterationItineraries.map((it) => (
                     <SelectItem key={it.id} value={String(it.id)}>
                       {it.destination_name}
@@ -282,10 +282,10 @@ export function TripOverviewSection({
                         setAdminRankings((prev) => ({ ...prev, [it.id]: v }));
                     }}
                   >
-                    <SelectTrigger className="bg-white border-border text-black w-16 shrink-0">
+                    <SelectTrigger className="bg-card border-border text-black w-16 shrink-0">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-border text-black">
+                    <SelectContent className="bg-card border-border text-black">
                       {currentIterationItineraries.map((_, i) => (
                         <SelectItem key={i + 1} value={String(i + 1)}>
                           {i + 1}
@@ -300,7 +300,7 @@ export function TripOverviewSection({
             <Button
               onClick={() => { void handleAdminVote(); }}
               disabled={isActing}
-              className="bg-accent hover:bg-accent-hover text-white"
+              className="bg-brand hover:bg-brand-hover text-white"
             >
               Submit vote
             </Button>

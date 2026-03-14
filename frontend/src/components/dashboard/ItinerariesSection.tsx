@@ -40,7 +40,7 @@ function ItineraryCard({
 
   return (
     <Card
-      className={`border ${isWinner ? "border-green-500/50 bg-green-50" : "border-border bg-white"}`}
+      className={`border ${isWinner ? "border-green-500/50 bg-green-50" : "border-border bg-card"}`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
@@ -58,7 +58,7 @@ function ItineraryCard({
             </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-accent font-semibold">
+            <p className="text-brand font-semibold">
               {itinerary.currency}{" "}
               {itinerary.total_estimated_budget.toLocaleString()}
             </p>
@@ -89,7 +89,7 @@ function ItineraryCard({
             {highlights.map((h, i) => (
               <span
                 key={i}
-                className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full"
+                className="text-xs bg-brand/10 text-brand px-2 py-0.5 rounded-full"
               >
                 {h}
               </span>

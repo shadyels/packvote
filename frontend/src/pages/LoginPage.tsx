@@ -53,12 +53,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link to="/" className="text-2xl font-bold text-accent">
+          <Link to="/" className="text-2xl font-bold text-brand">
             PackVote
           </Link>
         </div>
 
-        <Card className="bg-white border-border">
+        <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-black">
               {mode === "login" ? "Welcome back" : "Create an account"}
@@ -82,7 +82,7 @@ export default function LoginPage() {
                     placeholder="Your name"
                     value={fullName}
                     onChange={(e) => { setFullName(e.target.value); }}
-                    className="bg-white border-border text-black placeholder:text-black/40"
+                    className="bg-card border-border text-black placeholder:text-black/40"
                   />
                 </div>
               )}
@@ -98,7 +98,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); }}
-                  className="bg-white border-border text-black placeholder:text-black/40"
+                  className="bg-card border-border text-black placeholder:text-black/40"
                 />
               </div>
 
@@ -114,7 +114,7 @@ export default function LoginPage() {
                   minLength={8}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); }}
-                  className="bg-white border-border text-black placeholder:text-black/40"
+                  className="bg-card border-border text-black placeholder:text-black/40"
                 />
               </div>
 
@@ -127,7 +127,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-accent hover:bg-accent-hover text-white font-semibold"
+                className="w-full bg-brand hover:bg-brand-hover text-white font-semibold"
               >
                 {isSubmitting
                   ? mode === "login"
@@ -149,7 +149,7 @@ export default function LoginPage() {
                       setMode("register");
                       setError(null);
                     }}
-                    className="text-accent hover:underline"
+                    className="text-brand hover:underline"
                   >
                     Sign up
                   </button>
@@ -163,7 +163,7 @@ export default function LoginPage() {
                       setMode("login");
                       setError(null);
                     }}
-                    className="text-accent hover:underline"
+                    className="text-brand hover:underline"
                   >
                     Sign in
                   </button>
