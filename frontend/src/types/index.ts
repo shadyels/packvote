@@ -135,6 +135,38 @@ export interface VotingResults {
   is_complete: boolean;
 }
 
+export interface TripPublicInfo {
+  id: number;
+  title: string;
+  destination: string | null;
+  proposed_start_date: string | null;
+  proposed_end_date: string | null;
+  status: TripStatus;
+  num_options: number;
+  current_iteration: number;
+  winner_itinerary_id: number | null;
+}
+
+export interface ParticipantBrief {
+  id: number;
+  name: string | null;
+  preferences_submitted: boolean;
+}
+
+export interface ParticipantTripView {
+  participant: Participant;
+  trip: TripPublicInfo;
+  participants: ParticipantBrief[];
+  itineraries: Itinerary[];
+  voting_results: VotingResults | null;
+  has_voted: boolean;
+}
+
+export interface ParticipantAccessResponse {
+  token: string;
+  participant: Participant;
+}
+
 export interface TokenResponse {
   access_token: string;
   token_type: string;

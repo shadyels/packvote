@@ -14,6 +14,8 @@ LOGIN_URL = "/auth/login"
 TRIPS_URL = "/trips/"
 ACCESS_BY_CODE_URL = "/participants/access-by-code"
 
+GUEST_EMAIL = "guest@example.com"
+
 
 class MockEmailService:
     def __init__(self):
@@ -63,7 +65,7 @@ async def created_trip(
     """Returns (trip_data, mock_email_service) after creating a trip."""
     resp = await client.post(
         TRIPS_URL,
-        json={"title": "Test Trip", "participant_emails": ["guest@example.com"]},
+        json={"title": "Test Trip", "participant_emails": [GUEST_EMAIL]},
         headers=auth_headers,
     )
     assert resp.status_code == 201
@@ -78,24 +80,41 @@ class TestAccessByCode:
         trip, _ = created_trip
         resp = await client.post(
             ACCESS_BY_CODE_URL,
-            json={"trip_code": trip["trip_code"], "pin": trip["pin"]},
+            json={
+                "trip_code": trip["trip_code"],
+                "pin": trip["pin"],
+                "email": GUEST_EMAIL,
+            },
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["trip_id"] == trip["id"]
+        assert data["participant"]["trip_id"] == trip["id"]
+        assert "token" in data
 
     async def test_wrong_pin_returns_401(self, client: AsyncClient, created_trip):
         trip, _ = created_trip
         resp = await client.post(
             ACCESS_BY_CODE_URL,
-            json={"trip_code": trip["trip_code"], "pin": "0000"},
+            json={"trip_code": trip["trip_code"], "pin": "0000", "email": GUEST_EMAIL},
         )
         assert resp.status_code == 401
 
     async def test_bad_trip_code_returns_404(self, client: AsyncClient, created_trip):
         resp = await client.post(
             ACCESS_BY_CODE_URL,
-            json={"trip_code": "XXXXXXXX", "pin": "1234"},
+            json={"trip_code": "XXXXXXXX", "pin": "1234", "email": GUEST_EMAIL},
+        )
+        assert resp.status_code == 404
+
+    async def test_wrong_email_returns_404(self, client: AsyncClient, created_trip):
+        trip, _ = created_trip
+        resp = await client.post(
+            ACCESS_BY_CODE_URL,
+            json={
+                "trip_code": trip["trip_code"],
+                "pin": trip["pin"],
+                "email": "nobody@example.com",
+            },
         )
         assert resp.status_code == 404
 
@@ -111,6 +130,34 @@ class TestGetParticipantByToken:
 
     async def test_invalid_token_returns_404(self, client: AsyncClient, created_trip):
         resp = await client.get("/participants/totally-invalid-token-xyz")
+        assert resp.status_code == 404
+
+
+class TestGetTripView:
+    async def test_success(self, client: AsyncClient, created_trip):
+        trip, mock_email_svc = created_trip
+        token = mock_email_svc.sent[0]["token"]
+        resp = await client.get(f"/participants/{token}/trip-view")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["trip"]["id"] == trip["id"]
+        assert "participant" in data
+        assert "participants" in data
+        assert "itineraries" in data
+        assert "has_voted" in data
+        assert data["has_voted"] is False
+        assert data["voting_results"] is None
+
+    async def test_participant_brief_hides_email(self, client: AsyncClient, created_trip):
+        _, mock_email_svc = created_trip
+        token = mock_email_svc.sent[0]["token"]
+        resp = await client.get(f"/participants/{token}/trip-view")
+        assert resp.status_code == 200
+        for brief in resp.json()["participants"]:
+            assert "email" not in brief
+
+    async def test_invalid_token_returns_404(self, client: AsyncClient, created_trip):
+        resp = await client.get("/participants/bad-token-xyz/trip-view")
         assert resp.status_code == 404
 
 
