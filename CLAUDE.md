@@ -274,6 +274,32 @@ After saving a preference, check if all participants have now submitted AND `tri
 
 **`new-iteration` triggers generation directly:** Status goes `VOTING` → `GENERATING` (not `VOTING` → `ITERATING` → `GENERATING`). The `ITERATING` status is reserved for future follow-up survey flow (Phase 1 skips surveys).
 
+### F7 Trip Page — Participant Architecture
+
+**Composite endpoint `GET /participants/{token}/trip-view`:**
+Returns a single `ParticipantTripView` payload containing the participant's own info, trip public info, all participant briefs (names + submitted status, no emails), current-iteration itineraries, voting results, and a `has_voted` flag. This avoids multiple sequential fetches from the participant page. Token is the auth — no bearer token required.
+
+**`POST /participants/access-by-code` requires `email`:**
+The payload is `{ trip_code, pin, email }`. The email is used to identify which participant record to return (trip_code + pin alone are not sufficient — multiple participants share the same trip). Returns `ParticipantAccessResponse`: `{ token, participant }`. The frontend uses the token to redirect to `/trip/{token}`.
+
+**`useTripView` hook:**
+`frontend/src/hooks/useTripView.ts` calls `participants.getTripView(token)` and polls every 5s while `trip.status === "GENERATING"`, stopping automatically on status change or unmount. Same pattern as `useTripDetail` in the dashboard.
+
+**Shared component and utility locations:**
+- `ItineraryCard` — `frontend/src/components/shared/ItineraryCard.tsx` (used by both dashboard `ItinerariesSection` and participant `VotingForm`/`WinnerDisplay`)
+- `STATUS_CONFIG` — `frontend/src/lib/trip-status.ts` (used by `TripCard`, `TripOverviewSection`, and participant `TripHeader`)
+- `parseJson` — `frontend/src/lib/utils.ts` (safe JSON.parse with fallback; used wherever `daily_itinerary_json` or `highlights` are rendered)
+
+**Participant trip component structure:**
+`frontend/src/components/trip/` contains the status-dependent components: `TripHeader`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`. `TripPage.tsx` is the state machine that renders the correct one based on `trip.status` and `participant.preferences_submitted`/`has_voted`.
+
+**Route additions:**
+- `/trip/:token/vote` → same `TripPage` (voting notification emails link here)
+- `/join/:token` → `JoinRedirect` component that redirects to `/trip/:token` (invitation email links)
+- `/join` → `JoinPage` (trip code + PIN + email form)
+
+---
+
 ### F8 Dashboard — Frontend Architecture
 
 **AuthContext pattern:**
