@@ -12,9 +12,12 @@ class Vote(Base):
     __tablename__ = "votes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    participant_id: Mapped[int] = mapped_column(
-        ForeignKey("participants.id"), nullable=False
+    participant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("participants.id"), nullable=True
     )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # set when the trip creator votes (admin vote)
     trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), nullable=False)
     iteration_number: Mapped[int] = mapped_column(Integer, default=1)
     rankings_json: Mapped[str] = mapped_column(
@@ -24,7 +27,8 @@ class Vote(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
-    participant: Mapped[Participant] = relationship(
+    participant: Mapped[Participant | None] = relationship(
         "Participant", back_populates="votes"
     )  # type: ignore[name-defined]
+    user: Mapped[User | None] = relationship("User")  # type: ignore[name-defined]
     trip: Mapped[Trip] = relationship("Trip", back_populates="votes")  # type: ignore[name-defined]

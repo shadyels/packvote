@@ -9,13 +9,18 @@ class VoteSubmit(BaseModel):
 
 class VoteResponse(BaseModel):
     id: int
-    participant_id: int
+    participant_id: int | None
+    user_id: int | None
     trip_id: int
     iteration_number: int
     rankings_json: str
     submitted_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PickWinnerRequest(BaseModel):
+    itinerary_id: int
 
 
 class VoteRoundResult(BaseModel):
