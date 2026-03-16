@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { MapPin, RefreshCw } from "lucide-react";
 import { useTrips } from "@/hooks/useTrips";
 import TripCard from "@/components/TripCard";
 import { CreateTripDialog } from "@/components/CreateTripDialog";
@@ -61,7 +61,11 @@ export default function DashboardPage() {
         {/* Empty state */}
         {!isLoading && !error && trips.length === 0 && (
           <div className="text-center py-24 space-y-4">
-            <p className="text-5xl">🗺️</p>
+            <div className="flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+                <MapPin className="h-8 w-8 text-black/30" />
+              </div>
+            </div>
             <h2 className="text-xl font-semibold text-black">No trips yet</h2>
             <p className="text-black/50 text-sm max-w-xs mx-auto">
               Create your first trip to start collecting preferences and

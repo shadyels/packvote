@@ -309,7 +309,7 @@ The payload is `{ trip_code, pin, email }`. The email is used to identify which 
 `frontend/src/components/ProtectedRoute.tsx` guards authenticated routes. Shows skeletons while loading, redirects to `/login` if unauthenticated, renders `<Outlet />` otherwise. Used in `App.tsx` for `/dashboard` and `/dashboard/trip/:tripId`.
 
 **Routing layout pattern:**
-`LayoutWrapper` in `App.tsx` wraps all non-login routes with the Layout nav via `<Outlet />`. Login renders its own full-screen layout outside this wrapper.
+`LayoutWrapper` in `App.tsx` wraps non-login/non-landing routes with the Layout nav via `<Outlet />`. Login and LandingPage each render their own full-screen layouts outside `LayoutWrapper`.
 
 **LoginPage** is built as part of F8 (it was a stub before).
 
@@ -330,6 +330,35 @@ The shadcn components in this project use `@base-ui/react` primitives (not `@rad
 
 **Async event handler lint rule:**
 The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers: `onClick={() => { void handleAsync(); }}` or `onSubmit={(e) => { void handleSubmit(e); }}`.
+
+### F9 Frontend Polish — Architecture Notes
+
+**Unsplash image utility:**
+`frontend/src/lib/unsplash.ts` provides `useDestinationImage(destination: string)` — a React hook that fetches a landscape photo from the Unsplash API (`https://api.unsplash.com/search/photos`) and returns `{ imageUrl, gradient, photographer, photographerUrl, isLoading }`.
+- API key is read from `VITE_UNSPLASH_ACCESS_KEY` (client-side env var, not backend)
+- In-memory `Map<string, CachedResult>` cache with 1-hour TTL avoids redundant fetches per session
+- **Fallback:** when no API key or fetch fails, a deterministic gradient is computed from the destination name hash — the app always looks polished with or without a key
+- Proper Unsplash attribution (photographer name + link) is rendered as a small overlay on images (required by Unsplash API terms)
+- `Array.prototype.at()` is unavailable under `lib: ["ES2020"]` — use index access or `results.length > 0 ? results[0] : undefined` instead
+- The Unsplash response is typed via named interfaces (`UnsplashPhoto`, `UnsplashSearchResponse`) and validated with a type guard (`isSearchResponse`) rather than casting from `any`, to satisfy `@typescript-eslint/no-unsafe-assignment`
+
+**Landing page standalone layout:**
+`LandingPage.tsx` is rendered outside `LayoutWrapper` (same pattern as `LoginPage`) — it has its own transparent nav header and its own `<Footer />` at the bottom. The route is declared at the top level: `<Route path="/" element={<LandingPage />} />` before the `LayoutWrapper` wrapper.
+
+**Footer component:**
+`frontend/src/components/Footer.tsx` — minimal footer (PackVote link + copyright). Used in both `Layout.tsx` (all authenticated/participant pages) and `LandingPage.tsx` (landing page's own footer).
+
+**CSS animations:**
+`globals.css` defines `@keyframes fade-in-up`, `fade-in`, `shimmer`, and `progress` animations plus utility classes (`animate-fade-in-up`, `animate-fade-in`, `animate-shimmer`, `animation-delay-*`). The `GeneratingScreen` indeterminate progress bar uses a custom `progress` keyframe via Tailwind's arbitrary value: `animate-[progress_40s_linear_infinite]`.
+
+**Emoji → Lucide icons:**
+All emoji visual elements replaced with Lucide icons: `🏆` → `<Trophy />`, `✅` → `<CheckCircle2 />`, `🗺️` → `<MapPin />`. No emojis remain as visual elements in any component.
+
+**Dead dependency removal:**
+`@fontsource-variable/geist` and `next-themes` removed from `package.json`. `sonner.tsx` was updated to hardcode `theme="light"` instead of reading from `next-themes`. `globals.css` no longer imports the Geist font. The `.dark` CSS block and `.theme` CSS block were removed.
+
+**ESLint config fixes (pre-existing issues resolved):**
+`tsconfig.node.json` now includes `vite.config.ts` and `tailwind.config.ts` (they were previously missing, causing parse errors). `vitest.config.ts` is in the eslint `ignores` list because it uses a legitimate `// @ts-nocheck` to work around a vitest/vite version mismatch. The `react-refresh/only-export-components` rule is `"off"` — it was causing pre-existing warnings in shadcn/ui components that legitimately export both components and variant functions.
 
 ### Email
 - SendGrid free tier (100 emails/day)
