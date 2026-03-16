@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Trophy } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -10,12 +10,52 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { parseJson } from "@/lib/utils";
+import { useDestinationImage } from "@/lib/unsplash";
 import type { Itinerary, DayItinerary } from "@/types";
 
 interface ItineraryCardProps {
   itinerary: Itinerary;
   voteCount?: number;
   isWinner: boolean;
+}
+
+function DestinationImage({ destination }: { destination: string }) {
+  const { imageUrl, gradient, photographer, photographerUrl, isLoading } =
+    useDestinationImage(destination);
+
+  if (isLoading) {
+    return (
+      <div className="h-44 w-full animate-shimmer rounded-t-lg" />
+    );
+  }
+
+  return (
+    <div className="relative h-44 w-full overflow-hidden rounded-t-lg">
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={destination}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="h-full w-full" style={{ background: gradient }} />
+      )}
+      {/* Destination name overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+      {/* Photographer credit */}
+      {photographer && photographerUrl && (
+        <a
+          href={photographerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-1.5 right-2 text-[9px] text-white/60 hover:text-white/90 transition-colors"
+          onClick={(e) => { e.stopPropagation(); }}
+        >
+          Photo: {photographer} / Unsplash
+        </a>
+      )}
+    </div>
+  );
 }
 
 export function ItineraryCard({
@@ -29,15 +69,23 @@ export function ItineraryCard({
 
   return (
     <Card
-      className={`border ${isWinner ? "border-green-500/50 bg-green-50" : "border-border bg-card"}`}
+      className={`overflow-hidden border ${
+        isWinner
+          ? "border-green-400/60 shadow-[0_0_0_1px_rgba(74,222,128,0.3),0_4px_20px_rgba(74,222,128,0.12)]"
+          : "border-border bg-card"
+      }`}
     >
+      {/* Image header */}
+      <DestinationImage destination={itinerary.destination_name} />
+
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div>
             <CardTitle className="text-black text-base flex items-center gap-2">
               {itinerary.destination_name}
               {isWinner && (
-                <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">
+                <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100 flex items-center gap-1">
+                  <Trophy className="h-3 w-3" />
                   Winner
                 </Badge>
               )}

@@ -25,7 +25,8 @@ export default function TripCard({ trip }: TripCardProps) {
 
   return (
     <Card
-      className="bg-card border-border cursor-pointer transition-colors hover:border-brand/50"
+      className="bg-card border-border cursor-pointer transition-all duration-200 hover:border-brand/40 hover:shadow-md hover:-translate-y-0.5 border-t-2"
+      style={{ borderTopColor: statusCfg.className.includes("brand") ? "#FF6B2C" : undefined }}
       onClick={() => { navigate(`/dashboard/trip/${trip.id.toString()}`); }}
     >
       <CardHeader className="pb-2">

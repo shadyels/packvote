@@ -32,12 +32,12 @@ function JoinRedirect() {
 export default function App() {
   return (
     <Routes>
-      {/* Login renders its own full-screen layout */}
+      {/* Login and landing render their own full-screen layouts */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<LandingPage />} />
 
       {/* All other routes wrapped in Layout */}
       <Route element={<LayoutWrapper />}>
-        <Route path="/" element={<LandingPage />} />
         <Route path="/trip/:token" element={<TripPage />} />
         <Route path="/trip/:token/vote" element={<TripPage />} />
         <Route path="/join" element={<JoinPage />} />

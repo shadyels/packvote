@@ -255,11 +255,14 @@ export function TripOverviewSection({
       )}
 
       {trip.status === "FINALIZED" && (
-        <div className="rounded-lg border border-green-500/30 bg-green-50 p-4">
-          <p className="text-green-700 font-medium">🏆 Trip finalized</p>
+        <div className="rounded-lg border border-green-500/30 bg-green-50 p-4 flex items-start gap-3">
+          <Trophy className="h-4 w-4 text-green-700 mt-0.5 shrink-0" />
+          <div>
+          <p className="text-green-700 font-medium">Trip finalized</p>
           <p className="text-xs text-green-700/60 mt-1">
             The group has a winner. Check the Itineraries tab to view it.
           </p>
+          </div>
         </div>
       )}
 
