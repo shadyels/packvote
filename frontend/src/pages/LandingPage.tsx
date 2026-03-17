@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Users, Vote, Sparkles, ChevronRight } from "lucide-react";
+import { MapPin, Users, Vote, Sparkles, ChevronRight, Star, Utensils, Compass, Trophy, CheckCircle2 } from "lucide-react";
 import Footer from "@/components/Footer";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 const HERO_IMAGES = [
   { src: "/images/hero/javier-allegue-barros-i5Kx0P8A0d4-unsplash.jpg", photographer: "Javier Allegue Barros" },
@@ -76,15 +78,119 @@ function HowItWorksStep({
   );
 }
 
+function AIRecommendationVisual() {
+  return (
+    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+      {/* Gradient header */}
+      <div
+        className="px-5 py-4"
+        style={{ background: "linear-gradient(135deg, #FF6B2C 0%, #e8522a 60%, #c94b2a 100%)" }}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-white/70">
+            AI Recommendation
+          </span>
+          <div className="flex items-center gap-1 text-white/90">
+            <Star className="h-3.5 w-3.5 fill-white/80 text-white/80" />
+            <span className="text-xs font-bold">94% match</span>
+          </div>
+        </div>
+        <p className="mt-1 text-lg font-bold text-white">Lisbon, Portugal</p>
+        <p className="text-xs text-white/60 mt-0.5">~$1,100 per person · 7 days</p>
+      </div>
+
+      {/* Body */}
+      <div className="px-5 py-4 space-y-4">
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="secondary">
+            <Utensils className="h-3 w-3 mr-1" />
+            Food scene
+          </Badge>
+          <Badge variant="secondary">
+            <Compass className="h-3 w-3 mr-1" />
+            Walkable
+          </Badge>
+          <Badge variant="secondary">Budget-friendly</Badge>
+        </div>
+
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-black/40 mb-2">Day 1 Preview</p>
+          <div className="space-y-1.5">
+            {[
+              { time: "9:00 AM", activity: "Alfama district morning walk" },
+              { time: "1:00 PM", activity: "Mercado da Ribeira lunch" },
+              { time: "4:00 PM", activity: "Belém Tower & pastéis" },
+            ].map(({ time, activity }) => (
+              <div key={time} className="flex items-center gap-2 text-xs text-black/65">
+                <span className="w-14 shrink-0 font-medium text-black/40">{time}</span>
+                <span>{activity}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RankedVotingVisual() {
+  const options = [
+    { rank: 1, name: "Lisbon, Portugal", votes: 8, pct: 73, winner: true },
+    { rank: 2, name: "Porto, Portugal", votes: 5, pct: 45, winner: false },
+    { rank: 3, name: "Seville, Spain", votes: 2, pct: 18, winner: false },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Round 2 Results</CardTitle>
+          <Badge variant="outline" className="text-xs font-normal">Instant Runoff</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {options.map((opt) => (
+          <div key={opt.name} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-black/30">#{opt.rank}</span>
+                <span className={opt.winner ? "font-semibold text-black" : "text-black/60"}>{opt.name}</span>
+              </div>
+              <span className="text-xs text-black/40">{opt.votes} votes</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${opt.winner ? "bg-brand" : "bg-black/15"}`}
+                style={{ width: `${String(opt.pct)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-brand/8 px-3 py-2.5">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-brand" />
+          <div>
+            <p className="text-xs font-semibold text-brand">Winner: Lisbon, Portugal</p>
+            <p className="text-[11px] text-black/45">73% majority · group decision finalized</p>
+          </div>
+          <Trophy className="ml-auto h-4 w-4 text-brand/50" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function FeatureBlock({
   title,
   description,
   bullets,
+  visual,
   reverse,
 }: {
   title: string;
   description: string;
   bullets: string[];
+  visual: React.ReactNode;
   reverse?: boolean;
 }) {
   const { ref, inView } = useInView();
@@ -111,31 +217,8 @@ function FeatureBlock({
         </ul>
       </div>
 
-      {/* Visual card */}
-      <div className="flex-1">
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="space-y-3">
-            {bullets.map((b, i) => (
-              <div key={b} className="flex items-center gap-3">
-                <div
-                  className="h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold text-white"
-                  style={{
-                    background: i === 0 ? "#FF6B2C" : i === 1 ? "#1a2a4a" : "#2d6a4f",
-                  }}
-                >
-                  {i + 1}
-                </div>
-                <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-brand/60 transition-all"
-                    style={{ width: `${String(90 - i * 18)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Visual */}
+      <div className="flex-1">{visual}</div>
     </div>
   );
 }
@@ -174,14 +257,20 @@ export default function LandingPage() {
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
         />
-        {/* Dark overlay so text stays readable */}
-        <div className="absolute inset-0 bg-black/50" />
+        {/* Vignette overlay — lighter at edges, denser in the middle */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.58) 0%, rgba(0,0,0,0.38) 45%, rgba(0,0,0,0.22) 100%)",
+          }}
+        />
         {/* Attribution */}
         <a
           href="https://unsplash.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="absolute bottom-28 right-4 z-10 text-[10px] text-white/40 hover:text-white/60 transition-colors"
+          className="absolute bottom-44 right-4 z-10 text-[10px] text-white/40 hover:text-white/60 transition-colors"
         >
           Photo: {heroImage.photographer} / Unsplash
         </a>
@@ -208,7 +297,7 @@ export default function LandingPage() {
             style={{ animationDelay: "250ms", opacity: 0, animationFillMode: "forwards" }}
           >
             Collect everyone's preferences, let AI generate personalized destinations,
-            then vote as a group — no endless group chats required.
+            then vote as a group. No endless group chats required.
           </p>
 
           <div
@@ -231,8 +320,14 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Bottom fade */}
-        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background to-transparent" />
+        {/* Bottom fade — taller, 3-stop */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-40"
+          style={{
+            background:
+              "linear-gradient(to top, hsl(80,14%,97%) 0%, hsl(80,14%,97%,0.6) 50%, transparent 100%)",
+          }}
+        />
       </section>
 
       {/* ─── How It Works ─── */}
@@ -272,27 +367,31 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Feature highlights ─── */}
-      <section className="py-20 md:py-32 px-4 bg-card border-y border-border">
-        <div className="mx-auto max-w-6xl space-y-20">
-          <FeatureBlock
-            title="AI that reads the room"
-            description="PackVote's AI weighs everyone's stated preferences — budgets, travel style, dietary needs — and generates destinations that genuinely fit the whole group, not just the loudest voice."
-            bullets={[
-              "Personalized destination recommendations",
-              "Full day-by-day itineraries with activities",
-              "Budget breakdowns per person",
-            ]}
-          />
-          <FeatureBlock
-            title="Voting that's actually fair"
-            description="Ranked-choice voting eliminates the 'two equal options, group splits' problem. Everyone ranks all options; the math picks the true group favorite."
-            bullets={[
-              "Instant-runoff ranked-choice algorithm",
-              "Re-vote rounds if no majority",
-              "Trip creator can finalize at any time",
-            ]}
-            reverse
-          />
+      <section className="py-20 md:py-32 px-4">
+        <div className="mx-auto max-w-6xl">
+          <div className="rounded-3xl bg-card border border-border px-8 py-16 md:px-14 space-y-20">
+            <FeatureBlock
+              title="AI that reads the room"
+              description="PackVote's AI weighs everyone's stated preferences — budgets, travel style, dietary needs, and generates destinations that genuinely fit the whole group, not just the loudest voice."
+              bullets={[
+                "Personalized destination recommendations",
+                "Full day-by-day itineraries with activities",
+                "Budget breakdowns per person",
+              ]}
+              visual={<AIRecommendationVisual />}
+            />
+            <FeatureBlock
+              title="Voting that's actually fair"
+              description="Ranked-choice voting eliminates the 'two equal options, group splits' problem. Everyone ranks all options; the math picks the true group favorite."
+              bullets={[
+                "Instant-runoff ranked-choice algorithm",
+                "Re-vote rounds if no majority",
+                "Trip creator can finalize at any time",
+              ]}
+              visual={<RankedVotingVisual />}
+              reverse
+            />
+          </div>
         </div>
       </section>
 
@@ -301,12 +400,14 @@ export default function LandingPage() {
         <div
           className="absolute inset-0"
           style={{
-            background: "linear-gradient(145deg, #1a2a1a 0%, #2d4a3e 40%, #1a3a5c 100%)",
+            background: "linear-gradient(150deg, #1e2f1e 0%, #2a4238 35%, #1f3550 70%, #192840 100%)",
           }}
         />
-        <div className="absolute inset-0 opacity-15"
+        <div
+          className="absolute inset-0 opacity-10"
           style={{
-            backgroundImage: "radial-gradient(ellipse at 70% 60%, rgba(255,107,44,0.4) 0%, transparent 55%)",
+            backgroundImage:
+              "radial-gradient(ellipse at 65% 55%, rgba(255,107,44,0.5) 0%, transparent 60%)",
           }}
         />
 
@@ -316,7 +417,7 @@ export default function LandingPage() {
             Ready to plan?
           </h2>
           <p className="mb-8 text-white/65 text-lg">
-            Start a trip in under a minute — your group handles the rest.
+            Start a trip in under a minute. Your group handles the rest.
           </p>
           <Link
             to="/login"
@@ -327,7 +428,14 @@ export default function LandingPage() {
           </Link>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background to-transparent" />
+        {/* Bottom fade — taller, 3-stop */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-40"
+          style={{
+            background:
+              "linear-gradient(to top, hsl(80,14%,97%) 0%, hsl(80,14%,97%,0.6) 50%, transparent 100%)",
+          }}
+        />
       </section>
 
       <Footer />
