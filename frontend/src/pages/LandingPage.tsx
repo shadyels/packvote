@@ -3,6 +3,19 @@ import { Link } from "react-router-dom";
 import { MapPin, Users, Vote, Sparkles, ChevronRight } from "lucide-react";
 import Footer from "@/components/Footer";
 
+const HERO_IMAGES = [
+  { src: "/images/hero/javier-allegue-barros-i5Kx0P8A0d4-unsplash.jpg", photographer: "Javier Allegue Barros" },
+  { src: "/images/hero/austin-ramsey-ghZlDMUcJ-8-unsplash.jpg", photographer: "Austin Ramsey" },
+  { src: "/images/hero/eddy-billard-JOoOPt8tTPY-unsplash.jpg", photographer: "Eddy Billard" },
+  { src: "/images/hero/alexandre-barbosa-cj7zHNRqp4w-unsplash.jpg", photographer: "Alexandre Barbosa" },
+  { src: "/images/hero/nils-nedel-ONpGBpns3cs-unsplash.jpg", photographer: "Nils Nedel" },
+  { src: "/images/hero/ian-ZMGUdXdwkHE-unsplash.jpg", photographer: "Ian" },
+  { src: "/images/hero/chang-duong-Sj0iMtq_Z4w-unsplash.jpg", photographer: "Chang Duong" },
+  { src: "/images/hero/milind-bedwa-15rk4yFjwHk-unsplash.jpg", photographer: "Milind Bedwa" },
+];
+
+const heroImage = HERO_IMAGES[Math.floor(Math.random() * HERO_IMAGES.length)];
+
 // Intersection Observer hook for scroll-triggered animations
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -155,21 +168,23 @@ export default function LandingPage() {
 
       {/* ─── Hero ─── */}
       <section className="relative flex min-h-[85vh] items-center justify-center overflow-hidden">
-        {/* Background: rich travel gradient */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: "linear-gradient(145deg, #0d1f35 0%, #1a3a5c 35%, #2c5364 65%, #1a2a1a 100%)",
-          }}
+        {/* Background photo */}
+        <img
+          src={heroImage.src}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
         />
-        {/* Texture overlay */}
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse at 20% 50%, rgba(255,107,44,0.3) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(41,128,185,0.4) 0%, transparent 50%)",
-          }}
-        />
+        {/* Dark overlay so text stays readable */}
+        <div className="absolute inset-0 bg-black/50" />
+        {/* Attribution */}
+        <a
+          href="https://unsplash.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-28 right-4 z-10 text-[10px] text-white/40 hover:text-white/60 transition-colors"
+        >
+          Photo: {heroImage.photographer} / Unsplash
+        </a>
 
         {/* Content */}
         <div className="relative z-10 mx-auto max-w-4xl px-4 text-center">
