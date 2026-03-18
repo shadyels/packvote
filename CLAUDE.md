@@ -361,7 +361,10 @@ All emoji visual elements replaced with Lucide icons: `🏆` → `<Trophy />`, `
 `tsconfig.node.json` now includes `vite.config.ts` and `tailwind.config.ts` (they were previously missing, causing parse errors). `vitest.config.ts` is in the eslint `ignores` list because it uses a legitimate `// @ts-nocheck` to work around a vitest/vite version mismatch. The `react-refresh/only-export-components` rule is `"off"` — it was causing pre-existing warnings in shadcn/ui components that legitimately export both components and variant functions.
 
 **Landing page hero overlay:**
-The hero uses a radial vignette (`radial-gradient(ellipse at 50% 50%, ...)`) instead of a flat `bg-black/50` — denser at center where text sits, lighter at edges for a more natural photo framing. The bottom fade is `h-40` with a 3-stop gradient using the actual background HSL value (`hsl(80,14%,97%)`) for a smooth dissolve. Same treatment on the bottom CTA section.
+The hero uses a radial vignette (`radial-gradient(ellipse at 50% 50%, ...)`) instead of a flat `bg-black/50` — denser at center where text sits, lighter at edges for a more natural photo framing. The bottom fade is `h-40` with a 3-stop gradient using the actual background HSL value (`hsl(80,14%,97%)`) for a smooth dissolve.
+
+**Bottom CTA section:**
+Solid `bg-[#192840]` background (matches the footer). A top fade div (`h-40`, absolute positioned) dissolves from offwhite (`hsl(80,14%,97%)`) → transparent, mirroring the hero's bottom fade. An orange glow overlay (`opacity-10`, `radial-gradient(ellipse at 60% 70%, rgba(255,107,44,0.5), ...)`) adds warmth. Content has `pt-36` to push it below the fade zone into the clearly dark area.
 
 **Feature Highlights section layout:**
 Replaced the hard `border-y border-border bg-card` section with a `rounded-3xl bg-card border border-border` card container that floats on the offwhite background. `FeatureBlock` accepts a `visual: React.ReactNode` prop instead of generating a generic progress-bar card.
