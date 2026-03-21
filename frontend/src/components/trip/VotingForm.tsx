@@ -79,7 +79,7 @@ export function VotingForm({
       </div>
 
       {/* Voting form */}
-      <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
             {hasVoted ? "Update Your Vote" : "Cast Your Vote"}
@@ -127,7 +127,7 @@ export function VotingForm({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:bg-brand-hover hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
           >
             {isSubmitting
               ? "Submitting…"
