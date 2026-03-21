@@ -390,7 +390,7 @@ async def _send_voting_emails(
                     participant_name=p.name,
                     trip_title=trip.title,
                     trip_code=trip.trip_code,
-                    pin=trip.pin,
+                    pin=p.pin,
                     token=p.token,
                 )
             else:
@@ -399,7 +399,7 @@ async def _send_voting_emails(
                     participant_name=p.name,
                     trip_title=trip.title,
                     trip_code=trip.trip_code,
-                    pin=trip.pin,
+                    pin=p.pin,
                     token=p.token,
                 )
         except Exception:

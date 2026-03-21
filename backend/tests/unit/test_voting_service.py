@@ -42,7 +42,6 @@ def _make_user(db: AsyncSession, **kwargs) -> User:
 def _make_trip(db: AsyncSession, creator: User, **kwargs) -> Trip:
     defaults = dict(
         trip_code=secrets.token_hex(4).upper()[:8],
-        pin="1234",
         creator_id=creator.id,
         title="Test Trip",
         destination=None,
@@ -63,6 +62,7 @@ def _make_participant(db: AsyncSession, trip: Trip, **kwargs) -> Participant:
         trip_id=trip.id,
         email=f"p_{secrets.token_hex(4)}@test.com",
         token=secrets.token_urlsafe(32),
+        pin=secrets.token_hex(2)[:4],
         preferences_submitted=True,
     )
     defaults.update(kwargs)

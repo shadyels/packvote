@@ -9,7 +9,6 @@ import { TripOverviewSection } from "@/components/dashboard/TripOverviewSection"
 import { ParticipantsSection } from "@/components/dashboard/ParticipantsSection";
 import { ItinerariesSection } from "@/components/dashboard/ItinerariesSection";
 import { VotingSection } from "@/components/dashboard/VotingSection";
-import { AILogsSection } from "@/components/dashboard/AILogsSection";
 
 function DetailSkeleton() {
   return (
@@ -34,7 +33,6 @@ export default function TripDetailPage() {
     participants,
     itineraries,
     votingResults,
-    aiLogs,
     isLoading,
     error,
     refetch,
@@ -91,77 +89,56 @@ export default function TripDetailPage() {
             </div>
 
             <Tabs defaultValue="overview">
-              <TabsList className="bg-muted border border-border mb-6 h-auto flex-wrap gap-0.5">
-                <TabsTrigger
-                  value="overview"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
-                >
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger
-                  value="participants"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
-                >
+              <TabsList variant="line" className="mb-6">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="participants">
                   Participants
                   <span className="ml-1.5 text-xs text-black/40">
                     ({participants.length})
                   </span>
                 </TabsTrigger>
-                <TabsTrigger
-                  value="itineraries"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
-                >
+                <TabsTrigger value="itineraries">
                   Itineraries
                   <span className="ml-1.5 text-xs text-black/40">
                     ({itineraries.length})
                   </span>
                 </TabsTrigger>
-                <TabsTrigger
-                  value="voting"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
-                >
-                  Voting
-                </TabsTrigger>
-                <TabsTrigger
-                  value="ai-logs"
-                  className="text-black/60 data-[state=active]:text-black data-[state=active]:bg-card"
-                >
-                  AI Logs
-                  <span className="ml-1.5 text-xs text-black/40">
-                    ({aiLogs.length})
-                  </span>
-                </TabsTrigger>
+                <TabsTrigger value="voting">Voting</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview">
-                <TripOverviewSection
-                  trip={trip}
-                  itineraries={itineraries}
-                  onRefetch={refetch}
-                />
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <TripOverviewSection
+                    trip={trip}
+                    itineraries={itineraries}
+                    onRefetch={refetch}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="participants">
-                <ParticipantsSection participants={participants} />
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <ParticipantsSection participants={participants} />
+                </div>
               </TabsContent>
 
               <TabsContent value="itineraries">
-                <ItinerariesSection
-                  itineraries={itineraries}
-                  votingResults={votingResults}
-                  winnerId={trip.winner_itinerary_id ?? null}
-                />
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <ItinerariesSection
+                    itineraries={itineraries}
+                    votingResults={votingResults}
+                    winnerId={trip.winner_itinerary_id ?? null}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="voting">
-                <VotingSection
-                  votingResults={votingResults}
-                  itineraries={itineraries}
-                />
-              </TabsContent>
-
-              <TabsContent value="ai-logs">
-                <AILogsSection logs={aiLogs} />
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <VotingSection
+                    votingResults={votingResults}
+                    itineraries={itineraries}
+                  />
+                </div>
               </TabsContent>
             </Tabs>
           </>

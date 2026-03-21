@@ -40,7 +40,6 @@ def _make_trip(**kwargs) -> Trip:
     defaults = dict(
         id=1,
         trip_code="ABCD1234",
-        pin="1234",
         creator_id=1,
         title="Beach Getaway",
         destination=None,
@@ -270,7 +269,6 @@ async def trip_with_preferences(db: AsyncSession):
 
     trip = Trip(
         trip_code=secrets.token_hex(4).upper()[:8],
-        pin="5678",
         creator_id=user.id,
         title="Group Adventure",
         num_options=2,
@@ -286,6 +284,7 @@ async def trip_with_preferences(db: AsyncSession):
             trip_id=trip.id,
             email=f"p{i}@test.com",
             token=secrets.token_urlsafe(32),
+            pin=str(i + 1).zfill(4),
             preferences_submitted=True,
         )
         db.add(participant)

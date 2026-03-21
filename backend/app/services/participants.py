@@ -13,30 +13,17 @@ from app.schemas.preference import PreferenceCreate
 
 
 async def access_trip_by_code(
-    trip_code: str, pin: str, email: str, db: AsyncSession
+    trip_code: str, pin: str, db: AsyncSession
 ) -> Participant:
-    result = await db.execute(select(Trip).where(Trip.trip_code == trip_code))
-    trip = result.scalar_one_or_none()
-    if trip is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
-        )
-    if trip.pin != pin:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid PIN"
-        )
-
     result = await db.execute(
-        select(Participant).where(
-            Participant.trip_id == trip.id,
-            Participant.email == email,
-        )
+        select(Participant)
+        .join(Trip, Participant.trip_id == Trip.id)
+        .where(Trip.trip_code == trip_code, Participant.pin == pin)
     )
     participant = result.scalar_one_or_none()
     if participant is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No participant with that email found for this trip",
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invalid trip code or PIN"
         )
     return participant
 
@@ -51,7 +38,9 @@ async def get_participant_by_token(token: str, db: AsyncSession) -> Participant:
     return participant
 
 
-async def get_participant_trip_view(token: str, db: AsyncSession) -> "ParticipantTripView":  # type: ignore[name-defined]
+async def get_participant_trip_view(
+    token: str, db: AsyncSession
+) -> "ParticipantTripView":  # type: ignore[name-defined]
     """Return all trip data needed for the participant-facing trip page."""
     from app.schemas.itinerary import ItineraryResponse
     from app.schemas.participant import (

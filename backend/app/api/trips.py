@@ -12,7 +12,6 @@ from app.core.dependencies import (
 from app.db.session import get_db
 from app.models.trip import Trip
 from app.models.user import User
-from app.schemas.ai_call_log import AICallLogResponse
 from app.schemas.itinerary import ItineraryResponse
 from app.schemas.participant import ParticipantResponse
 from app.schemas.trip import TripCreate, TripResponse, TripSummary
@@ -22,7 +21,6 @@ from app.services.generation import run_generation
 from app.services.trips import (
     create_trip,
     get_trip,
-    list_ai_logs_for_trip,
     list_itineraries_for_trip,
     list_participants_for_trip,
     list_trips_for_user,
@@ -131,12 +129,3 @@ async def get_trip_itineraries(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[ItineraryResponse]:
     return await list_itineraries_for_trip(trip_id, current_user.id, db)
-
-
-@router.get("/{trip_id}/ai-logs", response_model=list[AICallLogResponse])
-async def get_trip_ai_logs(
-    trip_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> list[AICallLogResponse]:
-    return await list_ai_logs_for_trip(trip_id, current_user.id, db)

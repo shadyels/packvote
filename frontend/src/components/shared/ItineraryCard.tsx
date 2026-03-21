@@ -25,12 +25,12 @@ function DestinationImage({ destination }: { destination: string }) {
 
   if (isLoading) {
     return (
-      <div className="h-44 w-full animate-shimmer rounded-t-lg" />
+      <div className="h-44 w-full animate-shimmer rounded-t-xl" />
     );
   }
 
   return (
-    <div className="relative h-44 w-full overflow-hidden rounded-t-lg">
+    <div className="relative h-44 w-full overflow-hidden rounded-t-xl">
       {imageUrl ? (
         <img
           src={imageUrl}
@@ -69,7 +69,7 @@ export function ItineraryCard({
 
   return (
     <Card
-      className={`overflow-hidden border ${
+      className={`overflow-hidden border pt-0 ${
         isWinner
           ? "border-green-400/60 shadow-[0_0_0_1px_rgba(74,222,128,0.3),0_4px_20px_rgba(74,222,128,0.12)]"
           : "border-border bg-card"

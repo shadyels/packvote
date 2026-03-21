@@ -417,7 +417,7 @@ async def _send_finalized_emails(
                 participant_name=p.name,
                 trip_title=trip.title,
                 trip_code=trip.trip_code,
-                pin=trip.pin,
+                pin=p.pin,
                 token=p.token,
                 destination_name=itinerary.destination_name,
             )

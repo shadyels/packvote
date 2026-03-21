@@ -8,7 +8,6 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.trip import Trip
@@ -42,11 +41,9 @@ async def create_trip(
     email_service: EmailService,
 ) -> Trip:
     trip_code = await _unique_trip_code(db)
-    pin = _generate_pin()
 
     trip = Trip(
         trip_code=trip_code,
-        pin=pin,
         creator_id=creator_id,
         title=payload.title,
         destination=payload.destination,
@@ -67,9 +64,15 @@ async def create_trip(
         await db.flush()
 
     participants: list[Participant] = []
+    used_pins: set[str] = set()
     for email in payload.participant_emails:
         token = secrets.token_urlsafe(32)
-        participant = Participant(trip_id=trip.id, email=email, token=token)
+        # Generate a PIN unique within this trip's batch
+        pin = _generate_pin()
+        while pin in used_pins:
+            pin = _generate_pin()
+        used_pins.add(pin)
+        participant = Participant(trip_id=trip.id, email=email, token=token, pin=pin)
         db.add(participant)
         participants.append(participant)
 
@@ -84,7 +87,7 @@ async def create_trip(
                 participant_name=p.name,
                 trip_title=trip.title,
                 trip_code=trip.trip_code,
-                pin=trip.pin,
+                pin=p.pin,
                 token=p.token,
             )
             for p in participants
@@ -174,17 +177,5 @@ async def list_itineraries_for_trip(
         select(Itinerary)
         .where(Itinerary.trip_id == trip_id)
         .order_by(Itinerary.iteration_number, Itinerary.id)
-    )
-    return list(result.scalars().all())
-
-
-async def list_ai_logs_for_trip(
-    trip_id: int, user_id: int, db: AsyncSession
-) -> list[AICallLog]:
-    await get_trip(trip_id, user_id, db)
-    result = await db.execute(
-        select(AICallLog)
-        .where(AICallLog.trip_id == trip_id)
-        .order_by(AICallLog.created_at.desc())
     )
     return list(result.scalars().all())

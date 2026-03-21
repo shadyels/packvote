@@ -29,9 +29,7 @@ async def access_by_code(
     payload: TripAccessByCode,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ParticipantAccessResponse:
-    participant = await access_trip_by_code(
-        payload.trip_code, payload.pin, payload.email, db
-    )
+    participant = await access_trip_by_code(payload.trip_code, payload.pin, db)
     return ParticipantAccessResponse(
         token=participant.token,
         participant=ParticipantResponse.model_validate(participant),

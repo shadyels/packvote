@@ -25,7 +25,7 @@ class MockEmailService:
         pin: str,
         token: str,
     ) -> bool:
-        self.sent.append({"to": to_email, "trip_code": trip_code})
+        self.sent.append({"to": to_email, "trip_code": trip_code, "pin": pin})
         return True
 
 
@@ -61,7 +61,7 @@ class TestCreateTrip:
         assert data["title"] == "Summer Adventure"
         assert "id" in data
         assert "trip_code" in data
-        assert "pin" in data
+        assert "pin" not in data
         assert "status" in data
 
     async def test_trip_code_is_8_char_uppercase_alphanum(
@@ -73,12 +73,19 @@ class TestCreateTrip:
         assert len(trip_code) == 8
         assert re.fullmatch(r"[A-Z0-9]{8}", trip_code)
 
-    async def test_pin_is_4_digits(self, client: AsyncClient, auth_headers, mock_email):
+    async def test_participant_pins_are_4_digits(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         assert resp.status_code == 201
-        pin = resp.json()["pin"]
-        assert len(pin) == 4
-        assert re.fullmatch(r"\d{4}", pin)
+        import asyncio
+
+        await asyncio.sleep(0)
+        assert len(mock_email.sent) > 0
+        for entry in mock_email.sent:
+            pin = entry["pin"]
+            assert len(pin) == 4
+            assert re.fullmatch(r"\d{4}", pin)
 
     async def test_invitations_sent_per_participant(
         self, client: AsyncClient, auth_headers, mock_email

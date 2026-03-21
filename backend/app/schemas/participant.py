@@ -20,7 +20,6 @@ class ParticipantResponse(BaseModel):
 class TripAccessByCode(BaseModel):
     trip_code: str
     pin: str
-    email: str
 
 
 class TripPublicInfo(BaseModel):

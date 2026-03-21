@@ -21,8 +21,8 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 - Does NOT need an account
 - Accesses trip pages via:
   - **Tokenized email link** (unique per participant per trip)
-  - **Trip ID (8 digits) + PIN (4 digits)** entered on a retrieval form (like booking.com)
-- There is no additional security beyond the ID+PIN combination — no login, no CAPTCHA, no account required
+  - **Trip Code (8 chars) + PIN (4 digits)** entered on a retrieval form (like booking.com) — PIN is unique per participant, so trip code + PIN alone identifies the participant (no email required)
+- There is no additional security beyond the trip code + PIN combination — no login, no CAPTCHA, no account required
 - Submits preferences (dates, budget, interests)
 - Votes on AI-generated itineraries via ranked-choice
 
@@ -330,8 +330,8 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 
 ### Core Tables
 - `users` — trip creators (email, hashed_password, created_at)
-- `trips` — (id, trip_code_8char_alphanum, pin_4digit, creator_id, destination, proposed_dates, num_options, status, max_iterations, current_iteration, created_at)
-- `participants` — (id, trip_id, email, name, token, preferences_submitted, created_at)
+- `trips` — (id, trip_code_8char_alphanum, creator_id, destination, proposed_dates, num_options, status, max_iterations, current_iteration, created_at)
+- `participants` — (id, trip_id, email, name, pin_4digit, token, preferences_submitted, created_at) — PIN is unique per participant within a trip
 - `preferences` — (id, participant_id, trip_id, preferred_dates, budget_min, budget_max, currency, interests, submitted_at)
 - `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary_json, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at)
 - `votes` — (id, participant_id nullable, user_id nullable, trip_id, iteration_number, rankings_json, submitted_at) — exactly one of participant_id or user_id must be set (participant_id for participant votes, user_id for admin/creator votes)

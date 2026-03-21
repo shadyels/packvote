@@ -15,6 +15,7 @@ class Participant(Base):
     trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255))
+    pin: Mapped[str] = mapped_column(String(4), nullable=False)
     token: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False, index=True
     )
