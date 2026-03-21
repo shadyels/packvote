@@ -4,45 +4,9 @@ import secrets
 import pytest
 from httpx import AsyncClient
 
-from app.core.dependencies import get_email_service
-from app.main import app
-
 REGISTER_URL = "/auth/register"
 LOGIN_URL = "/auth/login"
 TRIPS_URL = "/trips/"
-
-
-class MockEmailService:
-    def __init__(self):
-        self.sent: list[dict] = []
-
-    async def send_invitation(
-        self,
-        to_email: str,
-        participant_name: str | None,
-        trip_title: str,
-        trip_code: str,
-        pin: str,
-        token: str,
-    ) -> bool:
-        self.sent.append({"to": to_email, "trip_code": trip_code, "pin": pin})
-        return True
-
-
-@pytest.fixture
-async def auth_headers(client: AsyncClient):
-    email = f"user_{secrets.token_hex(4)}@test.com"
-    await client.post(REGISTER_URL, json={"email": email, "password": "test1234"})
-    resp = await client.post(LOGIN_URL, json={"email": email, "password": "test1234"})
-    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
-
-
-@pytest.fixture
-def mock_email():
-    svc = MockEmailService()
-    app.dependency_overrides[get_email_service] = lambda: svc
-    yield svc
-    app.dependency_overrides.pop(get_email_service, None)
 
 
 _TRIP_PAYLOAD = {

@@ -1,0 +1,166 @@
+"""Unit tests for HuggingFaceProvider (app/services/ai/huggingface.py)."""
+
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from pydantic import ValidationError
+
+from app.schemas.itinerary import (
+    AIGenerationResponse,
+    DailyActivity,
+    DayItinerary,
+    ItineraryOption,
+)
+from app.services.ai.huggingface import HuggingFaceProvider, _split_prompt
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_valid_response_json(num_options: int = 1) -> str:
+    option = ItineraryOption(
+        destination_name="Paris",
+        destination_description="City of Light",
+        daily_itinerary=[
+            DayItinerary(
+                day_number=1,
+                title="Arrival",
+                activities=[
+                    DailyActivity(
+                        title="Check in",
+                        description="Hotel check-in",
+                    )
+                ],
+            )
+        ],
+        total_estimated_budget=1500.0,
+        currency="EUR",
+        match_reasoning="Great match",
+        highlights=["Eiffel Tower", "Louvre"],
+    )
+    return json.dumps({"options": [option.model_dump()] * num_options})
+
+
+def _make_mock_client(response_json: str) -> MagicMock:
+    mock_choice = MagicMock()
+    mock_choice.message.content = response_json
+    mock_completion = MagicMock()
+    mock_completion.choices = [mock_choice]
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_completion)
+    return mock_client
+
+
+# ---------------------------------------------------------------------------
+# _split_prompt tests
+# ---------------------------------------------------------------------------
+
+
+class TestSplitPrompt:
+    def test_normal_split(self) -> None:
+        prompt = "[SYSTEM]\nYou are an assistant.\n[USER]\nPlan a trip."
+        system, user = _split_prompt(prompt)
+        assert system == "You are an assistant."
+        assert user == "Plan a trip."
+
+    def test_no_user_section(self) -> None:
+        prompt = "[SYSTEM]\nSystem only prompt."
+        system, user = _split_prompt(prompt)
+        assert system == "System only prompt."
+        assert user == ""
+
+    def test_multiline_sections(self) -> None:
+        prompt = "[SYSTEM]\nLine 1\nLine 2\n[USER]\nUser line 1\nUser line 2"
+        system, user = _split_prompt(prompt)
+        assert system == "Line 1\nLine 2"
+        assert user == "User line 1\nUser line 2"
+
+    def test_strips_leading_trailing_whitespace(self) -> None:
+        prompt = "[SYSTEM]\n  spaced  \n[USER]\n  user  "
+        system, user = _split_prompt(prompt)
+        assert system == "spaced"
+        assert user == "user"
+
+
+# ---------------------------------------------------------------------------
+# HuggingFaceProvider.generate_itineraries tests
+# ---------------------------------------------------------------------------
+
+
+class TestHuggingFaceProviderGenerate:
+    async def test_success_returns_response_and_provider_name(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        response_json = _make_valid_response_json(num_options=1)
+        mock_client = _make_mock_client(response_json)
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            response, provider_name = await provider.generate_itineraries(
+                "[SYSTEM]\nSystem\n[USER]\nUser", 1, "Qwen2.5-72B-Instruct"
+            )
+
+        assert provider_name == "huggingface"
+        assert isinstance(response, AIGenerationResponse)
+        assert len(response.options) == 1
+        assert response.options[0].destination_name == "Paris"
+
+    async def test_passes_model_to_client(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        mock_client = _make_mock_client(_make_valid_response_json())
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "my-model"
+            )
+
+        create_call = mock_client.chat.completions.create
+        assert create_call.call_args.kwargs["model"] == "my-model"
+
+    async def test_sends_system_and_user_messages(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        mock_client = _make_mock_client(_make_valid_response_json())
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nSystem text\n[USER]\nUser text", 1, "model"
+            )
+
+        messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+        assert messages[0] == {"role": "system", "content": "System text"}
+        assert messages[1] == {"role": "user", "content": "User text"}
+
+    async def test_wrong_option_count_raises_value_error(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        # Response has 1 option but we request 3
+        mock_client = _make_mock_client(_make_valid_response_json(num_options=1))
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            with pytest.raises(ValueError, match="expected 3"):
+                await provider.generate_itineraries(
+                    "[SYSTEM]\nS\n[USER]\nU", 3, "model"
+                )
+
+    async def test_invalid_json_raises(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        mock_client = _make_mock_client("not valid json at all")
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            with pytest.raises(json.JSONDecodeError):
+                await provider.generate_itineraries(
+                    "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+                )
+
+    async def test_wrong_schema_raises_validation_error(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        # Valid JSON but wrong structure (missing required fields)
+        mock_client = _make_mock_client(json.dumps({"wrong_key": []}))
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            with pytest.raises(ValidationError):
+                await provider.generate_itineraries(
+                    "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+                )

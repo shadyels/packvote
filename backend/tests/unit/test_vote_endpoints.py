@@ -9,57 +9,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_email_service, get_session_factory
-from app.main import app
 from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.trip import Trip
-
-# ---------------------------------------------------------------------------
-# Shared mock + fixture helpers
-# ---------------------------------------------------------------------------
-
-
-class MockEmailService:
-    async def send_invitation(self, **kwargs) -> bool:
-        return True
-
-    async def send_voting_notification(self, **kwargs) -> bool:
-        return True
-
-    async def send_new_iteration_notification(self, **kwargs) -> bool:
-        return True
-
-    async def send_finalized_notification(self, **kwargs) -> bool:
-        return True
-
-
-@pytest.fixture
-def mock_email():
-    svc = MockEmailService()
-    app.dependency_overrides[get_email_service] = lambda: svc
-    yield svc
-    app.dependency_overrides.pop(get_email_service, None)
-
-
-@pytest.fixture
-def mock_session_factory(engine):
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    app.dependency_overrides[get_session_factory] = lambda: factory
-    yield factory
-    app.dependency_overrides.pop(get_session_factory, None)
-
-
-@pytest.fixture
-async def auth_headers(client: AsyncClient):
-    email = f"creator_{secrets.token_hex(4)}@test.com"
-    await client.post("/auth/register", json={"email": email, "password": "test1234"})
-    resp = await client.post(
-        "/auth/login", json={"email": email, "password": "test1234"}
-    )
-    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
 @pytest.fixture

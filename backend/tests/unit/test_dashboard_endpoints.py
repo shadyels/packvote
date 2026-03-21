@@ -10,9 +10,6 @@ import secrets
 import pytest
 from httpx import AsyncClient
 
-from app.core.dependencies import get_email_service
-from app.main import app
-
 REGISTER_URL = "/auth/register"
 LOGIN_URL = "/auth/login"
 TRIPS_URL = "/trips/"
@@ -21,36 +18,6 @@ _TRIP_PAYLOAD = {
     "title": "Dashboard Test Trip",
     "participant_emails": ["alice@example.com", "bob@example.com"],
 }
-
-
-class MockEmailService:
-    async def send_invitation(self, **kwargs: object) -> bool:
-        return True
-
-    async def send_voting_notification(self, **kwargs: object) -> bool:
-        return True
-
-    async def send_new_iteration_notification(self, **kwargs: object) -> bool:
-        return True
-
-    async def send_finalization_notification(self, **kwargs: object) -> bool:
-        return True
-
-
-@pytest.fixture
-def mock_email():
-    svc = MockEmailService()
-    app.dependency_overrides[get_email_service] = lambda: svc
-    yield svc
-    app.dependency_overrides.pop(get_email_service, None)
-
-
-@pytest.fixture
-async def auth_headers(client: AsyncClient):
-    email = f"user_{secrets.token_hex(4)}@test.com"
-    await client.post(REGISTER_URL, json={"email": email, "password": "test1234"})
-    resp = await client.post(LOGIN_URL, json={"email": email, "password": "test1234"})
-    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
 @pytest.fixture
