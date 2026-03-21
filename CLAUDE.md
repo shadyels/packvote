@@ -279,8 +279,8 @@ After saving a preference, check if all participants have now submitted AND `tri
 **Composite endpoint `GET /participants/{token}/trip-view`:**
 Returns a single `ParticipantTripView` payload containing the participant's own info, trip public info, all participant briefs (names + submitted status, no emails), current-iteration itineraries, voting results, and a `has_voted` flag. This avoids multiple sequential fetches from the participant page. Token is the auth — no bearer token required.
 
-**`POST /participants/access-by-code` requires `email`:**
-The payload is `{ trip_code, pin, email }`. The email is used to identify which participant record to return (trip_code + pin alone are not sufficient — multiple participants share the same trip). Returns `ParticipantAccessResponse`: `{ token, participant }`. The frontend uses the token to redirect to `/trip/{token}`.
+**`POST /participants/access-by-code` requires only `trip_code` and `pin`:**
+The payload is `{ trip_code, pin }`. PIN is now per-participant (not shared per trip), so `trip_code + pin` uniquely identifies a participant — no email needed. Returns `ParticipantAccessResponse`: `{ token, participant }`. The frontend uses the token to redirect to `/trip/{token}`.
 
 **`useTripView` hook:**
 `frontend/src/hooks/useTripView.ts` calls `participants.getTripView(token)` and polls every 5s while `trip.status === "GENERATING"`, stopping automatically on status change or unmount. Same pattern as `useTripDetail` in the dashboard.
@@ -296,7 +296,7 @@ The payload is `{ trip_code, pin, email }`. The email is used to identify which 
 **Route additions:**
 - `/trip/:token/vote` → same `TripPage` (voting notification emails link here)
 - `/join/:token` → `JoinRedirect` component that redirects to `/trip/:token` (invitation email links)
-- `/join` → `JoinPage` (trip code + PIN + email form)
+- `/join` → `JoinPage` (trip code + PIN form — no email required)
 
 ---
 
