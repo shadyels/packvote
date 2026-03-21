@@ -72,7 +72,7 @@ const MOCK_VOTING_RESULTS: VotingResults = {
 function buildMockTrip(status: string): Trip {
   const s = status as TripStatus;
   return {
-    id: 0, trip_code: "SPRNG26A", pin: "4821", creator_id: 99,
+    id: 0, trip_code: "SPRNG26A", creator_id: 99,
     title: "Spring Group Trip 2026", destination: "Lisbon, Portugal",
     proposed_start_date: "2026-05-10", proposed_end_date: "2026-05-17",
     num_options: 2, status: s,

@@ -92,7 +92,7 @@ export default function TripPage() {
   const preview = searchParams.get("preview") as PreviewState | null;
 
   // Preview mode — render all states with mock data, no backend needed
-  if (preview && PREVIEW_STATES.includes(preview as PreviewState)) {
+  if (preview && PREVIEW_STATES.includes(preview)) {
     const data = buildMockData(preview);
     const { trip, participant, participants, itineraries, voting_results, has_voted } = data;
     const winner = trip.winner_itinerary_id

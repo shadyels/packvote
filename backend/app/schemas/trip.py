@@ -16,7 +16,6 @@ class TripCreate(BaseModel):
 class TripResponse(BaseModel):
     id: int
     trip_code: str
-    pin: str
     creator_id: int
     title: str
     destination: str | None

@@ -43,6 +43,10 @@ export default function App() {
         <Route path="/join" element={<JoinPage />} />
         <Route path="/join/:token" element={<JoinRedirect />} />
 
+        {/* Preview routes — no auth required, dev only */}
+        <Route path="/preview/dashboard" element={<DashboardPage />} />
+        <Route path="/preview/dashboard/trip" element={<TripDetailPage />} />
+
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />

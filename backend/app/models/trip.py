@@ -15,7 +15,6 @@ class Trip(Base):
     trip_code: Mapped[str] = mapped_column(
         String(8), unique=True, nullable=False, index=True
     )
-    pin: Mapped[str] = mapped_column(String(4), nullable=False)
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     destination: Mapped[str | None] = mapped_column(String(255))  # None = "surprise me"

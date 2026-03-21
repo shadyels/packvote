@@ -6,7 +6,6 @@ export default function JoinPage() {
   const navigate = useNavigate();
   const [tripCode, setTripCode] = useState("");
   const [pin, setPin] = useState("");
-  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -17,18 +16,15 @@ export default function JoinPage() {
     try {
       const result = await participantsApi.accessByCode(
         tripCode.toUpperCase().trim(),
-        pin.trim(),
-        email.trim().toLowerCase()
+        pin.trim()
       );
       navigate(`/trip/${result.token}`);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(
-          err.status === 401
-            ? "Invalid PIN. Please check and try again."
-            : err.status === 404
-              ? "Trip not found, or your email is not on the invite list."
-              : err.message
+          err.status === 404
+            ? "Invalid trip code or PIN. Please check and try again."
+            : err.message
         );
       } else {
         setError("Something went wrong. Please try again.");
@@ -43,7 +39,7 @@ export default function JoinPage() {
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 shadow-sm">
         <h1 className="text-2xl font-bold text-foreground">Join a Trip</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Enter your Trip Code, PIN, and email address to access your trip.
+          Enter your Trip Code and PIN to access your trip.
         </p>
 
         <form
@@ -92,26 +88,6 @@ export default function JoinPage() {
               maxLength={4}
               required
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Your Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-              }}
-              placeholder="you@example.com"
-              required
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
             />
           </div>
 

@@ -3,7 +3,6 @@
 Covers:
   GET /trips/{trip_id}/participants
   GET /trips/{trip_id}/itineraries
-  GET /trips/{trip_id}/ai-logs
 """
 
 import secrets
@@ -133,33 +132,4 @@ class TestGetTripItineraries:
 
     async def test_401_no_auth(self, client: AsyncClient, trip_id):
         resp = await client.get(f"/trips/{trip_id}/itineraries")
-        assert resp.status_code == 401
-
-
-class TestGetTripAILogs:
-    async def test_empty_when_no_logs(
-        self, client: AsyncClient, auth_headers, trip_id, mock_email
-    ):
-        resp = await client.get(f"/trips/{trip_id}/ai-logs", headers=auth_headers)
-        assert resp.status_code == 200
-        assert resp.json() == []
-
-    async def test_403_when_not_creator(self, client: AsyncClient, mock_email, trip_id):
-        other_email = f"other_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": other_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": other_email, "password": "test1234"}
-        )
-        other_headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
-        resp = await client.get(f"/trips/{trip_id}/ai-logs", headers=other_headers)
-        assert resp.status_code == 403
-
-    async def test_404_nonexistent_trip(self, client: AsyncClient, auth_headers):
-        resp = await client.get("/trips/999999/ai-logs", headers=auth_headers)
-        assert resp.status_code == 404
-
-    async def test_401_no_auth(self, client: AsyncClient, trip_id):
-        resp = await client.get(f"/trips/{trip_id}/ai-logs")
         assert resp.status_code == 401

@@ -4,14 +4,12 @@ import {
   participants as participantsApi,
   itineraries as itinerariesApi,
   votes as votesApi,
-  aiLogs as aiLogsApi,
 } from "@/lib/api";
 import type {
   Trip,
   Participant,
   Itinerary,
   VotingResults,
-  AICallLog,
   TripStatus,
 } from "@/types";
 
@@ -23,7 +21,6 @@ interface TripDetailData {
   participants: Participant[];
   itineraries: Itinerary[];
   votingResults: VotingResults | null;
-  aiLogs: AICallLog[];
 }
 
 interface UseTripDetailResult extends TripDetailData {
@@ -33,12 +30,11 @@ interface UseTripDetailResult extends TripDetailData {
 }
 
 async function fetchAll(tripId: number): Promise<TripDetailData> {
-  const [tripResult, participantsResult, itinerariesResult, aiLogsResult] =
+  const [tripResult, participantsResult, itinerariesResult] =
     await Promise.allSettled([
       tripsApi.get(tripId),
       participantsApi.listByTrip(tripId),
       itinerariesApi.getByTrip(tripId),
-      aiLogsApi.getByTrip(tripId),
     ]);
 
   const trip = tripResult.status === "fulfilled" ? tripResult.value : null;
@@ -59,7 +55,6 @@ async function fetchAll(tripId: number): Promise<TripDetailData> {
     itineraries:
       itinerariesResult.status === "fulfilled" ? itinerariesResult.value : [],
     votingResults,
-    aiLogs: aiLogsResult.status === "fulfilled" ? aiLogsResult.value : [],
   };
 }
 
@@ -69,7 +64,6 @@ export function useTripDetail(tripId: number): UseTripDetailResult {
     participants: [],
     itineraries: [],
     votingResults: null,
-    aiLogs: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

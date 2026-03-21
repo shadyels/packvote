@@ -1,5 +1,4 @@
 import type {
-  AICallLog,
   Itinerary,
   Participant,
   ParticipantAccessResponse,
@@ -104,10 +103,10 @@ export const trips = {
 export const participants = {
   getByToken: (token: string) => request<Participant>(`/participants/${token}`),
 
-  accessByCode: (trip_code: string, pin: string, email: string) =>
+  accessByCode: (trip_code: string, pin: string) =>
     request<ParticipantAccessResponse>("/participants/access-by-code", {
       method: "POST",
-      body: JSON.stringify({ trip_code, pin, email }),
+      body: JSON.stringify({ trip_code, pin }),
     }),
 
   getTripView: (token: string) =>
@@ -158,12 +157,6 @@ export const votes = {
 export const itineraries = {
   getByTrip: (tripId: number) =>
     request<Itinerary[]>(`/trips/${tripId.toString()}/itineraries`),
-};
-
-// AI logs (dashboard use)
-export const aiLogs = {
-  getByTrip: (tripId: number) =>
-    request<AICallLog[]>(`/trips/${tripId.toString()}/ai-logs`),
 };
 
 export { ApiError };
