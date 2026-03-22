@@ -347,21 +347,28 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 ## Deployment
 
 ### Railway Configuration
-- **Frontend service:** Static build from `frontend/` (Vite build output)
-- **Backend service:** Python FastAPI app from `backend/`
-- **Database:** Railway managed PostgreSQL add-on
+- **Builder:** Railpack (Railway's default builder — nixpacks is deprecated)
+- **Frontend service:** Root directory `frontend/` — Railpack auto-detects pnpm, runs `pnpm build`, served via `vite preview`
+- **Backend service:** Root directory `backend/` — Railpack auto-detects uv, runs `uv sync`, starts with `alembic upgrade head && uvicorn`
+- **Database:** Railway managed PostgreSQL add-on (injects `DATABASE_URL` automatically)
+- **Config files:** `backend/railway.toml` and `frontend/railway.toml` committed to repo
 - **Environment variables:** Managed via Railway dashboard (never committed to repo)
 - **Domain:** Default Railway subdomain initially; custom domain can be added later
 
 ### Environment Variables Needed
-- `DATABASE_URL` — PostgreSQL connection string
+
+**Backend service:**
+- `DATABASE_URL` — PostgreSQL connection string (injected automatically by Railway add-on)
 - `SECRET_KEY` — JWT/session signing key
 - `SENDGRID_API_KEY` — SendGrid email service
 - `HF_API_TOKEN` — HuggingFace Inference Providers token
 - `GROQ_API_KEY` — Groq fallback provider token (optional)
-- `UNSPLASH_ACCESS_KEY` — Unsplash API for travel images
 - `FRONTEND_URL` — Frontend base URL (for CORS and email links)
 - `ENVIRONMENT` — development / staging / production
+
+**Frontend service:**
+- `VITE_API_URL` — Backend service URL (e.g. `https://backend.railway.app`)
+- `VITE_UNSPLASH_ACCESS_KEY` — Unsplash API for travel images (optional; falls back to gradient)
 
 ---
 
@@ -379,7 +386,7 @@ Build in this order:
 8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls ✅
 9. **Frontend polish** — Design system (black/cream/orange), Unsplash images, responsive refinement ✅
 10. **Testing** — Full test suite, CI integration
-11. **Deployment** — Railway setup, environment config, live demo
+11. **Deployment** — Railway setup, environment config, live demo ✅ *(config files committed; Railway services need to be created and env vars set)*
 
 **Phase 2 (later):** Price monitoring agent
 
