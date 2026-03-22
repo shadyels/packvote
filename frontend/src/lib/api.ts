@@ -94,8 +94,8 @@ export const trips = {
 
   pickWinner: (tripId: number, itineraryId: number) =>
     request<{ message: string }>(
-      `/trips/${tripId.toString()}/pick-winner?itinerary_id=${itineraryId.toString()}`,
-      { method: "POST" }
+      `/trips/${tripId.toString()}/pick-winner`,
+      { method: "POST", body: JSON.stringify({ itinerary_id: itineraryId }) }
     ),
 };
 
