@@ -417,7 +417,8 @@ class TestRunGeneration:
         db.expire_all()
         result = await db.execute(select(TripModel).where(TripModel.id == trip_id))
         trip = result.scalar_one()
-        assert trip.status == "COLLECTING_PREFERENCES"
+        assert trip.status == "GENERATION_FAILED"
+        assert trip.generation_error == "Provider unavailable"
 
     async def test_failure_logs_ai_call_invalid(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture

@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface DatePickerProps {
@@ -34,10 +34,11 @@ export function DatePicker({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <Button
+        <button
           id={id}
-          variant="outline"
+          type="button"
           className={cn(
+            buttonVariants({ variant: "outline" }),
             "w-full justify-start text-left font-normal bg-card border-border text-black",
             !value && "text-black/40",
             className,
@@ -45,7 +46,7 @@ export function DatePicker({
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           {value ? format(value, "MMM d, yyyy") : placeholder}
-        </Button>
+        </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content

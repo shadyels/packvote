@@ -34,6 +34,7 @@ class TripPublicInfo(BaseModel):
     num_options: int
     current_iteration: int
     winner_itinerary_id: int | None
+    generation_error: str | None = None
 
     model_config = {"from_attributes": True}
 

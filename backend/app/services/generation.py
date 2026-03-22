@@ -109,7 +109,7 @@ async def run_generation(
             logger.error(
                 "Generation failed for trip %d: %s", trip_id, exc, exc_info=True
             )
-            await _reset_trip_status(trip_id, session_factory)
+            await _reset_trip_status(trip_id, session_factory, error_message=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +128,9 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
             getattr(trip, "status", "NOT_FOUND"),
         )
         return
+
+    # Clear any previous generation error
+    trip.generation_error = None
 
     # Seed / fetch the active prompt template
     template = await _upsert_prompt_template(db)
@@ -219,17 +222,21 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
 async def _reset_trip_status(
     trip_id: int,
     session_factory: async_sessionmaker[AsyncSession],
+    *,
+    error_message: str,
 ) -> None:
-    """Open a fresh session to reset trip status after a generation failure."""
+    """Open a fresh session to set trip status to GENERATION_FAILED after a failure."""
     async with session_factory() as db:
         result = await db.execute(select(Trip).where(Trip.id == trip_id))
         trip = result.scalar_one_or_none()
         if trip is not None and trip.status == "GENERATING":
-            trip.status = "COLLECTING_PREFERENCES"
+            trip.status = "GENERATION_FAILED"
+            trip.generation_error = error_message
             await db.commit()
             logger.info(
-                "Trip %d reset to COLLECTING_PREFERENCES after generation failure",
+                "Trip %d set to GENERATION_FAILED: %s",
                 trip_id,
+                error_message,
             )
 
 

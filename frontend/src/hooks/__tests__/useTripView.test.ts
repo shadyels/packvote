@@ -38,6 +38,7 @@ function makeTripView(
       num_options: 3,
       current_iteration: 1,
       winner_itinerary_id: null,
+      generation_error: null,
     },
     participants: [{ id: 1, name: null, preferences_submitted: false }],
     itineraries: [],

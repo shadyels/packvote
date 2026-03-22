@@ -26,6 +26,7 @@ class TripResponse(BaseModel):
     current_iteration: int
     max_iterations: int
     winner_itinerary_id: int | None
+    generation_error: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
