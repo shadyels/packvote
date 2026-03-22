@@ -30,6 +30,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 
 ### Infrastructure
 - **Deployment:** Railway (single platform for all services)
+- **Builder:** Railpack (nixpacks is deprecated — do NOT use `builder = "nixpacks"`)
 - **CI/CD:** GitHub Actions (on push/PR)
 - **Monitoring (Phase 3, future):** Grafana dashboard for platform admin only (tech stack TBD)
 
@@ -409,6 +410,42 @@ Replaced the hard `border-y border-border bg-card` section with a `rounded-3xl b
 - Runs on every push and PR
 - Steps: lint → type check → unit tests → integration tests (mocked AI)
 - Live AI tests run on manual trigger or schedule only
+
+---
+
+## Railway Deployment
+
+### Service Configuration
+Two Railway services, both using **Railpack** builder (nixpacks is deprecated):
+
+| Service | Root Directory | Config file |
+|---------|---------------|-------------|
+| Backend | `backend/` | `backend/railway.toml` |
+| Frontend | `frontend/` | `frontend/railway.toml` |
+
+Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected automatically.
+
+### Start Commands
+- **Backend:** `uv run alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+  - Migrations run on every deploy (Alembic is idempotent — only unapplied migrations run)
+  - Module path is `app.main:app`, not `main:app` — Railpack's FastAPI auto-detection gets this wrong; always use the explicit override in `railway.toml`
+- **Frontend:** `pnpm preview --port $PORT --host`
+  - Railpack auto-detects pnpm from `pnpm-lock.yaml` and runs `pnpm build` (`tsc -b && vite build`)
+  - `.node-version` file in `frontend/` pins Node 22
+
+### Environment Variables
+
+**Backend service (set in Railway dashboard):**
+- `SECRET_KEY` — JWT signing key (generate a strong random string)
+- `SENDGRID_API_KEY` — SendGrid email
+- `HF_API_TOKEN` — HuggingFace Inference Providers
+- `GROQ_API_KEY` — Groq fallback (optional)
+- `FRONTEND_URL` — Frontend Railway domain (for CORS)
+- `ENVIRONMENT` — `production`
+
+**Frontend service (set in Railway dashboard):**
+- `VITE_API_URL` — Backend Railway domain (baked in at build time by Vite)
+- `VITE_UNSPLASH_ACCESS_KEY` — Unsplash photos (optional; falls back to gradient)
 
 ---
 
