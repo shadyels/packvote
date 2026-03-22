@@ -296,10 +296,11 @@ The payload is `{ trip_code, pin }`. PIN is now per-participant (not shared per 
 `frontend/src/hooks/useTripView.ts` calls `participants.getTripView(token)` and polls every 5s while `trip.status === "GENERATING"`, stopping automatically on status change or unmount. Same pattern as `useTripDetail` in the dashboard.
 
 **DatePicker component:**
-`frontend/src/components/ui/calendar.tsx` wraps `react-day-picker` v9's `DayPicker` with Tailwind classNames matching the design system. `frontend/src/components/ui/date-picker.tsx` wraps the Calendar in a `@radix-ui/react-popover`. Props: `value: Date | undefined`, `onChange`, `placeholder`, `disabled`, `defaultMonth`, `toYear`.
+`frontend/src/components/ui/calendar.tsx` wraps `react-day-picker` v9's `DayPicker` with Tailwind classNames matching the design system. `frontend/src/components/ui/date-picker.tsx` wraps the Calendar in a `@radix-ui/react-popover` with a custom 3-level drill-down navigation. Props: `value: Date | undefined`, `onChange`, `placeholder`, `disabled`, `defaultMonth`.
 Key UX rules baked in:
-- `captionLayout="dropdown"` — month/year are native `<select>` dropdowns, no drill-up/drill-down navigation levels that could trap the user.
-- `startMonth` is always the current month — prevents navigating to past months.
+- **Drill-down navigation:** days → months → years. Clicking the month/year caption drills up to a month grid; clicking the year header drills up to a 12-year grid with prev/next paging. Selecting a year drills down to months, selecting a month drills down to days.
+- No upper year limit — only past dates/months/years are disabled.
+- `startMonth` is always the current month — prevents navigating to past months in the day view.
 - Selecting a day closes the popover immediately via `setOpen(false)` in `onSelect`.
 - `defaultMonth` prop lets consumers (end date pickers) open on a specific month (e.g. the selected start date).
 - Past dates are disabled in both `CreateTripDialog` and `PreferenceForm` using `startOfDay(new Date())` from `date-fns`.
@@ -349,7 +350,7 @@ Schema: `backend/app/schemas/ai_call_log.py` (AICallLogResponse)
 The shadcn components in this project use `@base-ui/react` primitives (not `@radix-ui`). Key API differences:
 - `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
 - `Select.Root` `onValueChange` callback is `(value: string | null, eventDetails) => void` — guard against null before calling setState
-- `Tabs` uses `data-[state=active]` for active tab styling
+- `Tabs` uses `data-[active]:` for active tab styling (Tailwind v3 arbitrary data-attribute variant — NOT `data-active:` which is invalid syntax and generates nothing)
 
 **Async event handler lint rule:**
 The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers: `onClick={() => { void handleAsync(); }}` or `onSubmit={(e) => { void handleSubmit(e); }}`.
