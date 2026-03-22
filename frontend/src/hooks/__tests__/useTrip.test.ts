@@ -24,6 +24,7 @@ function makeTrip(id = 1): Trip {
     current_iteration: 1,
     max_iterations: 10,
     winner_itinerary_id: null,
+    generation_error: null,
     created_at: "2024-01-01",
   };
 }

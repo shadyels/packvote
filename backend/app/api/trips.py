@@ -75,13 +75,14 @@ async def trigger_generation(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
         )
-    if trip.status not in ("CREATED", "COLLECTING_PREFERENCES"):
+    if trip.status not in ("CREATED", "COLLECTING_PREFERENCES", "GENERATION_FAILED"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot generate from status '{trip.status}'",
         )
 
     # Commit status change before returning so pollers see GENERATING immediately
+    trip.generation_error = None
     trip.status = "GENERATING"
     await db.commit()
 

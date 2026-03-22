@@ -58,8 +58,8 @@ class TestTriggerGeneration:
         db.expire_all()
         result = await db.execute(select(Trip).where(Trip.id == trip_id))
         trip = result.scalar_one()
-        # Status is GENERATING or VOTING (background task may have run already in tests)
-        assert trip.status in ("GENERATING", "VOTING", "COLLECTING_PREFERENCES")
+        # Status is GENERATING, VOTING, or GENERATION_FAILED (background task may have run)
+        assert trip.status in ("GENERATING", "VOTING", "GENERATION_FAILED")
 
     async def test_404_for_nonexistent_trip(self, client: AsyncClient, auth_headers):
         resp = await client.post("/trips/99999/generate", headers=auth_headers)

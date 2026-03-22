@@ -242,6 +242,9 @@ return {"status": "accepted"}
 ```
 This ensures: (1) clients polling `GET /trips/{id}` immediately see `GENERATING`, and (2) the idempotency guard inside the background task sees the correct status.
 
+**On generation failure, status becomes `GENERATION_FAILED` (not `COLLECTING_PREFERENCES`):**
+`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores the Python exception string in `trip.generation_error`. This field is `Text`, nullable. On the next successful `POST /trips/{id}/generate`, both the status and `generation_error` are cleared before setting `GENERATING`. The dashboard shows a red alert with the error text and a "Retry Generation" button; the participant trip page shows a friendly message. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`). Migration: `0004_add_generation_error_to_trips.py`.
+
 **Idempotency guard at the top of every generation task:**
 Re-read the trip from the DB at the start of `run_generation` and exit early if `trip.status != "GENERATING"`. This prevents a second task (from a race between manual and auto-trigger) from running twice.
 
@@ -293,16 +296,18 @@ The payload is `{ trip_code, pin }`. PIN is now per-participant (not shared per 
 `frontend/src/hooks/useTripView.ts` calls `participants.getTripView(token)` and polls every 5s while `trip.status === "GENERATING"`, stopping automatically on status change or unmount. Same pattern as `useTripDetail` in the dashboard.
 
 **DatePicker component:**
-`frontend/src/components/ui/calendar.tsx` wraps `react-day-picker` v9's `DayPicker` with Tailwind classNames matching the design system. `frontend/src/components/ui/date-picker.tsx` wraps the Calendar in a `@radix-ui/react-popover`. Props: `value: Date | undefined`, `onChange`, `placeholder`, `disabled`, `defaultMonth`, `toYear`.
+`frontend/src/components/ui/calendar.tsx` wraps `react-day-picker` v9's `DayPicker` with Tailwind classNames matching the design system. `frontend/src/components/ui/date-picker.tsx` wraps the Calendar in a `@radix-ui/react-popover` with a custom 3-level drill-down navigation. Props: `value: Date | undefined`, `onChange`, `placeholder`, `disabled`, `defaultMonth`.
 Key UX rules baked in:
-- `captionLayout="dropdown"` — month/year are native `<select>` dropdowns, no drill-up/drill-down navigation levels that could trap the user.
-- `startMonth` is always the current month — prevents navigating to past months.
+- **Drill-down navigation:** days → months → years. Clicking the month/year caption drills up to a month grid; clicking the year header drills up to a 12-year grid with prev/next paging. Selecting a year drills down to months, selecting a month drills down to days.
+- No upper year limit — only past dates/months/years are disabled.
+- `startMonth` is always the current month — prevents navigating to past months in the day view.
 - Selecting a day closes the popover immediately via `setOpen(false)` in `onSelect`.
 - `defaultMonth` prop lets consumers (end date pickers) open on a specific month (e.g. the selected start date).
 - Past dates are disabled in both `CreateTripDialog` and `PreferenceForm` using `startOfDay(new Date())` from `date-fns`.
 - End date picker passes `defaultMonth={startDate}` so it opens on the start date's month when a start date is already selected.
 - State in consumers is `Date | undefined` (not string); formatted to `"yyyy-MM-dd"` via `date-fns/format` only at submit time.
 - Dependencies: `react-day-picker` v9, `date-fns` v4.
+- **Popover trigger uses a plain `<button>` element, NOT the Base UI `<Button>` component.** Radix's `asChild` clones its `onClick`/`aria-*` props onto the child element; Base UI's `ButtonPrimitive` does not forward those cloned props to the DOM. The trigger is styled with `buttonVariants({ variant: "outline" })` from `button.tsx` to match the design system. Do not revert this to `<Button asChild>` or the popover will silently stop opening.
 
 **Shared component and utility locations:**
 - `ItineraryCard` — `frontend/src/components/shared/ItineraryCard.tsx` (used by both dashboard `ItinerariesSection` and participant `VotingForm`/`WinnerDisplay`)
@@ -345,7 +350,7 @@ Schema: `backend/app/schemas/ai_call_log.py` (AICallLogResponse)
 The shadcn components in this project use `@base-ui/react` primitives (not `@radix-ui`). Key API differences:
 - `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
 - `Select.Root` `onValueChange` callback is `(value: string | null, eventDetails) => void` — guard against null before calling setState
-- `Tabs` uses `data-[state=active]` for active tab styling
+- `Tabs` uses `data-[active]:` for active tab styling (Tailwind v3 arbitrary data-attribute variant — NOT `data-active:` which is invalid syntax and generates nothing)
 
 **Async event handler lint rule:**
 The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers: `onClick={() => { void handleAsync(); }}` or `onSubmit={(e) => { void handleSubmit(e); }}`.

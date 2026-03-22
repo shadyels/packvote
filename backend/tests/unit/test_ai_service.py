@@ -12,7 +12,6 @@ import pytest
 from app.schemas.itinerary import AIGenerationResponse, ItineraryOption
 from app.services.ai.service import AIService
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -93,9 +92,8 @@ class TestAIServiceRetry:
         primary.generate_itineraries.side_effect = RuntimeError("primary fail")
         service = AIService(primary=primary, fallback=None)
 
-        with patch("asyncio.sleep"):
-            with pytest.raises(RuntimeError, match="primary fail"):
-                await service.generate_itineraries("prompt", 1, "model")
+        with patch("asyncio.sleep"), pytest.raises(RuntimeError, match="primary fail"):
+            await service.generate_itineraries("prompt", 1, "model")
 
     async def test_primary_and_fallback_both_fail_raises_last(self) -> None:
         primary = AsyncMock()
@@ -104,9 +102,8 @@ class TestAIServiceRetry:
         fallback.generate_itineraries.side_effect = RuntimeError("fallback fail")
         service = AIService(primary=primary, fallback=fallback)
 
-        with patch("asyncio.sleep"):
-            with pytest.raises(RuntimeError, match="fallback fail"):
-                await service.generate_itineraries("prompt", 1, "model")
+        with patch("asyncio.sleep"), pytest.raises(RuntimeError, match="fallback fail"):
+            await service.generate_itineraries("prompt", 1, "model")
 
     async def test_explicit_model_passed_to_provider(self) -> None:
         mock_result = (_make_response(), "huggingface")
@@ -126,10 +123,9 @@ class TestAIServiceRetry:
         primary.generate_itineraries.return_value = mock_result
         service = AIService(primary=primary)
 
-        with patch("asyncio.sleep"):
-            with patch("app.services.ai.service.get_settings") as mock_settings:
-                mock_settings.return_value.DEFAULT_AI_MODEL = "Qwen2.5-72B-Instruct"
-                await service.generate_itineraries("prompt", 1, model=None)
+        with patch("asyncio.sleep"), patch("app.services.ai.service.get_settings") as mock_settings:
+            mock_settings.return_value.DEFAULT_AI_MODEL = "Qwen2.5-72B-Instruct"
+            await service.generate_itineraries("prompt", 1, model=None)
 
         call_args = primary.generate_itineraries.call_args
         assert call_args[0][2] == "Qwen2.5-72B-Instruct"

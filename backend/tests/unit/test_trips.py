@@ -1,7 +1,6 @@
 import re
 import secrets
 
-import pytest
 from httpx import AsyncClient
 
 REGISTER_URL = "/auth/register"

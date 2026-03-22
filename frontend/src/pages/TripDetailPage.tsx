@@ -88,59 +88,53 @@ export default function TripDetailPage() {
               </Button>
             </div>
 
-            <Tabs defaultValue="overview">
-              <TabsList variant="line" className="mb-6">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="participants">
-                  Participants
-                  <span className="ml-1.5 text-xs text-black/40">
-                    ({participants.length})
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="itineraries">
-                  Itineraries
-                  <span className="ml-1.5 text-xs text-black/40">
-                    ({itineraries.length})
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="voting">Voting</TabsTrigger>
-              </TabsList>
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <Tabs defaultValue="overview">
+                <TabsList variant="line" className="w-full justify-start px-6 py-2 border-b border-border rounded-none gap-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="participants">
+                    Participants
+                    <span className="ml-1.5 text-xs opacity-50">
+                      ({participants.length})
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger value="itineraries">
+                    Itineraries
+                    <span className="ml-1.5 text-xs opacity-50">
+                      ({itineraries.length})
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger value="voting">Voting</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="overview">
-                <div className="rounded-xl border border-border bg-card p-6">
+                <TabsContent value="overview" className="p-6">
                   <TripOverviewSection
                     trip={trip}
                     itineraries={itineraries}
                     onRefetch={refetch}
                   />
-                </div>
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="participants">
-                <div className="rounded-xl border border-border bg-card p-6">
+                <TabsContent value="participants" className="p-6">
                   <ParticipantsSection participants={participants} />
-                </div>
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="itineraries">
-                <div className="rounded-xl border border-border bg-card p-6">
+                <TabsContent value="itineraries" className="p-6">
                   <ItinerariesSection
                     itineraries={itineraries}
                     votingResults={votingResults}
                     winnerId={trip.winner_itinerary_id ?? null}
                   />
-                </div>
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="voting">
-                <div className="rounded-xl border border-border bg-card p-6">
+                <TabsContent value="voting" className="p-6">
                   <VotingSection
                     votingResults={votingResults}
                     itineraries={itineraries}
                   />
-                </div>
-              </TabsContent>
-            </Tabs>
+                </TabsContent>
+              </Tabs>
+            </div>
           </>
         )}
       </div>

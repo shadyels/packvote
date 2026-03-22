@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Zap, RotateCcw, Trophy } from "lucide-react";
+import { Loader2, Zap, RotateCcw, Trophy, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { trips as tripsApi, votes as votesApi, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ const STATUS_LABELS: Record<TripStatus, string> = {
   CREATED: "Created",
   COLLECTING_PREFERENCES: "Collecting Preferences",
   GENERATING: "Generating…",
+  GENERATION_FAILED: "Generation Failed",
   VOTING: "Voting",
   ITERATING: "Iterating",
   FINALIZED: "Finalized",
@@ -27,6 +28,7 @@ const STATUS_BADGE: Record<TripStatus, string> = {
   CREATED: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100",
   COLLECTING_PREFERENCES: "bg-blue-100 text-blue-700 hover:bg-blue-100",
   GENERATING: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+  GENERATION_FAILED: "bg-red-100 text-red-700 hover:bg-red-100",
   VOTING: "bg-brand/20 text-brand hover:bg-brand/20",
   ITERATING: "bg-purple-100 text-purple-700 hover:bg-purple-100",
   FINALIZED: "bg-green-100 text-green-700 hover:bg-green-100",
@@ -191,6 +193,34 @@ export function TripOverviewSection({
               This page will update automatically when ready.
             </p>
           </div>
+        </div>
+      )}
+
+      {trip.status === "GENERATION_FAILED" && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-red-700 font-medium text-sm">Generation failed</p>
+              {trip.generation_error && (
+                <p className="text-xs text-red-600/80 mt-1 break-words">
+                  {trip.generation_error}
+                </p>
+              )}
+            </div>
+          </div>
+          <Button
+            onClick={() => { void handleGenerate(); }}
+            disabled={isActing}
+            className="bg-brand hover:bg-brand-hover text-white"
+          >
+            {isActing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4 mr-2" />
+            )}
+            Retry Generation
+          </Button>
         </div>
       )}
 

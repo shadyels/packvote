@@ -16,6 +16,10 @@ export const STATUS_CONFIG: Record<
     label: "Generating",
     className: "bg-amber-100 text-amber-700 hover:bg-amber-100",
   },
+  GENERATION_FAILED: {
+    label: "Failed",
+    className: "bg-red-100 text-red-700 hover:bg-red-100",
+  },
   VOTING: {
     label: "Voting",
     className: "bg-brand/20 text-brand hover:bg-brand/20",

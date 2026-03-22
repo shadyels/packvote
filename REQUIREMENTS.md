@@ -77,7 +77,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Highlights list
 - All AI output is structured JSON, validated by Pydantic schemas
 - Failed/invalid AI responses are retried with exponential backoff (3 attempts on HuggingFace, then 1 attempt on Groq fallback)
-- If all providers fail, trip status is reset to `COLLECTING_PREFERENCES` so the admin can retry
+- If all providers fail, trip status is set to `GENERATION_FAILED` and the error message is stored on the trip; the dashboard shows the error and a Retry button; the admin can re-trigger from `GENERATION_FAILED` status
 - Each generation is logged with: prompt version, model used, provider used, latency, response validity
 
 ### F5: Ranked-Choice Voting
@@ -106,6 +106,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Manually picking a winner ✅
   - Accepting the current ranked-choice winner ✅
 - Trip status flow: `CREATED` → `COLLECTING_PREFERENCES` → `GENERATING` → `VOTING` → `ITERATING` → `FINALIZED`
+  - On generation failure: `GENERATING` → `GENERATION_FAILED` (error stored in `generation_error`; admin can retry, which transitions back to `GENERATING`)
 
 **F6 implementation status:** The iteration *mechanics* are built — `POST /trips/{id}/new-iteration` triggers a new AI generation round and resets voting. What is **not yet built** is the *survey phase*: after a no-majority result, the AI should analyse the previous round and generate targeted follow-up questions before re-generation. This requires a new AI prompt, a survey response data model, a participant survey UI, and the `ITERATING` status (currently unused — new iteration goes `VOTING → GENERATING` directly, skipping `ITERATING`). The `send_new_iteration_notification` email exists but the `survey_questions` param was removed until this is built.
 
@@ -330,7 +331,7 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 
 ### Core Tables
 - `users` — trip creators (email, hashed_password, created_at)
-- `trips` — (id, trip_code_8char_alphanum, creator_id, destination, proposed_dates, num_options, status, max_iterations, current_iteration, created_at)
+- `trips` — (id, trip_code_8char_alphanum, creator_id, destination, proposed_dates, num_options, status, generation_error, max_iterations, current_iteration, created_at)
 - `participants` — (id, trip_id, email, name, pin_4digit, token, preferences_submitted, created_at) — PIN is unique per participant within a trip
 - `preferences` — (id, participant_id, trip_id, preferred_dates, budget_min, budget_max, currency, interests, submitted_at)
 - `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary_json, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at)

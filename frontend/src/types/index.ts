@@ -18,6 +18,7 @@ export interface Trip {
   current_iteration: number;
   max_iterations: number;
   winner_itinerary_id: number | null;
+  generation_error: string | null;
   created_at: string;
 }
 
@@ -25,6 +26,7 @@ export type TripStatus =
   | "CREATED"
   | "COLLECTING_PREFERENCES"
   | "GENERATING"
+  | "GENERATION_FAILED"
   | "VOTING"
   | "ITERATING"
   | "FINALIZED";
@@ -130,6 +132,7 @@ export interface TripPublicInfo {
   num_options: number;
   current_iteration: number;
   winner_itinerary_id: number | null;
+  generation_error: string | null;
 }
 
 export interface ParticipantBrief {

@@ -2,9 +2,18 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import { cn } from "@/lib/utils";
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker>;
+export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
+  onCaptionClick?: () => void;
+};
 
-export function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
+export function Calendar({
+  className,
+  classNames,
+  showOutsideDays = true,
+  components: componentsProp,
+  onCaptionClick,
+  ...props
+}: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -14,8 +23,6 @@ export function Calendar({ className, classNames, showOutsideDays = true, ...pro
         month: "flex flex-col gap-4",
         month_caption: "flex justify-center pt-1 relative items-center w-full",
         caption_label: "text-sm font-medium text-foreground",
-        dropdowns: "flex justify-center gap-1",
-        dropdown: "text-sm font-medium bg-background border border-border rounded px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-brand/50 cursor-pointer",
         nav: "flex items-center gap-1 absolute inset-x-0 top-1 justify-between px-1",
         button_previous: cn(
           "inline-flex items-center justify-center h-7 w-7 rounded-md border border-border bg-transparent p-0",
@@ -53,6 +60,21 @@ export function Calendar({ className, classNames, showOutsideDays = true, ...pro
           ) : (
             <ChevronRight className="h-4 w-4" />
           ),
+        ...(onCaptionClick
+          ? {
+              CaptionLabel: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
+                <button
+                  id={id}
+                  type="button"
+                  onClick={onCaptionClick}
+                  className="text-sm font-semibold text-foreground hover:text-brand transition-colors cursor-pointer"
+                >
+                  {children}
+                </button>
+              ),
+            }
+          : {}),
+        ...componentsProp,
       }}
       {...props}
     />

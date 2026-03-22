@@ -5,6 +5,7 @@ import { ParticipantProgress } from "@/components/trip/ParticipantProgress";
 import { PreferenceForm } from "@/components/trip/PreferenceForm";
 import { WaitingScreen } from "@/components/trip/WaitingScreen";
 import { GeneratingScreen } from "@/components/trip/GeneratingScreen";
+import { AlertTriangle } from "lucide-react";
 import { VotingForm } from "@/components/trip/VotingForm";
 import { WinnerDisplay } from "@/components/trip/WinnerDisplay";
 
@@ -86,6 +87,20 @@ function TripPageInner({
           ))}
 
         {trip.status === "GENERATING" && <GeneratingScreen />}
+
+        {trip.status === "GENERATION_FAILED" && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-6 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-red-700">
+                Itinerary generation encountered an issue
+              </p>
+              <p className="text-xs text-red-600/70 mt-1">
+                The trip organizer has been notified and can retry. Check back soon.
+              </p>
+            </div>
+          </div>
+        )}
 
         {(trip.status === "VOTING" || trip.status === "ITERATING") && (
           <VotingForm
