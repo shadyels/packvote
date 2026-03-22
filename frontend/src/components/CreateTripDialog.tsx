@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { format, startOfDay } from "date-fns";
 import { Plus, X } from "lucide-react";
 import { trips as tripsApi, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -33,8 +35,8 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
   // Form state
   const [title, setTitle] = useState("");
   const [destination, setDestination] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [numOptions, setNumOptions] = useState("3");
   const [notes, setNotes] = useState("");
   const [emails, setEmails] = useState<string[]>([""]);
@@ -42,8 +44,8 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
   const resetForm = () => {
     setTitle("");
     setDestination("");
-    setStartDate("");
-    setEndDate("");
+    setStartDate(undefined);
+    setEndDate(undefined);
     setNumOptions("3");
     setNotes("");
     setEmails([""]);
@@ -73,8 +75,8 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
       await tripsApi.create({
         title: title.trim(),
         destination: destination.trim() || undefined,
-        proposed_start_date: startDate || undefined,
-        proposed_end_date: endDate || undefined,
+        proposed_start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
+        proposed_end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
         num_options: parseInt(numOptions, 10),
         participant_emails: validEmails,
         notes: notes.trim() || undefined,
@@ -152,24 +154,25 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               <Label htmlFor="ct-start" className="text-black/80">
                 Start date
               </Label>
-              <Input
+              <DatePicker
                 id="ct-start"
-                type="date"
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); }}
-                className="bg-card border-border text-black"
+                onChange={setStartDate}
+                placeholder="Start date"
+                disabled={(date) => date < startOfDay(new Date())}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ct-end" className="text-black/80">
                 End date
               </Label>
-              <Input
+              <DatePicker
                 id="ct-end"
-                type="date"
                 value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); }}
-                className="bg-card border-border text-black"
+                onChange={setEndDate}
+                placeholder="End date"
+                defaultMonth={startDate}
+                disabled={startDate ? (date) => date < startDate : (date) => date < startOfDay(new Date())}
               />
             </div>
           </div>
