@@ -440,12 +440,29 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 - `SENDGRID_API_KEY` — SendGrid email
 - `HF_API_TOKEN` — HuggingFace Inference Providers
 - `GROQ_API_KEY` — Groq fallback (optional)
-- `FRONTEND_URL` — Frontend Railway domain (for CORS)
+- `FRONTEND_URL` — Frontend Railway public domain, no port (e.g. `https://xxx.up.railway.app`). Used for CORS — must be the public URL, not the `.railway.internal` private URL
 - `ENVIRONMENT` — `production`
 
 **Frontend service (set in Railway dashboard):**
-- `VITE_API_URL` — Backend Railway domain (baked in at build time by Vite)
+- `VITE_API_URL` — Backend Railway public domain (e.g. `https://xxx.up.railway.app`). **Must be set before Railway builds the frontend** — Vite bakes this in at build time, not runtime. Wrong or missing value means all API calls go to localhost.
 - `VITE_UNSPLASH_ACCESS_KEY` — Unsplash photos (optional; falls back to gradient)
+
+### Known Deployment Gotchas (learned in production)
+
+**1. Railpack, not nixpacks**
+`railway.toml` must use `builder = "RAILPACK"`. nixpacks is deprecated on Railway and will fail. Never set `builder = "nixpacks"`.
+
+**2. DATABASE_URL must use the asyncpg driver prefix**
+Railway's PostgreSQL add-on injects `DATABASE_URL` as `postgresql://...`. SQLAlchemy async (used by this project) requires `postgresql+asyncpg://...`. After the add-on is linked, manually edit the `DATABASE_URL` variable in the Railway dashboard to replace `postgresql://` with `postgresql+asyncpg://`. Without this the Alembic migration fails and uvicorn never starts, causing the healthcheck to report "1/1 replicas never became healthy".
+
+**3. Public domain target port for backend is 8000**
+When generating a public domain for the backend service in Railway, set the target port to `8000` (uvicorn's default). Railway maps public HTTPS (443) → internal port 8000.
+
+**4. FRONTEND_URL is the public URL, not the private .railway.internal URL**
+Railway provides a `.railway.internal` private networking URL for inter-service communication. Do NOT use it for `FRONTEND_URL` — CORS validation happens in the browser, which is outside Railway's private network. Use the public `https://xxx.up.railway.app` domain.
+
+**5. Startup order: set VITE_API_URL before first frontend deploy**
+If the frontend is deployed before `VITE_API_URL` is set, the build bakes in an empty/wrong value. Redeploy after setting the variable to fix it.
 
 ---
 
