@@ -10,7 +10,7 @@ from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.db.session import get_session_factory as _get_session_factory
 from app.models.user import User
-from app.services.email.sendgrid import EmailService
+from app.services.email.brevo import EmailService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

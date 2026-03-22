@@ -14,7 +14,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 - **ORM:** SQLAlchemy (async) + Alembic (migrations)
 - **Package Manager:** uv
 - **Database:** PostgreSQL
-- **Email:** SendGrid (free tier, 100 emails/day)
+- **Email:** Brevo (free tier, 300 emails/day)
 - **AI Inference:** HuggingFace Inference Providers (provider-agnostic service layer)
 - **Default AI Model:** Qwen2.5-72B-Instruct
 - **API Style:** REST (not GraphQL — PackVote has a straightforward data model with one frontend client; GraphQL would add schema/resolver overhead without real benefit)
@@ -62,7 +62,7 @@ packvote/
 │   │   ├── services/       # Business logic layer
 │   │   │   ├── ai/        # AI service layer (provider-agnostic)
 │   │   │   ├── voting/    # Ranked-choice voting logic
-│   │   │   ├── email/     # SendGrid integration
+│   │   │   ├── email/     # Brevo integration
 │   │   │   └── monitoring/ # Metrics collection
 │   │   ├── prompts/        # Versioned prompt templates
 │   │   ├── core/           # Config, security, dependencies
@@ -374,8 +374,8 @@ Replaced the hard `border-y border-border bg-card` section with a `rounded-3xl b
 `AIRecommendationVisual` is a mock itinerary card with a warm orange gradient header, match score (Star icon), per-person budget, activity Badge tags, and a Day 1 time-activity preview. `RankedVotingVisual` uses `Card`/`CardHeader`/`CardContent` with 3 ranked options, progress bars (brand-colored winner, muted losers), and a winner callout banner with Trophy + CheckCircle2. Both use Lucide icons: `Star`, `Utensils`, `Compass`, `Trophy`, `CheckCircle2`.
 
 ### Email
-- SendGrid free tier (100 emails/day)
-- Emails contain: invitation/notification text, direct tokenized link, trip ID + PIN
+- Brevo free tier (300 emails/day)
+- Emails contain: invitation/notification text, direct tokenized link, trip code + PIN
 - Trip page is a persistent in-app page showing current status, votes, itineraries
 
 ### AI Call Logging (Phase 1)
@@ -437,7 +437,7 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 
 **Backend service (set in Railway dashboard):**
 - `SECRET_KEY` — JWT signing key (generate a strong random string)
-- `SENDGRID_API_KEY` — SendGrid email
+- `BREVO_API_KEY` — Brevo transactional email
 - `HF_API_TOKEN` — HuggingFace Inference Providers
 - `GROQ_API_KEY` — Groq fallback (optional)
 - `FRONTEND_URL` — Frontend Railway public domain, no port (e.g. `https://xxx.up.railway.app`). Used for CORS — must be the public URL, not the `.railway.internal` private URL
@@ -463,6 +463,15 @@ Railway provides a `.railway.internal` private networking URL for inter-service 
 
 **5. Startup order: set VITE_API_URL before first frontend deploy**
 If the frontend is deployed before `VITE_API_URL` is set, the build bakes in an empty/wrong value. Redeploy after setting the variable to fix it.
+
+**6. `vite preview` blocks unknown hosts — `allowedHosts: true` required**
+Railway assigns a dynamic subdomain (e.g. `xxx.up.railway.app`). By default, `vite preview` rejects requests from hosts not explicitly listed, returning "Blocked request. This host is not allowed." Fix is already applied in `vite.config.ts`:
+```ts
+preview: {
+  allowedHosts: true,
+},
+```
+Do not change this to a string (`"true"`) — it must be the boolean `true`.
 
 ---
 

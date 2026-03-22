@@ -22,7 +22,7 @@ class MockEmailService:
     """Superset mock for all four email methods.
 
     Tracks every call in ``self.sent`` so tests can assert on recipients,
-    trip codes, PINs, and tokens without hitting SendGrid.
+    trip codes, PINs, and tokens without hitting Brevo.
     """
 
     def __init__(self) -> None:
