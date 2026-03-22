@@ -190,6 +190,12 @@ Both `HuggingFaceProvider` and `GroqProvider` use `AsyncInferenceClient` from `h
 **Retry strategy — primary then fallback:**
 `AIService.generate_itineraries()` retries the primary provider (HuggingFace) up to 3 times with exponential backoff (1s, 2s, 4s). On exhaustion, it tries the fallback (Groq) once. If both fail, the last exception is re-raised. Never use immediate retries.
 
+**Robust JSON extraction — `extract_json()` in `services/ai/json_utils.py`:**
+Never use bare `json.loads()` on AI completions. Open-source models (Qwen, Llama) sometimes wrap JSON in markdown fences (`` ```json\n{...}\n``` ``) or include preamble text even when `response_format={"type": "json_object"}` is set. Use `extract_json(raw)` instead — it tries three strategies in order: direct parse → strip markdown fences → brace-extraction (`raw[raw.find("{"):raw.rfind("}")+1]`). On total failure it raises `AIParseError` with the raw text attached. Both `HuggingFaceProvider` and `GroqProvider` call `extract_json()` before passing the result to Pydantic. A `pydantic.ValidationError` is wrapped in `AIParseError` so the raw text always propagates to the caller for logging.
+
+**Raw response logging:**
+`ai_call_logs.raw_response` (Text column, nullable) stores the raw AI response string whenever parsing or validation fails. This is populated by `generation.py` when it catches `AIParseError`. The `raw_response` field is always `None` on success to avoid bloating the table. Migration: `0003_add_raw_response_to_ai_call_logs.py`.
+
 **Groq ignores the `model` parameter:**
 The `model` argument passed to `GroqProvider.generate_itineraries()` is always a HuggingFace model ID and is meaningless to Groq. `GroqProvider` hardcodes `GROQ_MODEL = "llama-3.3-70b-versatile"` and ignores the argument. This is intentional — do not try to pass a Groq-specific model name through `AIService`.
 
@@ -285,6 +291,18 @@ The payload is `{ trip_code, pin }`. PIN is now per-participant (not shared per 
 
 **`useTripView` hook:**
 `frontend/src/hooks/useTripView.ts` calls `participants.getTripView(token)` and polls every 5s while `trip.status === "GENERATING"`, stopping automatically on status change or unmount. Same pattern as `useTripDetail` in the dashboard.
+
+**DatePicker component:**
+`frontend/src/components/ui/calendar.tsx` wraps `react-day-picker` v9's `DayPicker` with Tailwind classNames matching the design system. `frontend/src/components/ui/date-picker.tsx` wraps the Calendar in a `@radix-ui/react-popover`. Props: `value: Date | undefined`, `onChange`, `placeholder`, `disabled`, `defaultMonth`, `toYear`.
+Key UX rules baked in:
+- `captionLayout="dropdown"` — month/year are native `<select>` dropdowns, no drill-up/drill-down navigation levels that could trap the user.
+- `startMonth` is always the current month — prevents navigating to past months.
+- Selecting a day closes the popover immediately via `setOpen(false)` in `onSelect`.
+- `defaultMonth` prop lets consumers (end date pickers) open on a specific month (e.g. the selected start date).
+- Past dates are disabled in both `CreateTripDialog` and `PreferenceForm` using `startOfDay(new Date())` from `date-fns`.
+- End date picker passes `defaultMonth={startDate}` so it opens on the start date's month when a start date is already selected.
+- State in consumers is `Date | undefined` (not string); formatted to `"yyyy-MM-dd"` via `date-fns/format` only at submit time.
+- Dependencies: `react-day-picker` v9, `date-fns` v4.
 
 **Shared component and utility locations:**
 - `ItineraryCard` — `frontend/src/components/shared/ItineraryCard.tsx` (used by both dashboard `ItinerariesSection` and participant `VotingForm`/`WinnerDisplay`)
