@@ -72,7 +72,7 @@ const FAKE_ITINERARIES: Itinerary[] = [
 
 const FAKE_VOTING_RESULTS: VotingResults = {
   trip_id: 1,
-  iteration: 1,
+  iteration_number: 1,
   is_complete: true,
   winner_id: 10,
   rounds: [],

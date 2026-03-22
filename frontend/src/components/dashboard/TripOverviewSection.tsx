@@ -135,11 +135,7 @@ export function TripOverviewSection({
           <p className="text-xs text-black/40 uppercase tracking-wide mb-1">Trip Code</p>
           <p className="text-black font-mono text-sm">{trip.trip_code}</p>
         </div>
-        <div>
-          <p className="text-xs text-black/40 uppercase tracking-wide mb-1">PIN</p>
-          <p className="text-black font-mono text-sm">{trip.pin}</p>
-        </div>
-        {trip.destination && (
+{trip.destination && (
           <div>
             <p className="text-xs text-black/40 uppercase tracking-wide mb-1">Destination</p>
             <p className="text-black text-sm">{trip.destination}</p>
