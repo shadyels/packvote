@@ -21,6 +21,7 @@ class AICallLog(Base):
     token_count_output: Mapped[int | None] = mapped_column(Integer)
     response_valid: Mapped[bool] = mapped_column(Boolean, default=False)
     error_message: Mapped[str | None] = mapped_column(Text)
+    raw_response: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

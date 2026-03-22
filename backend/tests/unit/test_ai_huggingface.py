@@ -6,7 +6,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import ValidationError
 
 from app.schemas.itinerary import (
     AIGenerationResponse,
@@ -15,7 +14,7 @@ from app.schemas.itinerary import (
     ItineraryOption,
 )
 from app.services.ai.huggingface import HuggingFaceProvider, _split_prompt
-
+from app.services.ai.json_utils import AIParseError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -138,29 +137,48 @@ class TestHuggingFaceProviderGenerate:
         # Response has 1 option but we request 3
         mock_client = _make_mock_client(_make_valid_response_json(num_options=1))
 
-        with patch.object(provider, "_make_client", return_value=mock_client):
-            with pytest.raises(ValueError, match="expected 3"):
-                await provider.generate_itineraries(
-                    "[SYSTEM]\nS\n[USER]\nU", 3, "model"
-                )
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(ValueError, match="expected 3"):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 3, "model"
+            )
 
-    async def test_invalid_json_raises(self) -> None:
+    async def test_invalid_json_raises_ai_parse_error(self) -> None:
         provider = HuggingFaceProvider(api_token="test-token")
         mock_client = _make_mock_client("not valid json at all")
 
-        with patch.object(provider, "_make_client", return_value=mock_client):
-            with pytest.raises(json.JSONDecodeError):
-                await provider.generate_itineraries(
-                    "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-                )
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )
 
-    async def test_wrong_schema_raises_validation_error(self) -> None:
+    async def test_none_content_raises_ai_parse_error(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        mock_client = _make_mock_client(None)  # type: ignore[arg-type]
+
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )
+
+    async def test_markdown_wrapped_json_succeeds(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        fenced = f"```json\n{_make_valid_response_json(num_options=1)}\n```"
+        mock_client = _make_mock_client(fenced)
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            response, provider_name = await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )
+
+        assert isinstance(response, AIGenerationResponse)
+        assert len(response.options) == 1
+
+    async def test_wrong_schema_raises_ai_parse_error(self) -> None:
         provider = HuggingFaceProvider(api_token="test-token")
         # Valid JSON but wrong structure (missing required fields)
         mock_client = _make_mock_client(json.dumps({"wrong_key": []}))
 
-        with patch.object(provider, "_make_client", return_value=mock_client):
-            with pytest.raises(ValidationError):
-                await provider.generate_itineraries(
-                    "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-                )
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )
