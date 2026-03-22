@@ -242,6 +242,9 @@ return {"status": "accepted"}
 ```
 This ensures: (1) clients polling `GET /trips/{id}` immediately see `GENERATING`, and (2) the idempotency guard inside the background task sees the correct status.
 
+**On generation failure, status becomes `GENERATION_FAILED` (not `COLLECTING_PREFERENCES`):**
+`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores the Python exception string in `trip.generation_error`. This field is `Text`, nullable. On the next successful `POST /trips/{id}/generate`, both the status and `generation_error` are cleared before setting `GENERATING`. The dashboard shows a red alert with the error text and a "Retry Generation" button; the participant trip page shows a friendly message. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`). Migration: `0004_add_generation_error_to_trips.py`.
+
 **Idempotency guard at the top of every generation task:**
 Re-read the trip from the DB at the start of `run_generation` and exit early if `trip.status != "GENERATING"`. This prevents a second task (from a race between manual and auto-trigger) from running twice.
 
@@ -303,6 +306,7 @@ Key UX rules baked in:
 - End date picker passes `defaultMonth={startDate}` so it opens on the start date's month when a start date is already selected.
 - State in consumers is `Date | undefined` (not string); formatted to `"yyyy-MM-dd"` via `date-fns/format` only at submit time.
 - Dependencies: `react-day-picker` v9, `date-fns` v4.
+- **Popover trigger uses a plain `<button>` element, NOT the Base UI `<Button>` component.** Radix's `asChild` clones its `onClick`/`aria-*` props onto the child element; Base UI's `ButtonPrimitive` does not forward those cloned props to the DOM. The trigger is styled with `buttonVariants({ variant: "outline" })` from `button.tsx` to match the design system. Do not revert this to `<Button asChild>` or the popover will silently stop opening.
 
 **Shared component and utility locations:**
 - `ItineraryCard` — `frontend/src/components/shared/ItineraryCard.tsx` (used by both dashboard `ItinerariesSection` and participant `VotingForm`/`WinnerDisplay`)
