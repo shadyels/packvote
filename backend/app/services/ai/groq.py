@@ -1,10 +1,14 @@
-import json
+import logging
 
 from huggingface_hub import AsyncInferenceClient
+from pydantic import ValidationError
 
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
 from app.services.ai.huggingface import _split_prompt
+from app.services.ai.json_utils import AIParseError, extract_json
+
+logger = logging.getLogger(__name__)
 
 
 class GroqProvider(AIProvider):
@@ -42,8 +46,22 @@ class GroqProvider(AIProvider):
             max_tokens=8192,
         )
         raw_text = completion.choices[0].message.content
-        data = json.loads(raw_text)
-        response = AIGenerationResponse.model_validate(data)
+        try:
+            data = extract_json(raw_text)
+        except AIParseError:
+            logger.warning(
+                "Groq response JSON extraction failed. Raw (first 500): %.500s",
+                raw_text,
+            )
+            raise
+        try:
+            response = AIGenerationResponse.model_validate(data)
+        except ValidationError as exc:
+            logger.warning(
+                "Groq response failed schema validation. Raw (first 500): %.500s",
+                raw_text,
+            )
+            raise AIParseError(str(exc), raw_text=raw_text) from exc
         if len(response.options) != num_options:
             raise ValueError(
                 f"AI returned {len(response.options)} options, expected {num_options}"

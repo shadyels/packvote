@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { format, startOfDay } from "date-fns";
 import { participants as participantsApi, ApiError } from "@/lib/api";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "SGD"];
 
@@ -9,8 +11,8 @@ interface PreferenceFormProps {
 }
 
 export function PreferenceForm({ token, onSuccess }: PreferenceFormProps) {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
   const [currency, setCurrency] = useState("USD");
@@ -31,8 +33,8 @@ export function PreferenceForm({ token, onSuccess }: PreferenceFormProps) {
 
     try {
       await participantsApi.submitPreferences(token, {
-        preferred_start_date: startDate || undefined,
-        preferred_end_date: endDate || undefined,
+        preferred_start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
+        preferred_end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
         budget_min: budgetMin ? parseFloat(budgetMin) : undefined,
         budget_max: budgetMax ? parseFloat(budgetMax) : undefined,
         currency,
@@ -73,26 +75,25 @@ export function PreferenceForm({ token, onSuccess }: PreferenceFormProps) {
             <label className="block text-xs font-medium text-foreground mb-1">
               Preferred Start Date
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-              }}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
+              onChange={setStartDate}
+              placeholder="Start date"
+              className="bg-background border-border text-foreground"
+              disabled={(date) => date < startOfDay(new Date())}
             />
           </div>
           <div>
             <label className="block text-xs font-medium text-foreground mb-1">
               Preferred End Date
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-              }}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
+              onChange={setEndDate}
+              placeholder="End date"
+              className="bg-background border-border text-foreground"
+              defaultMonth={startDate}
+              disabled={startDate ? (date) => date < startDate : (date) => date < startOfDay(new Date())}
             />
           </div>
         </div>

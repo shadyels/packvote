@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.schemas.itinerary import AIGenerationResponse, ItineraryOption
 from app.services.ai.groq import GroqProvider
-
+from app.services.ai.json_utils import AIParseError
 
 # ---------------------------------------------------------------------------
 # Helpers (reuse the same builder used in test_ai_huggingface)
@@ -77,11 +77,10 @@ class TestGroqProvider:
         provider = GroqProvider(api_key="test-key")
         mock_client = _make_mock_client(_make_valid_response_json(num_options=1))
 
-        with patch.object(provider, "_make_client", return_value=mock_client):
-            with pytest.raises(ValueError, match="expected 2"):
-                await provider.generate_itineraries(
-                    "[SYSTEM]\nS\n[USER]\nU", 2, "model"
-                )
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(ValueError, match="expected 2"):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 2, "model"
+            )
 
     async def test_reuses_split_prompt_from_huggingface(self) -> None:
         """GroqProvider imports _split_prompt from huggingface module."""
@@ -99,3 +98,43 @@ class TestGroqProvider:
 
     async def test_uses_groq_base_url(self) -> None:
         assert GroqProvider.BASE_URL == "https://api.groq.com/openai/v1"
+
+    async def test_invalid_json_raises_ai_parse_error(self) -> None:
+        provider = GroqProvider(api_key="test-key")
+        mock_client = _make_mock_client("not valid json at all")
+
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )
+
+    async def test_none_content_raises_ai_parse_error(self) -> None:
+        provider = GroqProvider(api_key="test-key")
+        mock_client = _make_mock_client(None)  # type: ignore[arg-type]
+
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )
+
+    async def test_markdown_wrapped_json_succeeds(self) -> None:
+        provider = GroqProvider(api_key="test-key")
+        fenced = f"```json\n{_make_valid_response_json(num_options=1)}\n```"
+        mock_client = _make_mock_client(fenced)
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            response, provider_name = await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )
+
+        assert isinstance(response, AIGenerationResponse)
+        assert len(response.options) == 1
+
+    async def test_wrong_schema_raises_ai_parse_error(self) -> None:
+        provider = GroqProvider(api_key="test-key")
+        mock_client = _make_mock_client(json.dumps({"wrong_key": []}))
+
+        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
+            )

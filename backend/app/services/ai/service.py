@@ -56,7 +56,12 @@ class AIService:
                 )
             except Exception as exc:
                 last_exc = exc
-                logger.warning("HuggingFace attempt %d failed: %s", attempt + 1, exc)
+                logger.warning(
+                    "HuggingFace attempt %d failed (%s): %s",
+                    attempt + 1,
+                    type(exc).__name__,
+                    exc,
+                )
                 if attempt < len(RETRY_DELAYS) - 1:
                     await asyncio.sleep(delay)
 
@@ -68,7 +73,9 @@ class AIService:
                 )
             except Exception as exc:
                 last_exc = exc
-                logger.error("Groq fallback also failed: %s", exc)
+                logger.error(
+                    "Groq fallback also failed (%s): %s", type(exc).__name__, exc
+                )
 
         raise last_exc  # type: ignore[misc]
 

@@ -160,6 +160,7 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
             latency_ms=latency_ms,
             response_valid=False,
             error_message=str(exc),
+            raw_response=getattr(exc, "raw_text", None),
         )
         await db.commit()
         raise
@@ -422,6 +423,7 @@ async def _log_ai_call(
     latency_ms: int,
     response_valid: bool,
     error_message: str | None,
+    raw_response: str | None = None,
 ) -> None:
     log_entry = AICallLog(
         trip_id=trip_id,
@@ -431,6 +433,7 @@ async def _log_ai_call(
         latency_ms=latency_ms,
         response_valid=response_valid,
         error_message=error_message,
+        raw_response=raw_response,
         created_at=datetime.now(UTC),
     )
     db.add(log_entry)
