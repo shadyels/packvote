@@ -395,7 +395,7 @@ async def _send_finalized_emails(
     trip: Trip, itinerary_id: int, db: AsyncSession
 ) -> None:
     """Send finalized notification to all participants (best-effort)."""
-    from app.services.email.sendgrid import EmailService
+    from app.services.email.brevo import EmailService
 
     itin_result = await db.execute(
         select(Itinerary).where(Itinerary.id == itinerary_id)

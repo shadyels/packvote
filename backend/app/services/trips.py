@@ -12,7 +12,7 @@ from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.trip import Trip
 from app.schemas.trip import TripCreate, TripSummary
-from app.services.email.sendgrid import EmailService
+from app.services.email.brevo import EmailService
 
 _ALPHANUM = string.ascii_uppercase + string.digits
 

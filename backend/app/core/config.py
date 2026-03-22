@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     # Email
-    SENDGRID_API_KEY: str = ""
-    SENDGRID_FROM_EMAIL: str = "noreply@packvote.app"
+    BREVO_API_KEY: str = ""
+    BREVO_FROM_EMAIL: str = "noreply@packvote.app"
 
     # AI providers
     HF_API_TOKEN: str = ""

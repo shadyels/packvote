@@ -16,7 +16,7 @@ from app.schemas.itinerary import ItineraryResponse
 from app.schemas.participant import ParticipantResponse
 from app.schemas.trip import TripCreate, TripResponse, TripSummary
 from app.schemas.vote import PickWinnerRequest
-from app.services.email.sendgrid import EmailService
+from app.services.email.brevo import EmailService
 from app.services.generation import run_generation
 from app.services.trips import (
     create_trip,

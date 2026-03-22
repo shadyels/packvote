@@ -45,7 +45,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 - Each trip gets:
   - Unique 8-character alphanumeric code (uppercase A-Z + 0-9)
   - Unique 4-digit numeric PIN
-- On creation, SendGrid emails are sent to all participants with:
+- On creation, Brevo emails are sent to all participants with:
   - Invitation text
   - Direct tokenized link to the trip preference page
   - Trip ID and PIN for manual access
@@ -128,7 +128,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - AI generation history (prompt version, model, latency)
   - Controls: trigger generation, trigger new iteration, pick winner, close voting
 
-### F9: Email Notifications (SendGrid)
+### F9: Email Notifications (Brevo)
 - Triggered at each stage:
   - Trip created → invitation to submit preferences
   - AI generated options → invitation to vote
@@ -136,9 +136,9 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Trip finalized → final itinerary notification
 - Every email includes:
   - Direct tokenized link
-  - Trip ID and PIN
+  - Trip code and PIN
   - Relevant context (what action is needed)
-- SendGrid free tier: 100 emails/day
+- Brevo free tier: 300 emails/day
 
 ---
 
@@ -250,9 +250,9 @@ An ops-level monitoring dashboard for the platform administrator only. Not acces
 ## Architecture Decisions
 
 ### Email Notifications over SMS
-SMS (Twilio) was considered and rejected in favor of email (SendGrid) because:
+SMS (Twilio) was considered and rejected in favor of email (Brevo) because:
 - SMS feels dated for this use case — participants are more accustomed to email-based collaboration
-- Email is cheaper (SendGrid free tier: 100/day) vs Twilio ($1.15/month for a number + per-message costs)
+- Email is cheaper (Brevo free tier: 300/day) vs Twilio ($1.15/month for a number + per-message costs)
 - Email allows richer content (HTML formatting, direct links, trip details)
 - Easier to test during development (multiple email addresses vs single phone number)
 - Email links bring participants into the in-app experience where they can see full trip status
@@ -360,7 +360,7 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 **Backend service:**
 - `DATABASE_URL` — PostgreSQL connection string (injected automatically by Railway add-on)
 - `SECRET_KEY` — JWT/session signing key
-- `SENDGRID_API_KEY` — SendGrid email service
+- `BREVO_API_KEY` — Brevo transactional email service
 - `HF_API_TOKEN` — HuggingFace Inference Providers token
 - `GROQ_API_KEY` — Groq fallback provider token (optional)
 - `FRONTEND_URL` — Frontend base URL (for CORS and email links)
@@ -380,7 +380,7 @@ Build in this order:
 2. **Auth system** — Creator registration/login, JWT, protected routes
 3. **Trip CRUD** — Create trip, generate ID+PIN, store participants
 4. **Participant flow** — Token links, ID+PIN retrieval, preference form ✅
-5. **Email integration** — SendGrid setup, invitation emails
+5. **Email integration** — Brevo setup, invitation emails
 6. **AI pipeline** — Service layer, HuggingFace integration, prompt versioning, itinerary generation
 7. **Voting system** — Ranked-choice voting logic, voting UI, iteration flow ✅ *(mechanics done; F6 follow-up survey phase deferred)*
 8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls ✅

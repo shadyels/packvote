@@ -374,7 +374,7 @@ async def _send_voting_emails(
     trip: Trip, iteration_number: int, db: AsyncSession
 ) -> None:
     """Send voting or new-iteration notifications to all participants (best-effort)."""
-    from app.services.email.sendgrid import EmailService
+    from app.services.email.brevo import EmailService
 
     participants_result = await db.execute(
         select(Participant).where(Participant.trip_id == trip.id)
