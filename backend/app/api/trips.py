@@ -20,6 +20,7 @@ from app.services.email.brevo import EmailService
 from app.services.generation import run_generation
 from app.services.trips import (
     create_trip,
+    delete_trip,
     get_trip,
     list_itineraries_for_trip,
     list_participants_for_trip,
@@ -55,6 +56,15 @@ async def get_trip_handler(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TripResponse:
     return await get_trip(trip_id, current_user.id, db)
+
+
+@router.delete("/{trip_id}", status_code=204)
+async def delete_trip_handler(
+    trip_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    await delete_trip(trip_id, current_user.id, db)
 
 
 @router.post("/{trip_id}/generate", status_code=202)

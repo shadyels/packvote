@@ -127,7 +127,8 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Participant response progress per trip
   - Voting results and round details
   - AI generation history (prompt version, model, latency)
-  - Controls: trigger generation, trigger new iteration, pick winner, close voting
+  - Controls: trigger generation, trigger new iteration, pick winner, close voting, delete trip
+- **Delete trip:** Creator can permanently delete a trip and all associated data (participants, preferences, itineraries, votes). Deletion is blocked while AI generation is in progress (`GENERATING` status). Requires confirmation before executing.
 
 ### F9: Email Notifications (Brevo)
 - Triggered at each stage:

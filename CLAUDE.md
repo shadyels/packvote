@@ -346,6 +346,19 @@ Key UX rules baked in:
 - `GET /trips/{trip_id}/ai-logs` — creator-only AI call log history per trip
 Schema: `backend/app/schemas/ai_call_log.py` (AICallLogResponse)
 
+**Trip deletion — cascade pattern:**
+`DELETE /trips/{trip_id}` returns 204 No Content. The service function `delete_trip()` in `services/trips.py` performs manual ordered bulk deletes (no DB-level CASCADE defined) to avoid FK constraint violations. Deletion is blocked with 409 when `trip.status == "GENERATING"` — a background task holds a reference to the trip. Deletion order:
+1. `vote_rounds` → `votes` → `preferences` → `ai_call_logs`
+2. Set `trip.winner_itinerary_id = None` + `flush()` — breaks the circular FK (`trips.winner_itinerary_id → itineraries.id`) before deleting itineraries
+3. `itineraries` → `participants` → trip row itself
+
+**Frontend `request<T>` 204 handling:**
+`frontend/src/lib/api.ts` guards against calling `res.json()` on an empty body:
+```ts
+if (res.status === 204) return undefined as T;
+```
+Any endpoint returning 204 must use `request<void>(...)` on the frontend.
+
 **shadcn/ui is @base-ui/react:**
 The shadcn components in this project use `@base-ui/react` primitives (not `@radix-ui`). Key API differences:
 - `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
