@@ -460,7 +460,8 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 
 **Backend service (set in Railway dashboard):**
 - `SECRET_KEY` — JWT signing key (generate a strong random string)
-- `BREVO_API_KEY` — Brevo transactional email
+- `BREVO_API_KEY` — Brevo transactional email API key
+- `BREVO_FROM_EMAIL` — verified sender address in Brevo (Settings → Senders); must be verified or all emails will fail with 403
 - `HF_API_TOKEN` — HuggingFace Inference Providers
 - `GROQ_API_KEY` — Groq fallback (optional)
 - `FRONTEND_URL` — Frontend Railway public domain, no port (e.g. `https://xxx.up.railway.app`). Used for CORS — must be the public URL, not the `.railway.internal` private URL
