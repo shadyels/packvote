@@ -119,6 +119,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Voting interface (when in voting phase)
   - Final result (when finalized)
 - Fully responsive — must work well on mobile (participants will open email links on phones)
+- Tab bars with more tabs than fit on screen must scroll horizontally (e.g. dashboard trip detail on iPhone portrait)
 
 ### F8: Trip Creator Dashboard
 - Authenticated, creator-only view

@@ -368,6 +368,7 @@ The shadcn components in this project use `@base-ui/react` primitives (not `@rad
 - `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
 - `Select.Root` `onValueChange` callback is `(value: string | null, eventDetails) => void` — guard against null before calling setState
 - `Tabs` uses `data-[active]:` for active tab styling (Tailwind v3 arbitrary data-attribute variant — NOT `data-active:` which is invalid syntax and generates nothing)
+- `TabsList` `line` variant includes `overflow-x-auto scrollbar-hide` for horizontal scroll on mobile — triggers use `group-data-[variant=line]/tabs-list:flex-none` so they stay content-sized and allow overflow. `.scrollbar-hide` is defined in `globals.css` (cross-browser: `scrollbar-width: none` + `::-webkit-scrollbar { display: none }`)
 
 **Async event handler lint rule:**
 The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers: `onClick={() => { void handleAsync(); }}` or `onSubmit={(e) => { void handleSubmit(e); }}`.
