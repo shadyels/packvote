@@ -1,6 +1,25 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { votes as votesApi, ApiError } from "@/lib/api";
 import { ItineraryCard } from "@/components/shared/ItineraryCard";
+import { SortableRankItem } from "./SortableRankItem";
 import type { Itinerary, VotingResults } from "@/types";
 
 interface VotingFormProps {
@@ -22,9 +41,17 @@ export function VotingForm({
   winnerId,
   onSuccess,
 }: VotingFormProps) {
-  const [rankings, setRankings] = useState<Record<number, string>>({});
+  const [orderedIds, setOrderedIds] = useState<number[]>(() =>
+    itineraries.map((it) => it.id)
+  );
+  const [activeId, setActiveId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const itineraryMap = useMemo(
+    () => new Map(itineraries.map((it) => [it.id, it])),
+    [itineraries]
+  );
 
   // Build vote count map from last round
   const voteCountMap: Record<number, number> = {};
@@ -35,25 +62,38 @@ export function VotingForm({
     });
   }
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(Number(event.active.id));
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (over && active.id !== over.id) {
+      setOrderedIds((prev) => {
+        const oldIndex = prev.indexOf(Number(active.id));
+        const newIndex = prev.indexOf(Number(over.id));
+        return arrayMove(prev, oldIndex, newIndex);
+      });
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    const itineraryIds = itineraries.map((it) => it.id);
-    const sorted = itineraryIds
-      .filter((id) => rankings[id])
-      .sort(
-        (a, b) => parseInt(rankings[a], 10) - parseInt(rankings[b], 10)
-      );
-
-    if (sorted.length !== itineraryIds.length) {
-      setError("Please rank all options before submitting.");
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      await votesApi.submit(tripId, token, sorted);
+      await votesApi.submit(tripId, token, orderedIds);
       onSuccess();
     } catch (err) {
       setError(
@@ -64,9 +104,12 @@ export function VotingForm({
     }
   };
 
+  const activeItinerary = activeId !== null ? itineraryMap.get(activeId) : null;
+  const activeRank = activeId !== null ? orderedIds.indexOf(activeId) + 1 : 0;
+
   return (
     <div className="space-y-6">
-      {/* Itinerary cards */}
+      {/* Itinerary detail cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {itineraries.map((it) => (
           <ItineraryCard
@@ -85,7 +128,7 @@ export function VotingForm({
             {hasVoted ? "Update Your Vote" : "Cast Your Vote"}
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Rank each option (1 = most preferred).
+            Drag to reorder — top is your #1 choice.
           </p>
         </div>
 
@@ -95,28 +138,41 @@ export function VotingForm({
           }}
           className="space-y-3"
         >
-          {itineraries.map((it) => (
-            <div key={it.id} className="flex items-center gap-3">
-              <select
-                value={rankings[it.id] ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setRankings((prev) => ({ ...prev, [it.id]: v }));
-                }}
-                className="w-16 shrink-0 rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
-              >
-                <option value="">—</option>
-                {itineraries.map((_, i) => (
-                  <option key={i + 1} value={String(i + 1)}>
-                    {i + 1}
-                  </option>
-                ))}
-              </select>
-              <span className="text-sm text-foreground">
-                {it.destination_name}
-              </span>
-            </div>
-          ))}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={orderedIds}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {orderedIds.map((id, index) => {
+                  const itinerary = itineraryMap.get(id);
+                  if (!itinerary) return null;
+                  return (
+                    <SortableRankItem
+                      key={id}
+                      itinerary={itinerary}
+                      rank={index + 1}
+                    />
+                  );
+                })}
+              </div>
+            </SortableContext>
+
+            <DragOverlay>
+              {activeItinerary ? (
+                <SortableRankItem
+                  itinerary={activeItinerary}
+                  rank={activeRank}
+                  isDragging
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 rounded-md px-3 py-2">

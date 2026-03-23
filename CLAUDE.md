@@ -315,7 +315,11 @@ Key UX rules baked in:
 - `parseJson` — `frontend/src/lib/utils.ts` (safe JSON.parse with fallback; used wherever `daily_itinerary_json` or `highlights` are rendered)
 
 **Participant trip component structure:**
-`frontend/src/components/trip/` contains the status-dependent components: `TripHeader`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`. `TripPage.tsx` is the state machine that renders the correct one based on `trip.status` and `participant.preferences_submitted`/`has_voted`.
+`frontend/src/components/trip/` contains the status-dependent components: `TripHeader`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`, `SortableRankItem`. `TripPage.tsx` is the state machine that renders the correct one based on `trip.status` and `participant.preferences_submitted`/`has_voted`.
+
+**Drag-to-reorder voting (`VotingForm` + `SortableRankItem`):**
+`VotingForm` uses `@dnd-kit/core` + `@dnd-kit/sortable` for ranked voting. State is `orderedIds: number[]` (initialized from `itineraries.map(it => it.id)`); submit sends the array directly — no dropdown ranking. Three sensors: `PointerSensor` (5px threshold), `TouchSensor` (150ms delay), `KeyboardSensor`. A `DragOverlay` renders a floating clone of the active item during drag.
+`SortableRankItem` is a compact drag block (NOT the full `ItineraryCard`) showing rank badge, `GripVertical` drag handle, destination name, highlights/days meta, and budget. Only the handle element receives `useSortable` listeners — this prevents mobile scroll from being hijacked. Rank 1 badge uses `bg-brand text-white`; others use `bg-muted text-muted-foreground`. Dragging state: `shadow-lg border-brand/40 ring-1 ring-brand/20 scale-[1.02]`. The full `ItineraryCard` grid remains above the sortable list for detail viewing.
 
 **Route additions:**
 - `/trip/:token/vote` → same `TripPage` (voting notification emails link here)

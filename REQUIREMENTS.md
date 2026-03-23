@@ -82,7 +82,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 
 ### F5: Ranked-Choice Voting
 - After AI generates options, participants receive an email notification with a link
-- Each participant ranks all itinerary options from most to least preferred
+- Each participant ranks all itinerary options from most to least preferred via a drag-to-reorder list (drag handles, touch-friendly, keyboard-accessible)
 - Voting uses full instant-runoff / ranked-choice:
   1. Count first-choice votes
   2. If one option has a majority (>50%), it wins
