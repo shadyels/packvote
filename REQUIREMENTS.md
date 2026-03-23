@@ -361,7 +361,8 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 **Backend service:**
 - `DATABASE_URL` — PostgreSQL connection string (injected automatically by Railway add-on)
 - `SECRET_KEY` — JWT/session signing key
-- `BREVO_API_KEY` — Brevo transactional email service
+- `BREVO_API_KEY` — Brevo transactional email API key
+- `BREVO_FROM_EMAIL` — verified sender address in Brevo (must be added and verified under Settings → Senders before emails will send)
 - `HF_API_TOKEN` — HuggingFace Inference Providers token
 - `GROQ_API_KEY` — Groq fallback provider token (optional)
 - `FRONTEND_URL` — Frontend base URL (for CORS and email links)

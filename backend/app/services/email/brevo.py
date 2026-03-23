@@ -1,8 +1,12 @@
+import logging
+
 import httpx
 
 from app.core.config import get_settings
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
+logger = logging.getLogger(__name__)
 
 
 class EmailService:
@@ -27,6 +31,9 @@ class EmailService:
         )
 
     async def _send(self, to_email: str, subject: str, body: str) -> bool:
+        if not self._api_key:
+            logger.error("BREVO_API_KEY is not set — email to %s not sent", to_email)
+            return False
         payload = {
             "sender": {"email": self._from_email, "name": "PackVote"},
             "to": [{"email": to_email}],
@@ -41,8 +48,17 @@ class EmailService:
                     json=payload,
                     timeout=10,
                 )
-            return resp.status_code in (200, 201)
-        except Exception:
+            if resp.status_code not in (200, 201):
+                logger.error(
+                    "Brevo API error sending to %s: status=%s body=%s",
+                    to_email,
+                    resp.status_code,
+                    resp.text,
+                )
+                return False
+            return True
+        except Exception as exc:
+            logger.exception("Unexpected error sending email to %s: %s", to_email, exc)
             return False
 
     async def send_invitation(
