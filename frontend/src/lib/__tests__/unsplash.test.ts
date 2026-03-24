@@ -71,7 +71,6 @@ describe("useDestinationImage", () => {
     expect(result.current.imageUrl).toBe(
       "https://images.unsplash.com/photo.jpg"
     );
-    expect(result.current.photographer).toBe("Jane Doe");
   });
 
   it("caches result and avoids a second fetch for the same destination", async () => {

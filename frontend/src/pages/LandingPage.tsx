@@ -17,20 +17,14 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 const HERO_IMAGES = [
-  {
-    src: "/images/hero/javier-allegue-barros-i5Kx0P8A0d4-unsplash.jpg",
-    photographer: "Javier Allegue Barros",
-  },
-  { src: "/images/hero/austin-ramsey-ghZlDMUcJ-8-unsplash.jpg", photographer: "Austin Ramsey" },
-  { src: "/images/hero/eddy-billard-JOoOPt8tTPY-unsplash.jpg", photographer: "Eddy Billard" },
-  {
-    src: "/images/hero/alexandre-barbosa-cj7zHNRqp4w-unsplash.jpg",
-    photographer: "Alexandre Barbosa",
-  },
-  { src: "/images/hero/nils-nedel-ONpGBpns3cs-unsplash.jpg", photographer: "Nils Nedel" },
-  { src: "/images/hero/ian-ZMGUdXdwkHE-unsplash.jpg", photographer: "Ian" },
-  { src: "/images/hero/chang-duong-Sj0iMtq_Z4w-unsplash.jpg", photographer: "Chang Duong" },
-  { src: "/images/hero/milind-bedwa-15rk4yFjwHk-unsplash.jpg", photographer: "Milind Bedwa" },
+  { src: "/images/hero/javier-allegue-barros-i5Kx0P8A0d4-unsplash.jpg" },
+  { src: "/images/hero/austin-ramsey-ghZlDMUcJ-8-unsplash.jpg" },
+  { src: "/images/hero/eddy-billard-JOoOPt8tTPY-unsplash.jpg" },
+  { src: "/images/hero/alexandre-barbosa-cj7zHNRqp4w-unsplash.jpg" },
+  { src: "/images/hero/nils-nedel-ONpGBpns3cs-unsplash.jpg" },
+  { src: "/images/hero/ian-ZMGUdXdwkHE-unsplash.jpg" },
+  { src: "/images/hero/chang-duong-Sj0iMtq_Z4w-unsplash.jpg" },
+  { src: "/images/hero/milind-bedwa-15rk4yFjwHk-unsplash.jpg" },
 ];
 
 const heroImage = HERO_IMAGES[Math.floor(Math.random() * HERO_IMAGES.length)];
@@ -284,16 +278,6 @@ export default function LandingPage() {
               "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.58) 0%, rgba(0,0,0,0.38) 45%, rgba(0,0,0,0.22) 100%)",
           }}
         />
-        {/* Attribution */}
-        <a
-          href="https://unsplash.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="absolute bottom-44 right-4 z-10 text-[10px] text-white/40 transition-colors hover:text-white/60"
-        >
-          Photo: {heroImage.photographer} / Unsplash
-        </a>
-
         {/* Content */}
         <div className="relative z-10 mx-auto max-w-4xl px-4 text-center">
           <div className="animate-fade-in mb-4 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/80 backdrop-blur-sm">

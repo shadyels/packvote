@@ -49,12 +49,14 @@ export function ItinerariesSection({
               Iteration {iter}
             </h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {items.map((it) => (
+              {items.map((it, index) => (
                 <ItineraryCard
                   key={it.id}
                   itinerary={it}
                   voteCount={voteCountMap[it.id]}
                   isWinner={it.id === winnerId}
+                  imageIndex={index}
+                  totalImages={items.length}
                 />
               ))}
             </div>

@@ -111,12 +111,14 @@ export function VotingForm({
     <div className="space-y-6">
       {/* Itinerary detail cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {itineraries.map((it) => (
+        {itineraries.map((it, index) => (
           <ItineraryCard
             key={it.id}
             itinerary={it}
             voteCount={voteCountMap[it.id]}
             isWinner={it.id === winnerId}
+            imageIndex={index}
+            totalImages={itineraries.length}
           />
         ))}
       </div>

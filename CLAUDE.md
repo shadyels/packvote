@@ -390,11 +390,14 @@ The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handle
 ### F9 Frontend Polish — Architecture Notes
 
 **Unsplash image utility:**
-`frontend/src/lib/unsplash.ts` provides `useDestinationImage(destination: string)` — a React hook that fetches a landscape photo from the Unsplash API (`https://api.unsplash.com/search/photos`) and returns `{ imageUrl, gradient, photographer, photographerUrl, isLoading }`.
+`frontend/src/lib/unsplash.ts` provides `useDestinationImage(destination, imageIndex = 0, totalCount = 1)` — a React hook that fetches landscape photos from the Unsplash API (`https://api.unsplash.com/search/photos`) and returns `{ imageUrl, gradient, isLoading }`.
+- `totalCount` maps directly to `per_page` in the API call — fetch exactly as many photos as there are itinerary cards so each card gets a distinct image
+- `imageIndex` selects `results[imageIndex % results.length]` — pass the card's position in the list
+- Consumers (`ItinerariesSection`, `VotingForm`) pass `imageIndex={index}` and `totalImages={items.length}` from their `.map()` callbacks; `ItineraryCard` forwards them via the `DestinationImage` sub-component
 - API key is read from `VITE_UNSPLASH_ACCESS_KEY` (client-side env var, not backend)
-- In-memory `Map<string, CachedResult>` cache with 1-hour TTL avoids redundant fetches per session
-- **Fallback:** when no API key or fetch fails, a deterministic gradient is computed from the destination name hash — the app always looks polished with or without a key
-- Proper Unsplash attribution (photographer name + link) is rendered as a small overlay on images (required by Unsplash API terms)
+- In-memory cache keyed by destination stores the full array with 1-hour TTL; if a cached array has fewer entries than `totalCount`, a new fetch is triggered with the larger count
+- **Fallback:** when no API key or fetch fails, a deterministic gradient is computed from the destination name hash mixed with `imageIndex` — distinct gradients even when destinations match
+- No Unsplash attribution is rendered anywhere (photographer credit was removed from `ItineraryCard` and `LandingPage`)
 - `Array.prototype.at()` is unavailable under `lib: ["ES2020"]` — use index access or `results.length > 0 ? results[0] : undefined` instead
 - The Unsplash response is typed via named interfaces (`UnsplashPhoto`, `UnsplashSearchResponse`) and validated with a type guard (`isSearchResponse`) rather than casting from `any`, to satisfy `@typescript-eslint/no-unsafe-assignment`
 
