@@ -1,10 +1,22 @@
 import { useState } from "react";
-import { Loader2, Zap, RotateCcw, Trophy, AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Loader2, Zap, RotateCcw, Trophy, AlertTriangle, Trash2 } from "lucide-react";
+import { EditTripDialog } from "./EditTripDialog";
 import { toast } from "sonner";
 import { trips as tripsApi, votes as votesApi, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -45,11 +57,14 @@ export function TripOverviewSection({
   itineraries,
   onRefetch,
 }: TripOverviewSectionProps) {
+  const navigate = useNavigate();
   const [isActing, setIsActing] = useState(false);
   const [adminRankings, setAdminRankings] = useState<Record<number, string>>(
     {}
   );
   const [pickWinnerId, setPickWinnerId] = useState<string>("");
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const currentIterationItineraries = itineraries.filter(
     (it) => it.iteration_number === trip.current_iteration
@@ -123,6 +138,20 @@ export function TripOverviewSection({
     }
   };
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await tripsApi.delete(trip.id);
+      toast.success("Trip deleted.");
+      navigate("/dashboard");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to delete trip.");
+      setIsDeleteOpen(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Trip metadata */}
@@ -166,18 +195,21 @@ export function TripOverviewSection({
         trip.status === "COLLECTING_PREFERENCES") && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-black/70">Actions</h3>
-          <Button
-            onClick={() => { void handleGenerate(); }}
-            disabled={isActing}
-            className="bg-brand hover:bg-brand-hover text-white"
-          >
-            {isActing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Zap className="w-4 h-4 mr-2" />
-            )}
-            Generate Itineraries
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => { void handleGenerate(); }}
+              disabled={isActing}
+              className="bg-brand hover:bg-brand-hover text-white"
+            >
+              {isActing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="w-4 h-4 mr-2" />
+              )}
+              Generate Itineraries
+            </Button>
+            <EditTripDialog trip={trip} onUpdated={onRefetch} />
+          </div>
           <p className="text-xs text-black/40">
             You can trigger generation before all participants have responded.
           </p>
@@ -207,20 +239,26 @@ export function TripOverviewSection({
                   {trip.generation_error}
                 </p>
               )}
+              <p className="text-xs text-red-600/60 mt-2">
+                You can edit the trip details below before retrying.
+              </p>
             </div>
           </div>
-          <Button
-            onClick={() => { void handleGenerate(); }}
-            disabled={isActing}
-            className="bg-brand hover:bg-brand-hover text-white"
-          >
-            {isActing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Zap className="w-4 h-4 mr-2" />
-            )}
-            Retry Generation
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => { void handleGenerate(); }}
+              disabled={isActing}
+              className="bg-brand hover:bg-brand-hover text-white"
+            >
+              {isActing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="w-4 h-4 mr-2" />
+              )}
+              Retry Generation
+            </Button>
+            <EditTripDialog trip={trip} onUpdated={onRefetch} />
+          </div>
         </div>
       )}
 
@@ -290,6 +328,51 @@ export function TripOverviewSection({
           </p>
           </div>
         </div>
+      )}
+
+      {/* Danger zone */}
+      {trip.status !== "GENERATING" && (
+        <>
+          <Separator className="bg-border" />
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-red-600">Danger Zone</h3>
+            <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+              <DialogTrigger
+                render={
+                  <button className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors" />
+                }
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Trip
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete &ldquo;{trip.title}&rdquo;?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently delete this trip, all participants, preferences,
+                    itineraries, and voting data. This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose render={<Button variant="outline" />}>
+                    Cancel
+                  </DialogClose>
+                  <Button
+                    onClick={() => { void handleDelete(); }}
+                    disabled={isDeleting}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Delete permanently
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <p className="text-xs text-black/30">
+              Permanently remove this trip and all associated data.
+            </p>
+          </div>
+        </>
       )}
 
       {/* Admin vote form — shown during VOTING for current iteration */}

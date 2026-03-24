@@ -17,11 +17,24 @@ interface ItineraryCardProps {
   itinerary: Itinerary;
   voteCount?: number;
   isWinner: boolean;
+  imageIndex?: number;
+  totalImages?: number;
 }
 
-function DestinationImage({ destination }: { destination: string }) {
-  const { imageUrl, gradient, photographer, photographerUrl, isLoading } =
-    useDestinationImage(destination);
+function DestinationImage({
+  destination,
+  imageIndex = 0,
+  totalImages = 1,
+}: {
+  destination: string;
+  imageIndex?: number;
+  totalImages?: number;
+}) {
+  const { imageUrl, gradient, isLoading } = useDestinationImage(
+    destination,
+    imageIndex,
+    totalImages
+  );
 
   if (isLoading) {
     return (
@@ -42,18 +55,6 @@ function DestinationImage({ destination }: { destination: string }) {
       )}
       {/* Destination name overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-      {/* Photographer credit */}
-      {photographer && photographerUrl && (
-        <a
-          href={photographerUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="absolute bottom-1.5 right-2 text-[9px] text-white/60 hover:text-white/90 transition-colors"
-          onClick={(e) => { e.stopPropagation(); }}
-        >
-          Photo: {photographer} / Unsplash
-        </a>
-      )}
     </div>
   );
 }
@@ -62,6 +63,8 @@ export function ItineraryCard({
   itinerary,
   voteCount,
   isWinner,
+  imageIndex = 0,
+  totalImages = 1,
 }: ItineraryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const highlights = parseJson<string[]>(itinerary.highlights, []);
@@ -76,7 +79,11 @@ export function ItineraryCard({
       }`}
     >
       {/* Image header */}
-      <DestinationImage destination={itinerary.destination_name} />
+      <DestinationImage
+        destination={itinerary.destination_name}
+        imageIndex={imageIndex}
+        totalImages={totalImages}
+      />
 
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">

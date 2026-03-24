@@ -19,6 +19,7 @@ export interface Trip {
   max_iterations: number;
   winner_itinerary_id: number | null;
   generation_error: string | null;
+  notes: string | null;
   created_at: string;
 }
 

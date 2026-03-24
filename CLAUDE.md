@@ -243,7 +243,15 @@ return {"status": "accepted"}
 This ensures: (1) clients polling `GET /trips/{id}` immediately see `GENERATING`, and (2) the idempotency guard inside the background task sees the correct status.
 
 **On generation failure, status becomes `GENERATION_FAILED` (not `COLLECTING_PREFERENCES`):**
-`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores the Python exception string in `trip.generation_error`. This field is `Text`, nullable. On the next successful `POST /trips/{id}/generate`, both the status and `generation_error` are cleared before setting `GENERATING`. The dashboard shows a red alert with the error text and a "Retry Generation" button; the participant trip page shows a friendly message. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`). Migration: `0004_add_generation_error_to_trips.py`.
+`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores a **user-friendly** error message in `trip.generation_error`. The raw technical exception is only written to server logs and `ai_call_logs.error_message` — never shown to the user. User-facing messages are produced by `_humanize_error(exc)` in `services/generation.py`, which maps exception types to actionable descriptions:
+- `AIParseError` → "The AI returned an invalid response. This is usually temporary — try again."
+- `ValueError` (wrong option count) → "The AI generated the wrong number of itinerary options. Try again or reduce the number of options in the trip settings."
+- `httpx.HTTPStatusError` 429 → rate limit message
+- `httpx.HTTPStatusError` 5xx → service unavailable message
+- `httpx.ConnectError` / `TimeoutError` → connection error message
+- Any other → generic "Something went wrong" message
+
+On the next successful `POST /trips/{id}/generate`, both the status and `generation_error` are cleared before setting `GENERATING`. The dashboard shows a red alert with the friendly error text, an "Edit Trip" button, and a "Retry Generation" button; the participant trip page shows a friendly message. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`). Migration: `0004_add_generation_error_to_trips.py`.
 
 **Idempotency guard at the top of every generation task:**
 Re-read the trip from the DB at the start of `run_generation` and exit early if `trip.status != "GENERATING"`. This prevents a second task (from a race between manual and auto-trigger) from running twice.
@@ -315,7 +323,11 @@ Key UX rules baked in:
 - `parseJson` — `frontend/src/lib/utils.ts` (safe JSON.parse with fallback; used wherever `daily_itinerary_json` or `highlights` are rendered)
 
 **Participant trip component structure:**
-`frontend/src/components/trip/` contains the status-dependent components: `TripHeader`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`. `TripPage.tsx` is the state machine that renders the correct one based on `trip.status` and `participant.preferences_submitted`/`has_voted`.
+`frontend/src/components/trip/` contains the status-dependent components: `TripHeader`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`, `SortableRankItem`. `TripPage.tsx` is the state machine that renders the correct one based on `trip.status` and `participant.preferences_submitted`/`has_voted`.
+
+**Drag-to-reorder voting (`VotingForm` + `SortableRankItem`):**
+`VotingForm` uses `@dnd-kit/core` + `@dnd-kit/sortable` for ranked voting. State is `orderedIds: number[]` (initialized from `itineraries.map(it => it.id)`); submit sends the array directly — no dropdown ranking. Three sensors: `PointerSensor` (5px threshold), `TouchSensor` (150ms delay), `KeyboardSensor`. A `DragOverlay` renders a floating clone of the active item during drag.
+`SortableRankItem` is a compact drag block (NOT the full `ItineraryCard`) showing rank badge, `GripVertical` drag handle, destination name, highlights/days meta, and budget. Only the handle element receives `useSortable` listeners — this prevents mobile scroll from being hijacked. Rank 1 badge uses `bg-brand text-white`; others use `bg-muted text-muted-foreground`. Dragging state: `shadow-lg border-brand/40 ring-1 ring-brand/20 scale-[1.02]`. The full `ItineraryCard` grid remains above the sortable list for detail viewing.
 
 **Route additions:**
 - `/trip/:token/vote` → same `TripPage` (voting notification emails link here)
@@ -346,11 +358,31 @@ Key UX rules baked in:
 - `GET /trips/{trip_id}/ai-logs` — creator-only AI call log history per trip
 Schema: `backend/app/schemas/ai_call_log.py` (AICallLogResponse)
 
+**Trip editing — `PATCH /trips/{trip_id}`:**
+Allows the creator to modify trip details after creation. Only allowed when `trip.status` is `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` — returns 409 otherwise. Editable fields: `title`, `destination`, `proposed_start_date`, `proposed_end_date`, `num_options`, `notes`. Schema: `TripUpdate` in `backend/app/schemas/trip.py`. Service: `update_trip()` in `backend/app/services/trips.py`. Frontend: `EditTripDialog` component at `frontend/src/components/dashboard/EditTripDialog.tsx` (pre-populated from current trip values). The "Edit Trip" button appears in the `CREATED`, `COLLECTING_PREFERENCES`, and `GENERATION_FAILED` action blocks in `TripOverviewSection`.
+
+**`TripResponse` includes `notes`:**
+`backend/app/schemas/trip.py` `TripResponse` exposes `notes: str | None = None`. The frontend `Trip` type in `frontend/src/types/index.ts` includes `notes: string | null`. Both were previously missing this field despite it existing on the model.
+
+**Trip deletion — cascade pattern:**
+`DELETE /trips/{trip_id}` returns 204 No Content. The service function `delete_trip()` in `services/trips.py` performs manual ordered bulk deletes (no DB-level CASCADE defined) to avoid FK constraint violations. Deletion is blocked with 409 when `trip.status == "GENERATING"` — a background task holds a reference to the trip. Deletion order:
+1. `vote_rounds` → `votes` → `preferences` → `ai_call_logs`
+2. Set `trip.winner_itinerary_id = None` + `flush()` — breaks the circular FK (`trips.winner_itinerary_id → itineraries.id`) before deleting itineraries
+3. `itineraries` → `participants` → trip row itself
+
+**Frontend `request<T>` 204 handling:**
+`frontend/src/lib/api.ts` guards against calling `res.json()` on an empty body:
+```ts
+if (res.status === 204) return undefined as T;
+```
+Any endpoint returning 204 must use `request<void>(...)` on the frontend.
+
 **shadcn/ui is @base-ui/react:**
 The shadcn components in this project use `@base-ui/react` primitives (not `@radix-ui`). Key API differences:
 - `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
 - `Select.Root` `onValueChange` callback is `(value: string | null, eventDetails) => void` — guard against null before calling setState
 - `Tabs` uses `data-[active]:` for active tab styling (Tailwind v3 arbitrary data-attribute variant — NOT `data-active:` which is invalid syntax and generates nothing)
+- `TabsList` `line` variant includes `overflow-x-auto scrollbar-hide` for horizontal scroll on mobile — triggers use `group-data-[variant=line]/tabs-list:flex-none` so they stay content-sized and allow overflow. `.scrollbar-hide` is defined in `globals.css` (cross-browser: `scrollbar-width: none` + `::-webkit-scrollbar { display: none }`)
 
 **Async event handler lint rule:**
 The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers: `onClick={() => { void handleAsync(); }}` or `onSubmit={(e) => { void handleSubmit(e); }}`.
@@ -358,11 +390,14 @@ The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handle
 ### F9 Frontend Polish — Architecture Notes
 
 **Unsplash image utility:**
-`frontend/src/lib/unsplash.ts` provides `useDestinationImage(destination: string)` — a React hook that fetches a landscape photo from the Unsplash API (`https://api.unsplash.com/search/photos`) and returns `{ imageUrl, gradient, photographer, photographerUrl, isLoading }`.
+`frontend/src/lib/unsplash.ts` provides `useDestinationImage(destination, imageIndex = 0, totalCount = 1)` — a React hook that fetches landscape photos from the Unsplash API (`https://api.unsplash.com/search/photos`) and returns `{ imageUrl, gradient, isLoading }`.
+- `totalCount` maps directly to `per_page` in the API call — fetch exactly as many photos as there are itinerary cards so each card gets a distinct image
+- `imageIndex` selects `results[imageIndex % results.length]` — pass the card's position in the list
+- Consumers (`ItinerariesSection`, `VotingForm`) pass `imageIndex={index}` and `totalImages={items.length}` from their `.map()` callbacks; `ItineraryCard` forwards them via the `DestinationImage` sub-component
 - API key is read from `VITE_UNSPLASH_ACCESS_KEY` (client-side env var, not backend)
-- In-memory `Map<string, CachedResult>` cache with 1-hour TTL avoids redundant fetches per session
-- **Fallback:** when no API key or fetch fails, a deterministic gradient is computed from the destination name hash — the app always looks polished with or without a key
-- Proper Unsplash attribution (photographer name + link) is rendered as a small overlay on images (required by Unsplash API terms)
+- In-memory cache keyed by destination stores the full array with 1-hour TTL; if a cached array has fewer entries than `totalCount`, a new fetch is triggered with the larger count
+- **Fallback:** when no API key or fetch fails, a deterministic gradient is computed from the destination name hash mixed with `imageIndex` — distinct gradients even when destinations match
+- No Unsplash attribution is rendered anywhere (photographer credit was removed from `ItineraryCard` and `LandingPage`)
 - `Array.prototype.at()` is unavailable under `lib: ["ES2020"]` — use index access or `results.length > 0 ? results[0] : undefined` instead
 - The Unsplash response is typed via named interfaces (`UnsplashPhoto`, `UnsplashSearchResponse`) and validated with a type guard (`isSearchResponse`) rather than casting from `any`, to satisfy `@typescript-eslint/no-unsafe-assignment`
 

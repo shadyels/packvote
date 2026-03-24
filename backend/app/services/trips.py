@@ -4,14 +4,18 @@ import secrets
 import string
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
 from app.models.participant import Participant
+from app.models.preference import Preference
 from app.models.trip import Trip
-from app.schemas.trip import TripCreate, TripSummary
+from app.models.vote import Vote
+from app.models.vote_round import VoteRound
+from app.schemas.trip import TripCreate, TripSummary, TripUpdate
 from app.services.email.brevo import EmailService
 
 _ALPHANUM = string.ascii_uppercase + string.digits
@@ -157,6 +161,35 @@ async def get_trip(trip_id: int, user_id: int, db: AsyncSession) -> Trip:
     return trip
 
 
+_EDITABLE_STATUSES = ("CREATED", "COLLECTING_PREFERENCES", "GENERATION_FAILED")
+
+
+async def update_trip(
+    trip_id: int, user_id: int, payload: TripUpdate, db: AsyncSession
+) -> Trip:
+    trip = await get_trip(trip_id, user_id, db)
+    if trip.status not in _EDITABLE_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot edit a trip with status '{trip.status}'",
+        )
+    if payload.title is not None:
+        trip.title = payload.title
+    if payload.destination is not None:
+        trip.destination = payload.destination
+    if payload.proposed_start_date is not None:
+        trip.proposed_start_date = payload.proposed_start_date
+    if payload.proposed_end_date is not None:
+        trip.proposed_end_date = payload.proposed_end_date
+    if payload.num_options is not None:
+        trip.num_options = payload.num_options
+    if payload.notes is not None:
+        trip.notes = payload.notes
+    await db.commit()
+    await db.refresh(trip)
+    return trip
+
+
 async def list_participants_for_trip(
     trip_id: int, user_id: int, db: AsyncSession
 ) -> list[Participant]:
@@ -167,6 +200,30 @@ async def list_participants_for_trip(
         .order_by(Participant.created_at)
     )
     return list(result.scalars().all())
+
+
+async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:
+    trip = await get_trip(trip_id, user_id, db)
+    if trip.status == "GENERATING":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete a trip while generation is in progress",
+        )
+
+    # Delete child rows in FK-safe order
+    await db.execute(delete(VoteRound).where(VoteRound.trip_id == trip_id))
+    await db.execute(delete(Vote).where(Vote.trip_id == trip_id))
+    await db.execute(delete(Preference).where(Preference.trip_id == trip_id))
+    await db.execute(delete(AICallLog).where(AICallLog.trip_id == trip_id))
+
+    # Break circular FK (trip.winner_itinerary_id -> itineraries.id) before deleting itineraries
+    trip.winner_itinerary_id = None
+    await db.flush()
+
+    await db.execute(delete(Itinerary).where(Itinerary.trip_id == trip_id))
+    await db.execute(delete(Participant).where(Participant.trip_id == trip_id))
+    await db.delete(trip)
+    await db.commit()
 
 
 async def list_itineraries_for_trip(

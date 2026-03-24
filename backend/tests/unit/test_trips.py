@@ -196,3 +196,109 @@ class TestGetTrip:
     async def test_no_auth_returns_401(self, client: AsyncClient):
         resp = await client.get("/trips/1")
         assert resp.status_code == 401
+
+
+class TestDeleteTrip:
+    async def test_delete_returns_204(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers
+        )
+        trip_id = create_resp.json()["id"]
+        resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        assert resp.status_code == 204
+
+    async def test_deleted_trip_not_in_list(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers
+        )
+        trip_id = create_resp.json()["id"]
+        await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        resp = await client.get(TRIPS_URL, headers=auth_headers)
+        assert resp.status_code == 200
+        ids = [t["id"] for t in resp.json()]
+        assert trip_id not in ids
+
+    async def test_deleted_trip_returns_404(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers
+        )
+        trip_id = create_resp.json()["id"]
+        await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        resp = await client.get(f"/trips/{trip_id}", headers=auth_headers)
+        assert resp.status_code == 404
+
+    async def test_delete_nonexistent_returns_404(
+        self, client: AsyncClient, auth_headers
+    ):
+        resp = await client.delete("/trips/999999", headers=auth_headers)
+        assert resp.status_code == 404
+
+    async def test_delete_not_creator_returns_403(
+        self, client: AsyncClient, mock_email
+    ):
+        email_a = f"a_{secrets.token_hex(4)}@test.com"
+        email_b = f"b_{secrets.token_hex(4)}@test.com"
+        for email in (email_a, email_b):
+            await client.post(
+                REGISTER_URL, json={"email": email, "password": "test1234"}
+            )
+
+        r_a = await client.post(
+            LOGIN_URL, json={"email": email_a, "password": "test1234"}
+        )
+        headers_a = {"Authorization": f"Bearer {r_a.json()['access_token']}"}
+        r_b = await client.post(
+            LOGIN_URL, json={"email": email_b, "password": "test1234"}
+        )
+        headers_b = {"Authorization": f"Bearer {r_b.json()['access_token']}"}
+
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=headers_a
+        )
+        trip_id = create_resp.json()["id"]
+
+        resp = await client.delete(f"/trips/{trip_id}", headers=headers_b)
+        assert resp.status_code == 403
+
+    async def test_delete_no_auth_returns_401(self, client: AsyncClient):
+        resp = await client.delete("/trips/1")
+        assert resp.status_code == 401
+
+    async def test_delete_generating_returns_409(
+        self, client: AsyncClient, auth_headers, mock_email, db
+    ):
+        from sqlalchemy import select
+
+        from app.models.trip import Trip
+
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers
+        )
+        trip_id = create_resp.json()["id"]
+
+        # Manually set status to GENERATING in the DB
+        result = await db.execute(select(Trip).where(Trip.id == trip_id))
+        trip = result.scalar_one()
+        trip.status = "GENERATING"
+        await db.commit()
+
+        resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        assert resp.status_code == 409
+
+    async def test_delete_with_participants(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        payload = {
+            **_TRIP_PAYLOAD,
+            "participant_emails": ["p1@x.com", "p2@x.com"],
+        }
+        create_resp = await client.post(TRIPS_URL, json=payload, headers=auth_headers)
+        trip_id = create_resp.json()["id"]
+        resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        assert resp.status_code == 204

@@ -46,6 +46,7 @@ async function request<T>(
     throw new ApiError(res.status, body.detail);
   }
 
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -97,6 +98,25 @@ export const trips = {
       `/trips/${tripId.toString()}/pick-winner`,
       { method: "POST", body: JSON.stringify({ itinerary_id: itineraryId }) }
     ),
+
+  update: (
+    tripId: number,
+    payload: {
+      title?: string;
+      destination?: string;
+      proposed_start_date?: string;
+      proposed_end_date?: string;
+      num_options?: number;
+      notes?: string;
+    }
+  ) =>
+    request<Trip>(`/trips/${tripId.toString()}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  delete: (tripId: number) =>
+    request<void>(`/trips/${tripId.toString()}`, { method: "DELETE" }),
 };
 
 // Participants

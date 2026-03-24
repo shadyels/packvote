@@ -3,10 +3,8 @@ import { useState, useEffect } from "react";
 const UNSPLASH_BASE = "https://api.unsplash.com";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-interface CachedResult {
+interface CachedEntry {
   imageUrl: string;
-  photographer: string | null;
-  photographerUrl: string | null;
   expiresAt: number;
 }
 
@@ -19,7 +17,7 @@ interface UnsplashSearchResponse {
   results: UnsplashPhoto[];
 }
 
-const cache = new Map<string, CachedResult>();
+const cache = new Map<string, CachedEntry[]>();
 
 function isSearchResponse(data: unknown): data is UnsplashSearchResponse {
   return (
@@ -31,11 +29,13 @@ function isSearchResponse(data: unknown): data is UnsplashSearchResponse {
 }
 
 /** Deterministic gradient from destination name — always looks polished */
-function gradientFallback(destination: string): string {
+function gradientFallback(destination: string, imageIndex: number): string {
   let hash = 0;
   for (let i = 0; i < destination.length; i++) {
     hash = ((hash << 5) - hash + destination.charCodeAt(i)) | 0;
   }
+  // Mix in imageIndex so cards with the same destination get different gradients
+  hash = ((hash << 5) - hash + imageIndex) | 0;
   const hue = Math.abs(hash) % 360;
   // Rich, travel-themed gradients (deep blues, warm ambers, forest greens, purples)
   const palettes = [
@@ -56,24 +56,28 @@ function gradientFallback(destination: string): string {
 export interface DestinationImageResult {
   imageUrl: string | null;
   gradient: string;
-  photographer: string | null;
-  photographerUrl: string | null;
   isLoading: boolean;
 }
 
-async function fetchUnsplashPhoto(destination: string): Promise<CachedResult | null> {
+async function fetchUnsplashPhotos(
+  destination: string,
+  count: number
+): Promise<CachedEntry[] | null> {
   const apiKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY as string | undefined;
   if (!apiKey) return null;
 
   const cacheKey = destination.toLowerCase().trim();
   const cached = cache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
+  const now = Date.now();
+
+  // Use cache if valid and has enough entries
+  if (cached && cached.length >= count && cached[0].expiresAt > now) {
     return cached;
   }
 
   try {
     const query = encodeURIComponent(`${destination} travel landscape`);
-    const url = `${UNSPLASH_BASE}/search/photos?query=${query}&orientation=landscape&per_page=1`;
+    const url = `${UNSPLASH_BASE}/search/photos?query=${query}&orientation=landscape&per_page=${String(count)}`;
     const res = await fetch(url, {
       headers: { Authorization: `Client-ID ${apiKey}` },
     });
@@ -81,25 +85,27 @@ async function fetchUnsplashPhoto(destination: string): Promise<CachedResult | n
 
     const raw: unknown = await res.json();
     if (!isSearchResponse(raw)) return null;
-    const photo: UnsplashPhoto | undefined =
-      raw.results.length > 0 ? raw.results[0] : undefined;
-    if (!photo) return null;
+    if (raw.results.length === 0) return null;
 
-    const result: CachedResult = {
+    const expiresAt = now + CACHE_TTL_MS;
+    const entries: CachedEntry[] = raw.results.map((photo: UnsplashPhoto) => ({
       imageUrl: photo.urls.regular,
-      photographer: photo.user.name,
-      photographerUrl: photo.user.links.html,
-      expiresAt: Date.now() + CACHE_TTL_MS,
-    };
-    cache.set(cacheKey, result);
-    return result;
+      expiresAt,
+    }));
+
+    cache.set(cacheKey, entries);
+    return entries;
   } catch {
     return null;
   }
 }
 
-export function useDestinationImage(destination: string): DestinationImageResult {
-  const [result, setResult] = useState<CachedResult | null>(null);
+export function useDestinationImage(
+  destination: string,
+  imageIndex = 0,
+  totalCount = 1
+): DestinationImageResult {
+  const [entries, setEntries] = useState<CachedEntry[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -113,16 +119,17 @@ export function useDestinationImage(destination: string): DestinationImageResult
     // Check cache synchronously first
     const cacheKey = destination.toLowerCase().trim();
     const cached = cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      setResult(cached);
+    const now = Date.now();
+    if (cached && cached.length >= totalCount && cached[0].expiresAt > now) {
+      setEntries(cached);
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    void fetchUnsplashPhoto(destination).then((r) => {
+    void fetchUnsplashPhotos(destination, totalCount).then((r) => {
       if (!cancelled) {
-        setResult(r);
+        setEntries(r);
         setIsLoading(false);
       }
     });
@@ -130,13 +137,15 @@ export function useDestinationImage(destination: string): DestinationImageResult
     return () => {
       cancelled = true;
     };
-  }, [destination]);
+  }, [destination, totalCount]);
+
+  const entry = entries && entries.length > 0
+    ? entries[imageIndex % entries.length]
+    : null;
 
   return {
-    imageUrl: result?.imageUrl ?? null,
-    gradient: gradientFallback(destination),
-    photographer: result?.photographer ?? null,
-    photographerUrl: result?.photographerUrl ?? null,
+    imageUrl: entry?.imageUrl ?? null,
+    gradient: gradientFallback(destination, imageIndex),
     isLoading,
   };
 }
