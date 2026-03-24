@@ -17,6 +17,7 @@ import logging
 import time
 from datetime import UTC, datetime
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -27,6 +28,7 @@ from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.prompt_template import PromptTemplate
 from app.models.trip import Trip
+from app.services.ai.json_utils import AIParseError
 from app.services.ai.service import AIService
 
 logger = logging.getLogger(__name__)
@@ -97,6 +99,37 @@ Generate {num_options} travel itinerary options that best satisfy the group's co
 # ---------------------------------------------------------------------------
 
 
+def _humanize_error(exc: Exception) -> str:
+    """Convert a technical exception into a user-friendly error message."""
+    if isinstance(exc, AIParseError):
+        return (
+            "The AI returned an invalid response. "
+            "This is usually temporary — try again."
+        )
+    if isinstance(exc, ValueError) and "options" in str(exc):
+        return (
+            "The AI generated the wrong number of itinerary options. "
+            "Try again or reduce the number of options in the trip settings."
+        )
+    if isinstance(exc, httpx.HTTPStatusError):
+        if exc.response.status_code == 429:
+            return (
+                "The AI service is currently busy (rate limit reached). "
+                "Please wait a few minutes and try again."
+            )
+        if exc.response.status_code >= 500:
+            return (
+                "The AI service is temporarily unavailable. "
+                "Please try again in a few minutes."
+            )
+    if isinstance(exc, (httpx.ConnectError, TimeoutError, httpx.TimeoutException)):
+        return (
+            "Could not connect to the AI service. "
+            "Please check your internet connection and try again."
+        )
+    return "Something went wrong while generating itineraries. Please try again."
+
+
 async def run_generation(
     trip_id: int,
     session_factory: async_sessionmaker[AsyncSession],
@@ -109,7 +142,9 @@ async def run_generation(
             logger.error(
                 "Generation failed for trip %d: %s", trip_id, exc, exc_info=True
             )
-            await _reset_trip_status(trip_id, session_factory, error_message=str(exc))
+            await _reset_trip_status(
+                trip_id, session_factory, error_message=_humanize_error(exc)
+            )
 
 
 # ---------------------------------------------------------------------------

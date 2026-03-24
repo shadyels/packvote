@@ -418,7 +418,7 @@ class TestRunGeneration:
         result = await db.execute(select(TripModel).where(TripModel.id == trip_id))
         trip = result.scalar_one()
         assert trip.status == "GENERATION_FAILED"
-        assert trip.generation_error == "Provider unavailable"
+        assert trip.generation_error == "Something went wrong while generating itineraries. Please try again."
 
     async def test_failure_logs_ai_call_invalid(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture

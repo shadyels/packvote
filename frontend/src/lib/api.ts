@@ -99,6 +99,22 @@ export const trips = {
       { method: "POST", body: JSON.stringify({ itinerary_id: itineraryId }) }
     ),
 
+  update: (
+    tripId: number,
+    payload: {
+      title?: string;
+      destination?: string;
+      proposed_start_date?: string;
+      proposed_end_date?: string;
+      num_options?: number;
+      notes?: string;
+    }
+  ) =>
+    request<Trip>(`/trips/${tripId.toString()}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
   delete: (tripId: number) =>
     request<void>(`/trips/${tripId.toString()}`, { method: "DELETE" }),
 };

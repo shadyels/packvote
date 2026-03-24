@@ -243,7 +243,15 @@ return {"status": "accepted"}
 This ensures: (1) clients polling `GET /trips/{id}` immediately see `GENERATING`, and (2) the idempotency guard inside the background task sees the correct status.
 
 **On generation failure, status becomes `GENERATION_FAILED` (not `COLLECTING_PREFERENCES`):**
-`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores the Python exception string in `trip.generation_error`. This field is `Text`, nullable. On the next successful `POST /trips/{id}/generate`, both the status and `generation_error` are cleared before setting `GENERATING`. The dashboard shows a red alert with the error text and a "Retry Generation" button; the participant trip page shows a friendly message. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`). Migration: `0004_add_generation_error_to_trips.py`.
+`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores a **user-friendly** error message in `trip.generation_error`. The raw technical exception is only written to server logs and `ai_call_logs.error_message` — never shown to the user. User-facing messages are produced by `_humanize_error(exc)` in `services/generation.py`, which maps exception types to actionable descriptions:
+- `AIParseError` → "The AI returned an invalid response. This is usually temporary — try again."
+- `ValueError` (wrong option count) → "The AI generated the wrong number of itinerary options. Try again or reduce the number of options in the trip settings."
+- `httpx.HTTPStatusError` 429 → rate limit message
+- `httpx.HTTPStatusError` 5xx → service unavailable message
+- `httpx.ConnectError` / `TimeoutError` → connection error message
+- Any other → generic "Something went wrong" message
+
+On the next successful `POST /trips/{id}/generate`, both the status and `generation_error` are cleared before setting `GENERATING`. The dashboard shows a red alert with the friendly error text, an "Edit Trip" button, and a "Retry Generation" button; the participant trip page shows a friendly message. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`). Migration: `0004_add_generation_error_to_trips.py`.
 
 **Idempotency guard at the top of every generation task:**
 Re-read the trip from the DB at the start of `run_generation` and exit early if `trip.status != "GENERATING"`. This prevents a second task (from a race between manual and auto-trigger) from running twice.
@@ -349,6 +357,12 @@ Key UX rules baked in:
 - `GET /trips/{trip_id}/itineraries` — creator-only itinerary list for all iterations
 - `GET /trips/{trip_id}/ai-logs` — creator-only AI call log history per trip
 Schema: `backend/app/schemas/ai_call_log.py` (AICallLogResponse)
+
+**Trip editing — `PATCH /trips/{trip_id}`:**
+Allows the creator to modify trip details after creation. Only allowed when `trip.status` is `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` — returns 409 otherwise. Editable fields: `title`, `destination`, `proposed_start_date`, `proposed_end_date`, `num_options`, `notes`. Schema: `TripUpdate` in `backend/app/schemas/trip.py`. Service: `update_trip()` in `backend/app/services/trips.py`. Frontend: `EditTripDialog` component at `frontend/src/components/dashboard/EditTripDialog.tsx` (pre-populated from current trip values). The "Edit Trip" button appears in the `CREATED`, `COLLECTING_PREFERENCES`, and `GENERATION_FAILED` action blocks in `TripOverviewSection`.
+
+**`TripResponse` includes `notes`:**
+`backend/app/schemas/trip.py` `TripResponse` exposes `notes: str | None = None`. The frontend `Trip` type in `frontend/src/types/index.ts` includes `notes: string | null`. Both were previously missing this field despite it existing on the model.
 
 **Trip deletion — cascade pattern:**
 `DELETE /trips/{trip_id}` returns 204 No Content. The service function `delete_trip()` in `services/trips.py` performs manual ordered bulk deletes (no DB-level CASCADE defined) to avoid FK constraint violations. Deletion is blocked with 409 when `trip.status == "GENERATING"` — a background task holds a reference to the trip. Deletion order:

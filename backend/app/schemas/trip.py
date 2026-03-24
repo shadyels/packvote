@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -27,9 +28,19 @@ class TripResponse(BaseModel):
     max_iterations: int
     winner_itinerary_id: int | None
     generation_error: str | None = None
+    notes: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TripUpdate(BaseModel):
+    title: str | None = None
+    destination: Annotated[str | None, Field(default=None)]
+    proposed_start_date: datetime | None = None
+    proposed_end_date: datetime | None = None
+    num_options: Annotated[int | None, Field(default=None, ge=2, le=5)]
+    notes: str | None = None
 
 
 class TripSummary(BaseModel):

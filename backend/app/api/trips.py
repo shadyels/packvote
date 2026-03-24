@@ -14,7 +14,7 @@ from app.models.trip import Trip
 from app.models.user import User
 from app.schemas.itinerary import ItineraryResponse
 from app.schemas.participant import ParticipantResponse
-from app.schemas.trip import TripCreate, TripResponse, TripSummary
+from app.schemas.trip import TripCreate, TripResponse, TripSummary, TripUpdate
 from app.schemas.vote import PickWinnerRequest
 from app.services.email.brevo import EmailService
 from app.services.generation import run_generation
@@ -25,6 +25,7 @@ from app.services.trips import (
     list_itineraries_for_trip,
     list_participants_for_trip,
     list_trips_for_user,
+    update_trip,
 )
 from app.services.voting.service import pick_winner, trigger_new_iteration
 
@@ -56,6 +57,16 @@ async def get_trip_handler(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TripResponse:
     return await get_trip(trip_id, current_user.id, db)
+
+
+@router.patch("/{trip_id}", response_model=TripResponse)
+async def update_trip_handler(
+    trip_id: int,
+    payload: TripUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TripResponse:
+    return await update_trip(trip_id, current_user.id, payload, db)
 
 
 @router.delete("/{trip_id}", status_code=204)

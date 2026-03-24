@@ -15,7 +15,7 @@ from app.models.preference import Preference
 from app.models.trip import Trip
 from app.models.vote import Vote
 from app.models.vote_round import VoteRound
-from app.schemas.trip import TripCreate, TripSummary
+from app.schemas.trip import TripCreate, TripSummary, TripUpdate
 from app.services.email.brevo import EmailService
 
 _ALPHANUM = string.ascii_uppercase + string.digits
@@ -158,6 +158,35 @@ async def get_trip(trip_id: int, user_id: int, db: AsyncSession) -> Trip:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
         )
+    return trip
+
+
+_EDITABLE_STATUSES = ("CREATED", "COLLECTING_PREFERENCES", "GENERATION_FAILED")
+
+
+async def update_trip(
+    trip_id: int, user_id: int, payload: TripUpdate, db: AsyncSession
+) -> Trip:
+    trip = await get_trip(trip_id, user_id, db)
+    if trip.status not in _EDITABLE_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot edit a trip with status '{trip.status}'",
+        )
+    if payload.title is not None:
+        trip.title = payload.title
+    if payload.destination is not None:
+        trip.destination = payload.destination
+    if payload.proposed_start_date is not None:
+        trip.proposed_start_date = payload.proposed_start_date
+    if payload.proposed_end_date is not None:
+        trip.proposed_end_date = payload.proposed_end_date
+    if payload.num_options is not None:
+        trip.num_options = payload.num_options
+    if payload.notes is not None:
+        trip.notes = payload.notes
+    await db.commit()
+    await db.refresh(trip)
     return trip
 
 

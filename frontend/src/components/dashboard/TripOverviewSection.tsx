@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Zap, RotateCcw, Trophy, AlertTriangle, Trash2 } from "lucide-react";
+import { EditTripDialog } from "./EditTripDialog";
 import { toast } from "sonner";
 import { trips as tripsApi, votes as votesApi, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -194,18 +195,21 @@ export function TripOverviewSection({
         trip.status === "COLLECTING_PREFERENCES") && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-black/70">Actions</h3>
-          <Button
-            onClick={() => { void handleGenerate(); }}
-            disabled={isActing}
-            className="bg-brand hover:bg-brand-hover text-white"
-          >
-            {isActing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Zap className="w-4 h-4 mr-2" />
-            )}
-            Generate Itineraries
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => { void handleGenerate(); }}
+              disabled={isActing}
+              className="bg-brand hover:bg-brand-hover text-white"
+            >
+              {isActing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="w-4 h-4 mr-2" />
+              )}
+              Generate Itineraries
+            </Button>
+            <EditTripDialog trip={trip} onUpdated={onRefetch} />
+          </div>
           <p className="text-xs text-black/40">
             You can trigger generation before all participants have responded.
           </p>
@@ -235,20 +239,26 @@ export function TripOverviewSection({
                   {trip.generation_error}
                 </p>
               )}
+              <p className="text-xs text-red-600/60 mt-2">
+                You can edit the trip details below before retrying.
+              </p>
             </div>
           </div>
-          <Button
-            onClick={() => { void handleGenerate(); }}
-            disabled={isActing}
-            className="bg-brand hover:bg-brand-hover text-white"
-          >
-            {isActing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Zap className="w-4 h-4 mr-2" />
-            )}
-            Retry Generation
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => { void handleGenerate(); }}
+              disabled={isActing}
+              className="bg-brand hover:bg-brand-hover text-white"
+            >
+              {isActing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="w-4 h-4 mr-2" />
+              )}
+              Retry Generation
+            </Button>
+            <EditTripDialog trip={trip} onUpdated={onRefetch} />
+          </div>
         </div>
       )}
 

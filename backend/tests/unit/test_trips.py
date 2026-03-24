@@ -273,8 +273,9 @@ class TestDeleteTrip:
     async def test_delete_generating_returns_409(
         self, client: AsyncClient, auth_headers, mock_email, db
     ):
-        from app.models.trip import Trip
         from sqlalchemy import select
+
+        from app.models.trip import Trip
 
         create_resp = await client.post(
             TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers

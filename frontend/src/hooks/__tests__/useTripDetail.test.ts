@@ -35,6 +35,7 @@ function makeTrip(status: Trip["status"] = "COLLECTING_PREFERENCES"): Trip {
     max_iterations: 10,
     winner_itinerary_id: null,
     generation_error: null,
+    notes: null,
     created_at: "2024-01-01",
   };
 }

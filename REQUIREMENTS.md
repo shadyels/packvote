@@ -77,7 +77,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Highlights list
 - All AI output is structured JSON, validated by Pydantic schemas
 - Failed/invalid AI responses are retried with exponential backoff (3 attempts on HuggingFace, then 1 attempt on Groq fallback)
-- If all providers fail, trip status is set to `GENERATION_FAILED` and the error message is stored on the trip; the dashboard shows the error and a Retry button; the admin can re-trigger from `GENERATION_FAILED` status
+- If all providers fail, trip status is set to `GENERATION_FAILED` and a **user-friendly** error message is stored on the trip (raw technical errors go to logs only); the dashboard shows the error, an "Edit Trip" button, and a "Retry Generation" button; the admin can re-trigger from `GENERATION_FAILED` status
 - Each generation is logged with: prompt version, model used, provider used, latency, response validity
 
 ### F5: Ranked-Choice Voting
@@ -129,6 +129,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Voting results and round details
   - AI generation history (prompt version, model, latency)
   - Controls: trigger generation, trigger new iteration, pick winner, close voting, delete trip
+- **Edit trip:** Creator can edit trip details (title, destination, dates, number of options, notes) when the trip is in `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` status. Useful for fixing inputs before retrying a failed generation. Editing is blocked in `GENERATING`, `VOTING`, `ITERATING`, and `FINALIZED` states.
 - **Delete trip:** Creator can permanently delete a trip and all associated data (participants, preferences, itineraries, votes). Deletion is blocked while AI generation is in progress (`GENERATING` status). Requires confirmation before executing.
 
 ### F9: Email Notifications (Brevo)
