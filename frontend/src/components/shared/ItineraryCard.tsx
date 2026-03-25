@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -7,11 +7,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { parseJson } from "@/lib/utils";
 import { useDestinationImage } from "@/lib/unsplash";
 import type { Itinerary, DayItinerary } from "@/types";
+import { DayDetailDrawer } from "./DayDetailDrawer";
+
+const VISIBLE_DAY_LIMIT = 5;
 
 interface ItineraryCardProps {
   itinerary: Itinerary;
@@ -68,9 +70,12 @@ export function ItineraryCard({
   imageIndex = 0,
   totalImages = 1,
 }: ItineraryCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
+  const [showAllDays, setShowAllDays] = useState(false);
+
   const highlights = parseJson<string[]>(itinerary.highlights, []);
   const days = parseJson<DayItinerary[]>(itinerary.daily_itinerary_json, []);
+  const visibleDays = showAllDays ? days : days.slice(0, VISIBLE_DAY_LIMIT);
 
   return (
     <Card
@@ -143,62 +148,67 @@ export function ItineraryCard({
           </div>
         )}
 
-
-        {/* Expandable daily itinerary */}
+        {/* Hybrid day overview */}
         {days.length > 0 && (
           <>
             <Separator className="bg-border" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setExpanded((e) => !e);
-              }}
-              className="text-black/50 hover:text-black hover:bg-transparent px-0 h-auto"
-            >
-              {expanded ? (
-                <>
-                  <ChevronUp className="w-3.5 h-3.5 mr-1" /> Hide itinerary
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-3.5 h-3.5 mr-1" /> Show {days.length}{" "}
-                  day itinerary
-                </>
-              )}
-            </Button>
-
-            {expanded && (
-              <div className="space-y-4 pt-1">
-                {days.map((day) => (
-                  <div key={day.day_number}>
-                    <p className="text-sm font-medium text-black mb-1.5">
-                      Day {day.day_number}: {day.title}
-                    </p>
-                    <div className="space-y-1.5 pl-3 border-l border-border">
-                      {day.activities.map((act, i) => (
-                        <div key={i}>
-                          <p className="text-sm text-black/80">
-                            {act.time && (
-                              <span className="text-black/40 mr-1.5">
-                                {act.time}
-                              </span>
-                            )}
-                            {act.title}
-                          </p>
-                          <p className="text-xs text-black/50">
-                            {act.description}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+            <div className="space-y-1.5">
+              {visibleDays.map((day, idx) => (
+                <button
+                  key={day.day_number}
+                  onClick={() => {
+                    setSelectedDayIndex(idx);
+                  }}
+                  className="w-full text-left rounded-lg px-3 py-2 transition-colors hover:bg-accent/50 border-l-2 border-border hover:border-brand/50"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">
+                      Day {day.day_number} · {day.title}
+                    </span>
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2" aria-label={`${String(day.activities.length)} activities`}>
+                      {day.activities.length}
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex gap-1 mt-1.5 flex-wrap">
+                    {day.activities.map((act, i) => (
+                      <span
+                        key={`${String(i)}-${act.time ?? ""}-${act.title}`}
+                        className="text-[10px] bg-brand/10 text-brand px-1.5 py-0.5 rounded"
+                      >
+                        {act.title}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              ))}
+
+              {/* Show more / fewer toggle for trips > VISIBLE_DAY_LIMIT days */}
+              {days.length > VISIBLE_DAY_LIMIT && (
+                <button
+                  onClick={() => {
+                    setShowAllDays((s) => !s);
+                  }}
+                  className="w-full text-xs text-muted-foreground hover:text-foreground text-center py-1 transition-colors"
+                >
+                  {showAllDays
+                    ? "Show fewer days ↑"
+                    : `Show ${String(days.length - VISIBLE_DAY_LIMIT)} more days ↓`}
+                </button>
+              )}
+            </div>
           </>
         )}
       </CardContent>
+
+      <DayDetailDrawer
+        days={days}
+        initialDayIndex={selectedDayIndex ?? 0}
+        open={selectedDayIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDayIndex(null);
+        }}
+        currency={itinerary.currency}
+      />
     </Card>
   );
 }
