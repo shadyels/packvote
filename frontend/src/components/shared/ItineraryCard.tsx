@@ -17,6 +17,7 @@ interface ItineraryCardProps {
   itinerary: Itinerary;
   voteCount?: number;
   isWinner: boolean;
+  isGreyedOut?: boolean;
   imageIndex?: number;
   totalImages?: number;
 }
@@ -63,6 +64,7 @@ export function ItineraryCard({
   itinerary,
   voteCount,
   isWinner,
+  isGreyedOut = false,
   imageIndex = 0,
   totalImages = 1,
 }: ItineraryCardProps) {
@@ -76,7 +78,7 @@ export function ItineraryCard({
         isWinner
           ? "border-green-400/60 shadow-[0_0_0_1px_rgba(74,222,128,0.3),0_4px_20px_rgba(74,222,128,0.12)]"
           : "border-border bg-card"
-      }`}
+      } ${isGreyedOut ? "opacity-50 grayscale" : ""}`}
     >
       {/* Image header */}
       <DestinationImage

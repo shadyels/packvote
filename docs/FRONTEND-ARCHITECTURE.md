@@ -102,6 +102,9 @@ Radix's `asChild` clones `onClick`/`aria-*` onto the child; Base UI's `ButtonPri
 ## Shared Components
 
 - `ItineraryCard` — `frontend/src/components/shared/ItineraryCard.tsx`
+  - `isWinner` — applies green border + glow + Winner badge
+  - `isGreyedOut` — applies `opacity-50 grayscale` to visually dim non-winner cards; pass `winnerId !== null && it.id !== winnerId` in any list that has a winner
+  - In both `ItinerariesSection` (admin) and `VotingForm` (participant), itineraries are sorted winner-first when `winnerId` is set
 - `STATUS_CONFIG` — `frontend/src/lib/trip-status.ts`
 - `parseJson` (safe JSON.parse with fallback) — `frontend/src/lib/utils.ts`
 
