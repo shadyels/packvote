@@ -52,8 +52,6 @@ export function DayDetailDrawer({
   const isFirst = currentDayIndex === 0;
   const isLast = currentDayIndex === days.length - 1;
 
-  if (!day) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
@@ -119,15 +117,12 @@ export function DayDetailDrawer({
               </button>
 
               {/* Close button */}
-              <button
-                onClick={() => {
-                  onOpenChange(false);
-                }}
+              <DialogPrimitive.Close
                 aria-label="Close"
                 className="absolute -top-1 -right-1 flex items-center justify-center w-7 h-7 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <XIcon className="w-3.5 h-3.5" />
-              </button>
+              </DialogPrimitive.Close>
             </div>
 
             {/* Activity timeline */}
@@ -137,8 +132,8 @@ export function DayDetailDrawer({
                 <div className="absolute left-2.5 top-1 bottom-1 w-px bg-brand/30" />
 
                 <div className="space-y-4">
-                  {day.activities.map((act, i) => (
-                    <div key={i} className="relative">
+                  {day.activities.map((act) => (
+                    <div key={`${act.time ?? ""}-${act.title}`} className="relative">
                       {/* Orange dot marker */}
                       <div className="absolute -left-[18px] top-1.5 w-2 h-2 rounded-full bg-brand" />
 
