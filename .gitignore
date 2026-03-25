@@ -82,6 +82,12 @@ Thumbs.db
 .claude/todos/
 
 # ========================
+# Git Worktrees
+# ========================
+.worktrees/
+.superpowers/
+
+# ========================
 # Miscellaneous
 # ========================
 *.log
