@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Zap, RotateCcw, Trophy, AlertTriangle, Trash2 } from "lucide-react";
 import { EditTripDialog } from "./EditTripDialog";
@@ -24,6 +24,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableRankItem } from "@/components/trip/SortableRankItem";
 import type { Trip, Itinerary, TripStatus } from "@/types";
 
 const STATUS_LABELS: Record<TripStatus, string> = {
@@ -59,9 +78,12 @@ export function TripOverviewSection({
 }: TripOverviewSectionProps) {
   const navigate = useNavigate();
   const [isActing, setIsActing] = useState(false);
-  const [adminRankings, setAdminRankings] = useState<Record<number, string>>(
-    {}
+  const [orderedIds, setOrderedIds] = useState<number[]>(() =>
+    itineraries
+      .filter((it) => it.iteration_number === trip.current_iteration)
+      .map((it) => it.id)
   );
+  const [activeId, setActiveId] = useState<number | null>(null);
   const [pickWinnerId, setPickWinnerId] = useState<string>("");
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -110,25 +132,41 @@ export function TripOverviewSection({
     }
   };
 
-  const handleAdminVote = async () => {
-    const itineraryIds = currentIterationItineraries.map((it) => it.id);
-    // Build rankings: adminRankings maps itinerary_id -> rank position (1=best)
-    // Sort by rank position ascending then map to IDs
-    const sorted = itineraryIds
-      .filter((id) => adminRankings[id])
-      .sort(
-        (a, b) =>
-          parseInt(adminRankings[a], 10) - parseInt(adminRankings[b], 10)
-      );
+  const itineraryMap = useMemo(
+    () => new Map(currentIterationItineraries.map((it) => [it.id, it])),
+    [currentIterationItineraries]
+  );
 
-    if (sorted.length !== itineraryIds.length) {
-      toast.error("Please rank all options before submitting.");
-      return;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(Number(event.active.id));
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (over && active.id !== over.id) {
+      setOrderedIds((prev) => {
+        const oldIndex = prev.indexOf(Number(active.id));
+        const newIndex = prev.indexOf(Number(over.id));
+        return arrayMove(prev, oldIndex, newIndex);
+      });
     }
+  }
 
+  const handleAdminVote = async () => {
     setIsActing(true);
     try {
-      await votesApi.adminVote(trip.id, sorted);
+      await votesApi.adminVote(trip.id, orderedIds);
       toast.success("Vote submitted!");
       onRefetch();
     } catch (err) {
@@ -380,35 +418,46 @@ export function TripOverviewSection({
         <>
           <Separator className="bg-border" />
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-black/70">Your vote</h3>
-            <p className="text-xs text-black/40">
-              Rank each option (1 = most preferred).
-            </p>
-            <div className="space-y-2">
-              {currentIterationItineraries.map((it) => (
-                <div key={it.id} className="flex items-center gap-3">
-                  <Select
-                    value={adminRankings[it.id] ?? ""}
-                    onValueChange={(v) => {
-                      if (v !== null)
-                        setAdminRankings((prev) => ({ ...prev, [it.id]: v }));
-                    }}
-                  >
-                    <SelectTrigger className="bg-card border-border text-black w-16 shrink-0">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border text-black">
-                      {currentIterationItineraries.map((_, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)}>
-                          {i + 1}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm text-black">{it.destination_name}</span>
-                </div>
-              ))}
+            <div>
+              <h3 className="text-sm font-medium text-black/70">Your vote</h3>
+              <p className="text-xs text-black/40 mt-0.5">
+                Drag to reorder — top is your #1 choice.
+              </p>
             </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={orderedIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {orderedIds.map((id, index) => {
+                    const itinerary = itineraryMap.get(id);
+                    if (!itinerary) return null;
+                    return (
+                      <SortableRankItem
+                        key={id}
+                        itinerary={itinerary}
+                        rank={index + 1}
+                      />
+                    );
+                  })}
+                </div>
+              </SortableContext>
+              <DragOverlay>
+                {activeId !== null && itineraryMap.get(activeId) ? (
+                  <SortableRankItem
+                    itinerary={itineraryMap.get(activeId)!}
+                    rank={orderedIds.indexOf(activeId) + 1}
+                    isDragging
+                  />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
             <Button
               onClick={() => { void handleAdminVote(); }}
               disabled={isActing}
