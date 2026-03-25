@@ -11,6 +11,9 @@ import type { ParticipantTripView } from "@/types";
 vi.mock("@/components/trip/TripHeader", () => ({
   TripHeader: () => <div data-testid="trip-header" />,
 }));
+vi.mock("@/components/trip/TripDetails", () => ({
+  TripDetails: () => <div data-testid="trip-details" />,
+}));
 vi.mock("@/components/trip/ParticipantProgress", () => ({
   ParticipantProgress: () => <div data-testid="participant-progress" />,
 }));
@@ -68,6 +71,7 @@ function makeTripView(
       current_iteration: 1,
       winner_itinerary_id: null,
       generation_error: null,
+      notes: null,
     },
     participants: [],
     itineraries: [],
@@ -220,6 +224,7 @@ describe("TripPage", () => {
           current_iteration: 1,
           winner_itinerary_id: 99,
           generation_error: null,
+          notes: null,
         },
         itineraries: [itinerary],
       }),

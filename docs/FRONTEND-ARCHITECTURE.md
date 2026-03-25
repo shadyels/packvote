@@ -69,7 +69,13 @@ Payload: `{ trip_code, pin }`. PIN is per-participant, so `trip_code + pin` uniq
 `frontend/src/hooks/useTripView.ts` polls every 5s while `trip.status === "GENERATING"`, stops on status change or unmount.
 
 **Participant trip component structure:**
-`frontend/src/components/trip/` — `TripHeader`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`, `SortableRankItem`. `TripPage.tsx` is the state machine rendering the correct one based on status and `has_voted`.
+`frontend/src/components/trip/` — `TripHeader`, `TripDetails`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`, `SortableRankItem`. `TripPage.tsx` is the state machine rendering the correct one based on status and `has_voted`.
+
+**`TripDetails` component:**
+Shown between `TripHeader` and `PreferenceForm` during `CREATED`/`COLLECTING_PREFERENCES` status. Displays the organizer's proposed destination, date range, and notes in a prominent card with brand-coloured icons. Hidden if the trip has no details to show. `notes` is included in `TripPublicInfo` (backend schema + frontend type) so participants can see the admin's notes.
+
+**`PreferenceForm` pre-fills from organizer proposal:**
+Accepts a `trip: TripPublicInfo` prop. Date pickers are initialised with the admin's `proposed_start_date`/`proposed_end_date` (parsed via `date-fns/parseISO`) so participants can accept the suggested dates or override them. A hint line ("Organizer suggested … — change if needed") is shown above the date grid when proposed dates exist.
 
 **Drag-to-reorder voting (`VotingForm` + `SortableRankItem`):**
 Uses `@dnd-kit/core` + `@dnd-kit/sortable`. State: `orderedIds: number[]`. Three sensors: `PointerSensor` (5px threshold), `TouchSensor` (150ms delay), `KeyboardSensor`. A `DragOverlay` renders a floating clone during drag.

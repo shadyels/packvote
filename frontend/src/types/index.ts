@@ -134,6 +134,7 @@ export interface TripPublicInfo {
   current_iteration: number;
   winner_itinerary_id: number | null;
   generation_error: string | null;
+  notes: string | null;
 }
 
 export interface ParticipantBrief {

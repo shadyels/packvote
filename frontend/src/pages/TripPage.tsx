@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useTripView } from "@/hooks/useTripView";
 import { TripHeader } from "@/components/trip/TripHeader";
+import { TripDetails } from "@/components/trip/TripDetails";
 import { ParticipantProgress } from "@/components/trip/ParticipantProgress";
 import { PreferenceForm } from "@/components/trip/PreferenceForm";
 import { WaitingScreen } from "@/components/trip/WaitingScreen";
@@ -77,13 +78,19 @@ function TripPageInner({
         {/* Participant progress (always visible) */}
         <ParticipantProgress participants={participants} />
 
+        {/* Organizer's proposal — shown while collecting preferences */}
+        {(trip.status === "CREATED" ||
+          trip.status === "COLLECTING_PREFERENCES") && (
+          <TripDetails trip={trip} />
+        )}
+
         {/* Status-dependent body */}
         {(trip.status === "CREATED" ||
           trip.status === "COLLECTING_PREFERENCES") &&
           (participant.preferences_submitted ? (
             <WaitingScreen participants={participants} />
           ) : (
-            <PreferenceForm token={token} onSuccess={refetch} />
+            <PreferenceForm token={token} trip={trip} onSuccess={refetch} />
           ))}
 
         {trip.status === "GENERATING" && <GeneratingScreen />}
