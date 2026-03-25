@@ -111,12 +111,22 @@ Radix's `asChild` clones `onClick`/`aria-*` onto the child; Base UI's `ButtonPri
   - `isWinner` — applies green border + glow + Winner badge
   - `isGreyedOut` — applies `opacity-50 grayscale` to visually dim non-winner cards; pass `winnerId !== null && it.id !== winnerId` in any list that has a winner
   - In both `ItinerariesSection` (admin) and `VotingForm` (participant), itineraries are sorted winner-first when `winnerId` is set
+  - **Activity display — hybrid overview + drawer:** Daily itinerary renders as an always-visible list of compact day rows (title + activity count + activity pill tags). `VISIBLE_DAY_LIMIT = 5` (module-level constant) — trips longer than 5 days show a "Show N more days ↓ / Show fewer days ↑" toggle. Clicking a row opens `DayDetailDrawer`. The old expand/collapse flat list is removed.
+
+- `DayDetailDrawer` — `frontend/src/components/shared/DayDetailDrawer.tsx`
+  - Props: `{ days: DayItinerary[], initialDayIndex: number, open: boolean, onOpenChange, currency? }`
+  - **Mobile:** fixed bottom-sheet (`bottom-0 rounded-t-xl max-h-[85vh]`) with drag handle. Enters with `animate-slide-up`. Exit animation (`animate-slide-down`) is set via `data-closed:` but does not play to completion — `@base-ui/react` removes the DOM node immediately on close (known limitation; enter animation works correctly).
+  - **Desktop (sm+):** centered modal (`max-w-md rounded-xl`) with fade+zoom via `data-open:animate-in data-open:zoom-in-95`.
+  - Uses `DialogPrimitive.Popup` from `@base-ui/react/dialog` directly (not the project's wrapped `DialogContent`) — required for bottom-sheet positioning.
+  - `currentDayIndex` syncs to `initialDayIndex` on open. ArrowLeft/ArrowRight keyboard shortcuts navigate between days.
+  - Renders `DailyActivity.estimated_cost` (if not null) as `~{currency}{cost} per person` in brand orange.
+
 - `STATUS_CONFIG` — `frontend/src/lib/trip-status.ts`
 - `parseJson` (safe JSON.parse with fallback) — `frontend/src/lib/utils.ts`
 
 ## CSS Animations
 
-`globals.css` defines `@keyframes`: `fade-in-up`, `fade-in`, `shimmer`, `progress`. The `GeneratingScreen` indeterminate progress bar uses `animate-[progress_40s_linear_infinite]`.
+`globals.css` defines `@keyframes`: `fade-in-up`, `fade-in`, `shimmer`, `progress`, `slide-up`, `slide-down`. The `GeneratingScreen` indeterminate progress bar uses `animate-[progress_40s_linear_infinite]`. `animate-slide-up` (0.3s ease-out) and `animate-slide-down` (0.25s ease-in) are used by `DayDetailDrawer` for mobile bottom-sheet entrance/exit.
 
 ## Landing Page
 
