@@ -53,6 +53,16 @@ export function VotingForm({
     [itineraries]
   );
 
+  const sortedItineraries = useMemo(
+    () =>
+      [...itineraries].sort((a, b) => {
+        if (a.id === winnerId) return -1;
+        if (b.id === winnerId) return 1;
+        return 0;
+      }),
+    [itineraries, winnerId]
+  );
+
   // Build vote count map from last round
   const voteCountMap: Record<number, number> = {};
   if (votingResults && votingResults.rounds.length > 0) {
@@ -111,14 +121,15 @@ export function VotingForm({
     <div className="space-y-6">
       {/* Itinerary detail cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {itineraries.map((it, index) => (
+        {sortedItineraries.map((it, index) => (
           <ItineraryCard
             key={it.id}
             itinerary={it}
             voteCount={voteCountMap[it.id]}
             isWinner={it.id === winnerId}
+            isGreyedOut={winnerId !== null && it.id !== winnerId}
             imageIndex={index}
-            totalImages={itineraries.length}
+            totalImages={sortedItineraries.length}
           />
         ))}
       </div>

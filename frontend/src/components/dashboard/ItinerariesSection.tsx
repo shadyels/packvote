@@ -49,16 +49,23 @@ export function ItinerariesSection({
               Iteration {iter}
             </h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {items.map((it, index) => (
-                <ItineraryCard
-                  key={it.id}
-                  itinerary={it}
-                  voteCount={voteCountMap[it.id]}
-                  isWinner={it.id === winnerId}
-                  imageIndex={index}
-                  totalImages={items.length}
-                />
-              ))}
+              {[...items]
+                .sort((a, b) => {
+                  if (a.id === winnerId) return -1;
+                  if (b.id === winnerId) return 1;
+                  return 0;
+                })
+                .map((it, index) => (
+                  <ItineraryCard
+                    key={it.id}
+                    itinerary={it}
+                    voteCount={voteCountMap[it.id]}
+                    isWinner={it.id === winnerId}
+                    isGreyedOut={winnerId !== null && it.id !== winnerId}
+                    imageIndex={index}
+                    totalImages={items.length}
+                  />
+                ))}
             </div>
           </div>
         ))}

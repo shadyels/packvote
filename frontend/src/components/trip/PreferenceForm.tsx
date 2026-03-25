@@ -1,18 +1,24 @@
 import { useState } from "react";
-import { format, startOfDay } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import { participants as participantsApi, ApiError } from "@/lib/api";
 import { DatePicker } from "@/components/ui/date-picker";
+import type { TripPublicInfo } from "@/types";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "SGD"];
 
 interface PreferenceFormProps {
   token: string;
+  trip: TripPublicInfo;
   onSuccess: () => void;
 }
 
-export function PreferenceForm({ token, onSuccess }: PreferenceFormProps) {
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) {
+  const [startDate, setStartDate] = useState<Date | undefined>(
+    trip.proposed_start_date ? parseISO(trip.proposed_start_date) : undefined
+  );
+  const [endDate, setEndDate] = useState<Date | undefined>(
+    trip.proposed_end_date ? parseISO(trip.proposed_end_date) : undefined
+  );
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
   const [currency, setCurrency] = useState("USD");
@@ -70,31 +76,45 @@ export function PreferenceForm({ token, onSuccess }: PreferenceFormProps) {
         className="space-y-4"
       >
         {/* Dates */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-foreground mb-1">
-              Preferred Start Date
-            </label>
-            <DatePicker
-              value={startDate}
-              onChange={setStartDate}
-              placeholder="Start date"
-              className="bg-background border-border text-foreground"
-              disabled={(date) => date < startOfDay(new Date())}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-foreground mb-1">
-              Preferred End Date
-            </label>
-            <DatePicker
-              value={endDate}
-              onChange={setEndDate}
-              placeholder="End date"
-              className="bg-background border-border text-foreground"
-              defaultMonth={startDate}
-              disabled={startDate ? (date) => date < startDate : (date) => date < startOfDay(new Date())}
-            />
+        <div className="space-y-2">
+          {(trip.proposed_start_date ?? trip.proposed_end_date) && (
+            <p className="text-xs text-muted-foreground">
+              Organizer suggested{" "}
+              <span className="font-medium text-foreground">
+                {[trip.proposed_start_date, trip.proposed_end_date]
+                  .filter(Boolean)
+                  .map((d) => format(parseISO(d!), "MMM d"))
+                  .join(" – ")}
+              </span>
+              {" "}— change if needed
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">
+                Preferred Start Date
+              </label>
+              <DatePicker
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start date"
+                className="bg-background border-border text-foreground"
+                disabled={(date) => date < startOfDay(new Date())}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">
+                Preferred End Date
+              </label>
+              <DatePicker
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End date"
+                className="bg-background border-border text-foreground"
+                defaultMonth={startDate}
+                disabled={startDate ? (date) => date < startDate : (date) => date < startOfDay(new Date())}
+              />
+            </div>
           </div>
         </div>
 

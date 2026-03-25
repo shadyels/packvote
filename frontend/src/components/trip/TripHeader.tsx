@@ -55,11 +55,6 @@ export function TripHeader({ trip }: TripHeaderProps) {
         <p className="text-sm text-muted-foreground">Destination: TBD</p>
       )}
 
-      {(trip.proposed_start_date ?? trip.proposed_end_date) && (
-        <p className="text-xs text-muted-foreground">
-          {trip.proposed_start_date ?? "?"} → {trip.proposed_end_date ?? "?"}
-        </p>
-      )}
     </div>
   );
 }
