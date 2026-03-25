@@ -74,6 +74,7 @@ Payload: `{ trip_code, pin }`. PIN is per-participant, so `trip_code + pin` uniq
 **Drag-to-reorder voting (`VotingForm` + `SortableRankItem`):**
 Uses `@dnd-kit/core` + `@dnd-kit/sortable`. State: `orderedIds: number[]`. Three sensors: `PointerSensor` (5px threshold), `TouchSensor` (150ms delay), `KeyboardSensor`. A `DragOverlay` renders a floating clone during drag.
 `SortableRankItem` only gives `useSortable` listeners to the handle element — prevents mobile scroll hijack.
+The same pattern is used in `TripOverviewSection` (admin dashboard) for the trip creator's vote during `VOTING` status.
 
 ## DatePicker Component
 
