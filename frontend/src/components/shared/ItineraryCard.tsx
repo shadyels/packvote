@@ -141,11 +141,6 @@ export function ItineraryCard({
           </div>
         )}
 
-        {/* AI metadata */}
-        <p className="text-xs text-black/30">
-          {itinerary.model_used && itinerary.model_used}
-          {itinerary.provider && ` · ${itinerary.provider}`}
-        </p>
 
         {/* Expandable daily itinerary */}
         {days.length > 0 && (
