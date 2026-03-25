@@ -159,7 +159,7 @@ export function ItineraryCard({
                   onClick={() => {
                     setSelectedDayIndex(idx);
                   }}
-                  className={`w-full text-left rounded-lg px-3 py-2 transition-colors hover:bg-accent/50 border-l-2 ${idx === 0 ? "border-brand bg-brand/5" : "border-border"}`}
+                  className="w-full text-left rounded-lg px-3 py-2 transition-colors hover:bg-accent/50 border-l-2 border-border hover:border-brand/50"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-foreground">
@@ -170,9 +170,9 @@ export function ItineraryCard({
                     </span>
                   </div>
                   <div className="flex gap-1 mt-1.5 flex-wrap">
-                    {day.activities.map((act) => (
+                    {day.activities.map((act, i) => (
                       <span
-                        key={`${act.time ?? ""}-${act.title}`}
+                        key={`${String(i)}-${act.time ?? ""}-${act.title}`}
                         className="text-[10px] bg-brand/10 text-brand px-1.5 py-0.5 rounded"
                       >
                         {act.title}

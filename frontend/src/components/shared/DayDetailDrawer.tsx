@@ -56,6 +56,8 @@ export function DayDetailDrawer({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
         <DialogOverlay />
+        {/* Note: animate-slide-down exit won't complete on mobile — @base-ui removes
+            the node immediately on close. Enter animation (animate-slide-up) works correctly. */}
         <DialogPrimitive.Popup
           className={cn(
             // Mobile: bottom sheet
@@ -95,9 +97,9 @@ export function DayDetailDrawer({
               </button>
 
               {/* Title */}
-              <p className="font-semibold text-sm text-center flex-1 px-2 truncate">
+              <DialogPrimitive.Title className="font-semibold text-sm text-center flex-1 px-2 truncate">
                 Day {day.day_number} &middot; {day.title}
-              </p>
+              </DialogPrimitive.Title>
 
               {/* Right nav arrow */}
               <button
@@ -132,8 +134,8 @@ export function DayDetailDrawer({
                 <div className="absolute left-2.5 top-1 bottom-1 w-px bg-brand/30" />
 
                 <div className="space-y-4">
-                  {day.activities.map((act) => (
-                    <div key={`${act.time ?? ""}-${act.title}`} className="relative">
+                  {day.activities.map((act, i) => (
+                    <div key={`${String(i)}-${act.time ?? ""}-${act.title}`} className="relative">
                       {/* Orange dot marker */}
                       <div className="absolute -left-[18px] top-1.5 w-2 h-2 rounded-full bg-brand" />
 
