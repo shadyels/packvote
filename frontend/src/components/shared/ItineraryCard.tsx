@@ -13,6 +13,8 @@ import { useDestinationImage } from "@/lib/unsplash";
 import type { Itinerary, DayItinerary } from "@/types";
 import { DayDetailDrawer } from "./DayDetailDrawer";
 
+const VISIBLE_DAY_LIMIT = 5;
+
 interface ItineraryCardProps {
   itinerary: Itinerary;
   voteCount?: number;
@@ -70,7 +72,6 @@ export function ItineraryCard({
 }: ItineraryCardProps) {
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [showAllDays, setShowAllDays] = useState(false);
-  const VISIBLE_DAY_LIMIT = 5;
 
   const highlights = parseJson<string[]>(itinerary.highlights, []);
   const days = parseJson<DayItinerary[]>(itinerary.daily_itinerary_json, []);
@@ -164,14 +165,14 @@ export function ItineraryCard({
                     <span className="text-xs font-semibold text-foreground">
                       Day {day.day_number} · {day.title}
                     </span>
-                    <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2" aria-label={`${String(day.activities.length)} activities`}>
                       {day.activities.length}
                     </span>
                   </div>
                   <div className="flex gap-1 mt-1.5 flex-wrap">
                     {day.activities.map((act) => (
                       <span
-                        key={act.title}
+                        key={`${act.time ?? ""}-${act.title}`}
                         className="text-[10px] bg-brand/10 text-brand px-1.5 py-0.5 rounded"
                       >
                         {act.title}
@@ -181,8 +182,8 @@ export function ItineraryCard({
                 </button>
               ))}
 
-              {/* Show more / fewer toggle for trips > 5 days */}
-              {days.length > 5 && (
+              {/* Show more / fewer toggle for trips > VISIBLE_DAY_LIMIT days */}
+              {days.length > VISIBLE_DAY_LIMIT && (
                 <button
                   onClick={() => {
                     setShowAllDays((s) => !s);
@@ -191,7 +192,7 @@ export function ItineraryCard({
                 >
                   {showAllDays
                     ? "Show fewer days ↑"
-                    : `Show ${String(days.length - 5)} more days ↓`}
+                    : `Show ${String(days.length - VISIBLE_DAY_LIMIT)} more days ↓`}
                 </button>
               )}
             </div>
