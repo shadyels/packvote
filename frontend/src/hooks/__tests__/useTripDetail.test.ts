@@ -47,6 +47,7 @@ const FAKE_PARTICIPANTS: Participant[] = [
     email: "alice@test.com",
     name: "Alice",
     preferences_submitted: true,
+    has_voted_current_iteration: false,
     created_at: "2024-01-01",
   },
 ];

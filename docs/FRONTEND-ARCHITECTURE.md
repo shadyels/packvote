@@ -41,6 +41,12 @@ onSubmit={(e) => { void handleSubmit(e); }}
 - `GET /trips/{trip_id}/itineraries` — creator-only, all iterations
 - `GET /trips/{trip_id}/ai-logs` — creator-only AI call log history
 
+**`ParticipantsSection` — adaptive column keyed on trip status:**
+`frontend/src/components/dashboard/ParticipantsSection.tsx` accepts `participants: Participant[]` and `trip: Trip`. During `VOTING` / `ITERATING` the column header and counter switch from "Preferences" to "Voted" and use `has_voted_current_iteration` instead of `preferences_submitted` for the progress bar and per-row icon. All other statuses keep the preferences column. The authenticated user's row gets an **Organizer** badge — identified by matching `p.email === auth.user?.email` via `useAuth()` (the creator-only endpoint guarantees the dashboard viewer is the trip creator).
+
+**`TripOverviewSection` — admin vote gate:**
+`frontend/src/components/dashboard/TripOverviewSection.tsx` accepts `participants: Participant[]`. It locates the creator's row by `p.email === user.email` and reads `has_voted_current_iteration`. During `VOTING`, if the creator has not yet voted the drag-to-rank form is shown; once voted, a green "Your vote is in · Waiting on N more participants" confirmation card replaces it. When `nonVoterCount === 0` (everyone voted, auto-tally imminent) the message reads "All participants have voted — results coming up."
+
 **Trip editing — `PATCH /trips/{trip_id}`:**
 Editable fields: `title`, `destination`, `proposed_start_date`, `proposed_end_date`, `num_options`, `notes`. Only allowed when status is `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` — returns 409 otherwise. Frontend: `EditTripDialog` at `frontend/src/components/dashboard/EditTripDialog.tsx`.
 

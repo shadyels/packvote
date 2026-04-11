@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Zap, RotateCcw, Trophy, AlertTriangle, Trash2 } from "lucide-react";
+import { Loader2, Zap, RotateCcw, Trophy, AlertTriangle, Trash2, CheckCircle } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { EditTripDialog } from "./EditTripDialog";
 import { toast } from "sonner";
 import { trips as tripsApi, votes as votesApi, ApiError } from "@/lib/api";
@@ -43,7 +44,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { SortableRankItem } from "@/components/trip/SortableRankItem";
-import type { Trip, Itinerary, TripStatus } from "@/types";
+import type { Trip, Itinerary, Participant, TripStatus } from "@/types";
 
 const STATUS_LABELS: Record<TripStatus, string> = {
   CREATED: "Created",
@@ -68,15 +69,23 @@ const STATUS_BADGE: Record<TripStatus, string> = {
 interface TripOverviewSectionProps {
   trip: Trip;
   itineraries: Itinerary[];
+  participants: Participant[];
   onRefetch: () => void;
 }
 
 export function TripOverviewSection({
   trip,
   itineraries,
+  participants,
   onRefetch,
 }: TripOverviewSectionProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const creatorParticipant = user
+    ? (participants.find((p) => p.email === user.email) ?? null)
+    : null;
+  const creatorHasVoted = creatorParticipant?.has_voted_current_iteration ?? false;
+  const nonVoterCount = participants.filter((p) => !p.has_voted_current_iteration).length;
   const [isActing, setIsActing] = useState(false);
   const [orderedIds, setOrderedIds] = useState<number[]>(() =>
     itineraries
@@ -417,55 +426,69 @@ export function TripOverviewSection({
       {trip.status === "VOTING" && currentIterationItineraries.length > 0 && (
         <>
           <Separator className="bg-border" />
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-medium text-black/70">Your vote</h3>
-              <p className="text-xs text-black/40 mt-0.5">
-                Drag to reorder — top is your #1 choice.
-              </p>
+          {creatorHasVoted ? (
+            <div className="rounded-lg border border-green-500/30 bg-green-50 p-4 flex items-start gap-3">
+              <CheckCircle className="h-4 w-4 text-green-700 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-green-700 font-medium text-sm">Your vote is in</p>
+                <p className="text-xs text-green-700/70 mt-1">
+                  {nonVoterCount === 0
+                    ? "All participants have voted — results coming up."
+                    : `Waiting on ${nonVoterCount.toString()} more participant${nonVoterCount === 1 ? "" : "s"}.`}
+                </p>
+              </div>
             </div>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={orderedIds}
-                strategy={verticalListSortingStrategy}
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-medium text-black/70">Your vote</h3>
+                <p className="text-xs text-black/40 mt-0.5">
+                  Drag to reorder — top is your #1 choice.
+                </p>
+              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
               >
-                <div className="space-y-2">
-                  {orderedIds.map((id, index) => {
-                    const itinerary = itineraryMap.get(id);
-                    if (!itinerary) return null;
-                    return (
-                      <SortableRankItem
-                        key={id}
-                        itinerary={itinerary}
-                        rank={index + 1}
-                      />
-                    );
-                  })}
-                </div>
-              </SortableContext>
-              <DragOverlay>
-                {activeId !== null && itineraryMap.get(activeId) ? (
-                  <SortableRankItem
-                    itinerary={itineraryMap.get(activeId)!}
-                    rank={orderedIds.indexOf(activeId) + 1}
-                    isDragging
-                  />
-                ) : null}
-              </DragOverlay>
-            </DndContext>
-            <Button
-              onClick={() => { void handleAdminVote(); }}
-              disabled={isActing}
-              className="bg-brand hover:bg-brand-hover text-white"
-            >
-              Submit vote
-            </Button>
-          </div>
+                <SortableContext
+                  items={orderedIds}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {orderedIds.map((id, index) => {
+                      const itinerary = itineraryMap.get(id);
+                      if (!itinerary) return null;
+                      return (
+                        <SortableRankItem
+                          key={id}
+                          itinerary={itinerary}
+                          rank={index + 1}
+                        />
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+                <DragOverlay>
+                  {activeId !== null && itineraryMap.get(activeId) ? (
+                    <SortableRankItem
+                      itinerary={itineraryMap.get(activeId)!}
+                      rank={orderedIds.indexOf(activeId) + 1}
+                      isDragging
+                    />
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
+              <Button
+                onClick={() => { void handleAdminVote(); }}
+                disabled={isActing}
+                className="bg-brand hover:bg-brand-hover text-white"
+              >
+                Submit vote
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>

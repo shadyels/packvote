@@ -26,6 +26,7 @@ function makeTripView(
       email: "p@test.com",
       name: null,
       preferences_submitted: false,
+      has_voted_current_iteration: false,
       created_at: "2024-01-01",
     },
     trip: {
