@@ -34,9 +34,10 @@ class TestGetTripParticipants:
         resp = await client.get(f"/trips/{trip_id}/participants", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 2
+        # 2 invitees + 1 creator participant row
+        assert len(data) == 3
         emails = {p["email"] for p in data}
-        assert emails == {"alice@example.com", "bob@example.com"}
+        assert {"alice@example.com", "bob@example.com"}.issubset(emails)
 
     async def test_participant_fields_present(
         self, client: AsyncClient, auth_headers, trip_id, mock_email

@@ -137,7 +137,8 @@ class TestListTrips:
         resp = await client.get(TRIPS_URL, headers=auth_headers)
         assert resp.status_code == 200
         trip = resp.json()[0]
-        assert trip["participant_count"] == 3
+        # 3 invitees + 1 creator participant row
+        assert trip["participant_count"] == 4
 
     async def test_preferences_submitted_count(
         self, client: AsyncClient, auth_headers, mock_email
@@ -145,8 +146,8 @@ class TestListTrips:
         await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         resp = await client.get(TRIPS_URL, headers=auth_headers)
         assert resp.status_code == 200
-        # No preferences submitted yet
-        assert resp.json()[0]["preferences_submitted_count"] == 0
+        # Creator row has preferences_submitted=True from day one
+        assert resp.json()[0]["preferences_submitted_count"] == 1
 
     async def test_no_auth_returns_401(self, client: AsyncClient):
         resp = await client.get(TRIPS_URL)
