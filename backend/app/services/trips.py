@@ -224,14 +224,39 @@ async def update_trip(
 
 async def list_participants_for_trip(
     trip_id: int, user_id: int, db: AsyncSession
-) -> list[Participant]:
-    await get_trip(trip_id, user_id, db)
+) -> list[dict]:
+    trip = await get_trip(trip_id, user_id, db)
+
+    has_voted_sq = (
+        select(Vote.id)
+        .where(
+            Vote.trip_id == trip_id,
+            Vote.participant_id == Participant.id,
+            Vote.iteration_number == trip.current_iteration,
+        )
+        .correlate(Participant)
+        .exists()
+        .label("has_voted_current_iteration")
+    )
+
     result = await db.execute(
-        select(Participant)
+        select(Participant, has_voted_sq)
         .where(Participant.trip_id == trip_id)
         .order_by(Participant.created_at)
     )
-    return list(result.scalars().all())
+
+    return [
+        {
+            "id": p.id,
+            "trip_id": p.trip_id,
+            "email": p.email,
+            "name": p.name,
+            "preferences_submitted": p.preferences_submitted,
+            "has_voted_current_iteration": bool(has_voted),
+            "created_at": p.created_at,
+        }
+        for p, has_voted in result.all()
+    ]
 
 
 async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:
