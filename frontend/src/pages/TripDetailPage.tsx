@@ -111,12 +111,13 @@ export default function TripDetailPage() {
                   <TripOverviewSection
                     trip={trip}
                     itineraries={itineraries}
+                    participants={participants}
                     onRefetch={refetch}
                   />
                 </TabsContent>
 
                 <TabsContent value="participants" className="p-6">
-                  <ParticipantsSection participants={participants} />
+                  <ParticipantsSection participants={participants} trip={trip} />
                 </TabsContent>
 
                 <TabsContent value="itineraries" className="p-6">

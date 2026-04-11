@@ -58,6 +58,7 @@ function makeTripView(
       email: "p@test.com",
       name: null,
       preferences_submitted: false,
+      has_voted_current_iteration: false,
       created_at: "2024-01-01",
     },
     trip: {
@@ -137,6 +138,7 @@ describe("TripPage", () => {
           email: "p@test.com",
           name: null,
           preferences_submitted: false,
+          has_voted_current_iteration: false,
           created_at: "2024-01-01",
         },
       }),
@@ -158,6 +160,7 @@ describe("TripPage", () => {
           email: "p@test.com",
           name: null,
           preferences_submitted: true,
+          has_voted_current_iteration: false,
           created_at: "2024-01-01",
         },
       }),

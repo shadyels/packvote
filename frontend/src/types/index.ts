@@ -49,6 +49,7 @@ export interface Participant {
   email: string;
   name: string | null;
   preferences_submitted: boolean;
+  has_voted_current_iteration: boolean;
   created_at: string;
 }
 
