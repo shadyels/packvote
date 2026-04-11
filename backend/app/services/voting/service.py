@@ -67,13 +67,26 @@ async def submit_admin_vote(
         )
     await _validate_rankings(rankings, trip_id, trip.current_iteration, db)
 
+    creator_participant_result = await db.execute(
+        select(Participant).where(
+            Participant.trip_id == trip_id,
+            Participant.user_id == user.id,
+        )
+    )
+    creator_participant = creator_participant_result.scalar_one_or_none()
+    if creator_participant is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Creator participant row missing for this trip",
+        )
+
     vote = await _upsert_vote(
         db=db,
         trip_id=trip_id,
         iteration_number=trip.current_iteration,
         rankings=rankings,
-        participant_id=None,
-        user_id=user.id,
+        participant_id=creator_participant.id,
+        user_id=None,
     )
     await _maybe_auto_tally(trip_id, trip.current_iteration, db)
     return vote
@@ -286,8 +299,7 @@ async def _maybe_auto_tally(
     )
     participant_count = participant_count_result.scalar_one()
 
-    # Eligible voters = all participants + 1 admin
-    eligible = participant_count + 1
+    eligible = participant_count
 
     vote_count_result = await db.execute(
         select(func.count(Vote.id)).where(

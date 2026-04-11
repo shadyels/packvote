@@ -98,7 +98,7 @@ def _make_itinerary(
 
 @pytest.fixture
 async def voting_setup(db: AsyncSession):
-    """Create a trip in VOTING status with 1 participant and 2 itineraries."""
+    """Create a trip in VOTING status with 1 invitee participant, 1 creator participant, and 2 itineraries."""
     user = _make_user(db)
     db.add(user)
     await db.flush()
@@ -111,6 +111,13 @@ async def voting_setup(db: AsyncSession):
     db.add(participant)
     await db.flush()
 
+    # Creator participant row — mirrors what create_trip now inserts
+    creator_participant = _make_participant(
+        db, trip, email=user.email, user_id=user.id, preferences_submitted=True
+    )
+    db.add(creator_participant)
+    await db.flush()
+
     itin1 = _make_itinerary(db, trip, iteration=1)
     itin2 = _make_itinerary(db, trip, iteration=1)
     db.add(itin1)
@@ -121,6 +128,7 @@ async def voting_setup(db: AsyncSession):
         "user": user,
         "trip": trip,
         "participant": participant,
+        "creator_participant": creator_participant,
         "itineraries": [itin1, itin2],
     }
 
@@ -241,8 +249,8 @@ class TestSubmitAdminVote:
         s = voting_setup
         itin_ids = [i.id for i in s["itineraries"]]
         vote = await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
-        assert vote.user_id == s["user"].id
-        assert vote.participant_id is None
+        assert vote.participant_id == s["creator_participant"].id
+        assert vote.user_id is None
 
     async def test_non_creator_rejected(self, db: AsyncSession, voting_setup) -> None:
         from fastapi import HTTPException
