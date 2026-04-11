@@ -140,7 +140,7 @@ async def get_trip_participants(
     trip_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> list[ParticipantResponse]:
+) -> list[dict]:
     return await list_participants_for_trip(trip_id, current_user.id, db)
 
 

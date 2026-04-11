@@ -12,6 +12,7 @@ class ParticipantResponse(BaseModel):
     email: str
     name: str | None
     preferences_submitted: bool
+    has_voted_current_iteration: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

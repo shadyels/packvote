@@ -335,10 +335,10 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 ### Core Tables
 - `users` — trip creators (email, hashed_password, created_at)
 - `trips` — (id, trip_code_8char_alphanum, creator_id, destination, proposed_dates, num_options, status, generation_error, max_iterations, current_iteration, created_at)
-- `participants` — (id, trip_id, email, name, pin_4digit, token, preferences_submitted, created_at) — PIN is unique per participant within a trip
+- `participants` — (id, trip_id, email, name, pin_4digit, token, preferences_submitted, user_id nullable FK→users, created_at) — PIN is unique per participant within a trip. `user_id` is set only for the trip creator's participant row (partial-unique index on `(trip_id, user_id) WHERE user_id IS NOT NULL`). The creator row is inserted automatically on trip creation with `preferences_submitted = True`.
 - `preferences` — (id, participant_id, trip_id, preferred_dates, budget_min, budget_max, currency, interests, submitted_at)
 - `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary_json, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at)
-- `votes` — (id, participant_id nullable, user_id nullable, trip_id, iteration_number, rankings_json, submitted_at) — exactly one of participant_id or user_id must be set (participant_id for participant votes, user_id for admin/creator votes)
+- `votes` — (id, participant_id nullable, user_id nullable, trip_id, iteration_number, rankings_json, submitted_at) — `participant_id` is set for all votes (both invitees and the creator, who has a participant row). `user_id` is legacy/unused by new code.
 - `vote_rounds` — (id, trip_id, iteration_number, round_number, eliminated_option_id, results_json, winner_id, created_at)
 
 ### AI & Monitoring Tables

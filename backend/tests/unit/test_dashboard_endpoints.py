@@ -34,23 +34,28 @@ class TestGetTripParticipants:
         resp = await client.get(f"/trips/{trip_id}/participants", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 2
+        # 2 invitees + 1 creator participant row
+        assert len(data) == 3
         emails = {p["email"] for p in data}
-        assert emails == {"alice@example.com", "bob@example.com"}
+        assert {"alice@example.com", "bob@example.com"}.issubset(emails)
 
     async def test_participant_fields_present(
         self, client: AsyncClient, auth_headers, trip_id, mock_email
     ):
         resp = await client.get(f"/trips/{trip_id}/participants", headers=auth_headers)
         assert resp.status_code == 200
-        p = resp.json()[0]
+        participants = resp.json()
+        # Check fields are present on any participant
+        p = participants[0]
         assert "id" in p
         assert "trip_id" in p
         assert "email" in p
         assert "name" in p
         assert "preferences_submitted" in p
         assert "created_at" in p
-        assert p["preferences_submitted"] is False
+        # Find the invitee specifically — creator row has preferences_submitted=True
+        invitee = next(p for p in participants if p["email"] == "alice@example.com")
+        assert invitee["preferences_submitted"] is False
 
     async def test_403_when_not_creator(self, client: AsyncClient, mock_email, trip_id):
         other_email = f"other_{secrets.token_hex(4)}@test.com"

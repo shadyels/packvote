@@ -68,9 +68,11 @@ async def voting_context(
     db.add(itin2)
     await db.flush()
 
-    # Get participant token
+    # Get an invitee participant token (not the creator row)
     participant_result = await db.execute(
-        select(Participant).where(Participant.trip_id == trip_id)
+        select(Participant).where(
+            Participant.trip_id == trip_id, Participant.user_id.is_(None)
+        )
     )
     participant = participant_result.scalars().first()
     assert participant is not None
@@ -165,8 +167,8 @@ class TestAdminVote:
         )
         assert resp.status_code == 201
         data = resp.json()
-        assert data["user_id"] is not None
-        assert data["participant_id"] is None
+        assert data["participant_id"] is not None
+        assert data["user_id"] is None
 
     async def test_unauthenticated_returns_401(
         self, client: AsyncClient, voting_context

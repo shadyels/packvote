@@ -37,7 +37,7 @@ onSubmit={(e) => { void handleSubmit(e); }}
 `frontend/src/hooks/useTripDetail.ts` orchestrates parallel fetches (trip, participants, itineraries, voting results, AI logs) via `Promise.allSettled`. Polls every 5s when `trip.status === "GENERATING"`, stops on status change or unmount.
 
 **Dashboard sub-resource endpoints:**
-- `GET /trips/{trip_id}/participants` — creator-only, includes email
+- `GET /trips/{trip_id}/participants` — creator-only, includes email. Each row includes `has_voted_current_iteration: bool` (whether the participant has voted in the current iteration) and `preferences_submitted: bool`. The creator appears as a regular participant row (identifiable by their email matching the authenticated user's email); no separate `is_admin` flag is returned.
 - `GET /trips/{trip_id}/itineraries` — creator-only, all iterations
 - `GET /trips/{trip_id}/ai-logs` — creator-only AI call log history
 

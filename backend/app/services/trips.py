@@ -13,6 +13,7 @@ from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.trip import Trip
+from app.models.user import User
 from app.models.vote import Vote
 from app.models.vote_round import VoteRound
 from app.schemas.trip import TripCreate, TripSummary, TripUpdate
@@ -27,6 +28,14 @@ def _generate_trip_code() -> str:
 
 def _generate_pin() -> str:
     return "".join(random.choices(string.digits, k=4))
+
+
+def _next_unique_pin(used: set[str]) -> str:
+    pin = _generate_pin()
+    while pin in used:
+        pin = _generate_pin()
+    used.add(pin)
+    return pin
 
 
 async def _unique_trip_code(db: AsyncSession) -> str:
@@ -44,6 +53,14 @@ async def create_trip(
     db: AsyncSession,
     email_service: EmailService,
 ) -> Trip:
+    creator_result = await db.execute(select(User).where(User.id == creator_id))
+    creator = creator_result.scalar_one_or_none()
+    if creator is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authenticated user record not found",
+        )
+
     trip_code = await _unique_trip_code(db)
 
     trip = Trip(
@@ -67,23 +84,38 @@ async def create_trip(
         db.add(trip)
         await db.flush()
 
+    # Dedupe: drop the creator's email from the invite list
+    invite_emails = [
+        e for e in payload.participant_emails if e.lower() != creator.email.lower()
+    ]
+
     participants: list[Participant] = []
     used_pins: set[str] = set()
-    for email in payload.participant_emails:
+    for email in invite_emails:
         token = secrets.token_urlsafe(32)
-        # Generate a PIN unique within this trip's batch
-        pin = _generate_pin()
-        while pin in used_pins:
-            pin = _generate_pin()
-        used_pins.add(pin)
-        participant = Participant(trip_id=trip.id, email=email, token=token, pin=pin)
+        participant = Participant(
+            trip_id=trip.id, email=email, token=token, pin=_next_unique_pin(used_pins)
+        )
         db.add(participant)
         participants.append(participant)
+
+    # Insert the creator as a participant (never emailed, preferences pre-submitted)
+    creator_participant = Participant(
+        trip_id=trip.id,
+        email=creator.email,
+        name=creator.full_name,
+        token=secrets.token_urlsafe(32),
+        pin=_next_unique_pin(used_pins),
+        user_id=creator.id,
+        preferences_submitted=True,
+    )
+    db.add(creator_participant)
 
     await db.commit()
     await db.refresh(trip)
 
     # Fire-and-forget — email failure must not roll back the trip
+    # creator_participant is intentionally excluded from this list
     asyncio.gather(
         *[
             email_service.send_invitation(
@@ -192,14 +224,39 @@ async def update_trip(
 
 async def list_participants_for_trip(
     trip_id: int, user_id: int, db: AsyncSession
-) -> list[Participant]:
-    await get_trip(trip_id, user_id, db)
+) -> list[dict]:
+    trip = await get_trip(trip_id, user_id, db)
+
+    has_voted_sq = (
+        select(Vote.id)
+        .where(
+            Vote.trip_id == trip_id,
+            Vote.participant_id == Participant.id,
+            Vote.iteration_number == trip.current_iteration,
+        )
+        .correlate(Participant)
+        .exists()
+        .label("has_voted_current_iteration")
+    )
+
     result = await db.execute(
-        select(Participant)
+        select(Participant, has_voted_sq)
         .where(Participant.trip_id == trip_id)
         .order_by(Participant.created_at)
     )
-    return list(result.scalars().all())
+
+    return [
+        {
+            "id": p.id,
+            "trip_id": p.trip_id,
+            "email": p.email,
+            "name": p.name,
+            "preferences_submitted": p.preferences_submitted,
+            "has_voted_current_iteration": bool(has_voted),
+            "created_at": p.created_at,
+        }
+        for p, has_voted in result.all()
+    ]
 
 
 async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:

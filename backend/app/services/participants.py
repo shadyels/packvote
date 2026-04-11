@@ -118,7 +118,9 @@ async def get_participant_trip_view(
     has_voted = vote_result.scalar_one_or_none() is not None
 
     return ParticipantTripView(
-        participant=ParticipantResponse.model_validate(participant),
+        participant=ParticipantResponse.model_validate(
+            {**participant.__dict__, "has_voted_current_iteration": has_voted}
+        ),
         trip=TripPublicInfo.model_validate(trip),
         participants=participant_briefs,
         itineraries=[ItineraryResponse.model_validate(it) for it in itineraries],
