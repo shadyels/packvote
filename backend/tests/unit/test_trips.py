@@ -303,3 +303,69 @@ class TestDeleteTrip:
         trip_id = create_resp.json()["id"]
         resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
         assert resp.status_code == 204
+
+
+class TestCreatorEmailDedup:
+    async def test_creator_email_in_invite_list_is_deduped(
+        self, client: AsyncClient, mock_email
+    ):
+        creator_email = f"creator_{secrets.token_hex(4)}@test.com"
+        await client.post(
+            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        r = await client.post(
+            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+        payload = {
+            "title": "Dedup Trip",
+            # creator's own email plus two other invitees
+            "participant_emails": [
+                creator_email,
+                "alice@example.com",
+                "bob@example.com",
+            ],
+        }
+        create_resp = await client.post(TRIPS_URL, json=payload, headers=headers)
+        assert create_resp.status_code == 201
+        trip_id = create_resp.json()["id"]
+
+        resp = await client.get(f"/trips/{trip_id}/participants", headers=headers)
+        assert resp.status_code == 200
+        participants = resp.json()
+        # 2 invitees + 1 creator row (not 4)
+        assert len(participants) == 3
+        creator_rows = [p for p in participants if p["email"] == creator_email]
+        assert len(creator_rows) == 1
+
+    async def test_creator_email_dedup_is_case_insensitive(
+        self, client: AsyncClient, mock_email
+    ):
+        creator_email = f"creator_{secrets.token_hex(4)}@test.com"
+        await client.post(
+            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        r = await client.post(
+            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+        payload = {
+            "title": "Dedup Case Trip",
+            # creator's email in uppercase — should still be deduped
+            "participant_emails": [creator_email.upper(), "alice@example.com"],
+        }
+        create_resp = await client.post(TRIPS_URL, json=payload, headers=headers)
+        assert create_resp.status_code == 201
+        trip_id = create_resp.json()["id"]
+
+        resp = await client.get(f"/trips/{trip_id}/participants", headers=headers)
+        assert resp.status_code == 200
+        participants = resp.json()
+        # 1 invitee + 1 creator row (not 3)
+        assert len(participants) == 2
+        creator_rows = [
+            p for p in participants if p["email"].lower() == creator_email.lower()
+        ]
+        assert len(creator_rows) == 1

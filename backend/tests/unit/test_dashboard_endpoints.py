@@ -44,14 +44,18 @@ class TestGetTripParticipants:
     ):
         resp = await client.get(f"/trips/{trip_id}/participants", headers=auth_headers)
         assert resp.status_code == 200
-        p = resp.json()[0]
+        participants = resp.json()
+        # Check fields are present on any participant
+        p = participants[0]
         assert "id" in p
         assert "trip_id" in p
         assert "email" in p
         assert "name" in p
         assert "preferences_submitted" in p
         assert "created_at" in p
-        assert p["preferences_submitted"] is False
+        # Find the invitee specifically — creator row has preferences_submitted=True
+        invitee = next(p for p in participants if p["email"] == "alice@example.com")
+        assert invitee["preferences_submitted"] is False
 
     async def test_403_when_not_creator(self, client: AsyncClient, mock_email, trip_id):
         other_email = f"other_{secrets.token_hex(4)}@test.com"

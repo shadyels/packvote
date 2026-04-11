@@ -54,7 +54,12 @@ async def create_trip(
     email_service: EmailService,
 ) -> Trip:
     creator_result = await db.execute(select(User).where(User.id == creator_id))
-    creator = creator_result.scalar_one()
+    creator = creator_result.scalar_one_or_none()
+    if creator is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authenticated user record not found",
+        )
 
     trip_code = await _unique_trip_code(db)
 
