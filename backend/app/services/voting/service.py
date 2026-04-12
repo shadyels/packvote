@@ -47,7 +47,6 @@ async def submit_participant_vote(
         iteration_number=trip.current_iteration,
         rankings=rankings,
         participant_id=participant.id,
-        user_id=None,
     )
     await _maybe_auto_tally(trip_id, trip.current_iteration, db)
     return vote
@@ -86,7 +85,6 @@ async def submit_admin_vote(
         iteration_number=trip.current_iteration,
         rankings=rankings,
         participant_id=creator_participant.id,
-        user_id=None,
     )
     await _maybe_auto_tally(trip_id, trip.current_iteration, db)
     return vote
@@ -249,24 +247,14 @@ async def _upsert_vote(
     iteration_number: int,
     rankings: list[int],
     participant_id: int | None,
-    user_id: int | None,
 ) -> Vote:
-    if participant_id is not None:
-        existing_result = await db.execute(
-            select(Vote).where(
-                Vote.trip_id == trip_id,
-                Vote.iteration_number == iteration_number,
-                Vote.participant_id == participant_id,
-            )
+    existing_result = await db.execute(
+        select(Vote).where(
+            Vote.trip_id == trip_id,
+            Vote.iteration_number == iteration_number,
+            Vote.participant_id == participant_id,
         )
-    else:
-        existing_result = await db.execute(
-            select(Vote).where(
-                Vote.trip_id == trip_id,
-                Vote.iteration_number == iteration_number,
-                Vote.user_id == user_id,
-            )
-        )
+    )
 
     vote = existing_result.scalar_one_or_none()
     rankings_json = json.dumps(rankings)
@@ -274,7 +262,6 @@ async def _upsert_vote(
     if vote is None:
         vote = Vote(
             participant_id=participant_id,
-            user_id=user_id,
             trip_id=trip_id,
             iteration_number=iteration_number,
             rankings_json=rankings_json,

@@ -10,7 +10,6 @@ class VoteSubmit(BaseModel):
 class VoteResponse(BaseModel):
     id: int
     participant_id: int | None
-    user_id: int | None
     trip_id: int
     iteration_number: int
     rankings_json: str

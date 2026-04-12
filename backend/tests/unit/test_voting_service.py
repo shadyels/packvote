@@ -250,7 +250,6 @@ class TestSubmitAdminVote:
         itin_ids = [i.id for i in s["itineraries"]]
         vote = await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
         assert vote.participant_id == s["creator_participant"].id
-        assert vote.user_id is None
 
     async def test_non_creator_rejected(self, db: AsyncSession, voting_setup) -> None:
         from fastapi import HTTPException
@@ -337,7 +336,7 @@ class TestGetOrComputeResults:
         )
         db.add(
             Vote(
-                user_id=s["user"].id,
+                participant_id=s["creator_participant"].id,
                 trip_id=s["trip"].id,
                 iteration_number=1,
                 rankings_json=json.dumps(itin_ids),
