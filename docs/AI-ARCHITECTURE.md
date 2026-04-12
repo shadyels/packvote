@@ -36,6 +36,18 @@ On total failure raises `AIParseError` with the raw text attached. A `pydantic.V
 **Raw response logging:**
 `ai_call_logs.raw_response` (Text column, nullable) stores the raw AI response only when parsing/validation fails. Always `None` on success to avoid table bloat.
 
+## Prompt Style Contract
+
+When writing or updating a prompt version, maintain these constraints — they exist to prevent bland, AI-sounding output:
+
+- **Activity titles:** 2-3 word noun-phrases naming a specific real place, dish, or activity. No verbs, no filler. e.g. `"Tsukiji tuna auction"`, `"Fushimi Inari sunrise"`.
+- **Activity descriptions:** 2-3 sentences. Sensory/atmospheric opener, then 1-2 practical specifics (location, timing, cost hint, insider tip). Voice: local friend texting a recommendation — casual, opinionated, useful. No guidebook tone.
+- **Day titles:** Same compact noun-phrase style as activity titles.
+- **Specificity ratio:** Exactly 4 activities per day. 3 must name a specific venue/dish/experience. 1 must be an unstructured neighborhood exploration — no fixed destination, but still written with full descriptive depth (area vibe, what to look for, an orienting landmark).
+- **Banned patterns:** em dashes (—), "nestled", "vibrant", "bustling", "hidden gem", "a testament to", "boasts", "delve", "tapestry", "unwind", "indulge", "immerse yourself", "whether you're", "from X to Y" openers, "offers a unique".
+
+The current prompt (`ITINERARY_PROMPT_V1`) embeds a few-shot Barcelona day as a reference example. Any new version should include a comparable example.
+
 ## Prompt Templates
 
 **Format — `[SYSTEM]`/`[USER]` delimiter:**

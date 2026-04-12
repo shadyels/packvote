@@ -71,7 +71,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Current prompt template (from versioned prompt system)
 - AI generates N itinerary options (N = 2–5, set at trip creation), each containing:
   - Destination name and description
-  - Day-by-day itinerary with 3–5 activities per day
+  - Day-by-day itinerary with exactly 4 activities per day (3 specific named venues/experiences + 1 unstructured neighborhood exploration written with full descriptive depth)
   - Total estimated budget and currency
   - Why this matches the group's preferences (`match_reasoning`)
   - Highlights list
