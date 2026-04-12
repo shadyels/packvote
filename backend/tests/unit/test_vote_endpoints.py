@@ -168,7 +168,7 @@ class TestAdminVote:
         assert resp.status_code == 201
         data = resp.json()
         assert data["participant_id"] is not None
-        assert data["user_id"] is None
+        assert "user_id" not in data
 
     async def test_unauthenticated_returns_401(
         self, client: AsyncClient, voting_context
