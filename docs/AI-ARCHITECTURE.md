@@ -12,12 +12,17 @@
 
 **`AsyncInferenceClient` for all providers:**
 Both `HuggingFaceProvider` and `GroqProvider` use `AsyncInferenceClient` from `huggingface_hub`. Groq exposes an OpenAI-compatible API — same client, different `base_url` and `api_key`. Do not use raw `httpx` for AI inference.
+- HuggingFace `base_url`: `https://router.huggingface.co/v1` (the old endpoint is 410 Gone — do not revert)
+- `AsyncInferenceClient` is initialized with `timeout=180` seconds to accommodate slow model cold-starts
 
 **Provider return type includes provider name:**
 `AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `"huggingface"` or `"groq"`. Required so the generation service can log which provider answered in `AICallLog.provider` and `Itinerary.provider`.
 
 **Retry strategy:**
 `AIService.generate_itineraries()` retries HuggingFace up to 3 times with exponential backoff (1s, 2s, 4s). On exhaustion, tries Groq once. If both fail, re-raises the last exception. Never use immediate retries.
+
+**`AIInputError` fast-fail (no retry):**
+When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), providers raise `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. The Groq fallback is also skipped. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
 
 **Groq ignores the `model` parameter:**
 `GroqProvider` hardcodes `GROQ_MODEL = "llama-3.3-70b-versatile"` and ignores the `model` argument (which is always a HF model ID). This is intentional.
@@ -33,6 +38,14 @@ Open-source models wrap JSON in markdown fences or add preamble even with `respo
 
 On total failure raises `AIParseError` with the raw text attached. A `pydantic.ValidationError` is wrapped in `AIParseError` so raw text always propagates to the caller.
 
+**Error envelope detection (check before schema validation):**
+After `extract_json()` returns a dict, both providers check for `"error"` key before attempting `AIGenerationResponse.model_validate()`. If present, they raise `AIInputError` immediately:
+```python
+if "error" in data and isinstance(data["error"], dict):
+    err = data["error"]
+    raise AIInputError(message=err.get("message", "..."), suggestion=err.get("suggestion", ""), field=err.get("field", "general"))
+```
+
 **Raw response logging:**
 `ai_call_logs.raw_response` (Text column, nullable) stores the raw AI response only when parsing/validation fails. Always `None` on success to avoid table bloat.
 
@@ -43,10 +56,11 @@ When writing or updating a prompt version, maintain these constraints — they e
 - **Activity titles:** 2-3 word noun-phrases naming a specific real place, dish, or activity. No verbs, no filler. e.g. `"Tsukiji tuna auction"`, `"Fushimi Inari sunrise"`.
 - **Activity descriptions:** 2-3 sentences. Sensory/atmospheric opener, then 1-2 practical specifics (location, timing, cost hint, insider tip). Voice: local friend texting a recommendation — casual, opinionated, useful. No guidebook tone.
 - **Day titles:** Same compact noun-phrase style as activity titles.
+- **`option_title`:** A creative 3-5 word thematic name capturing the trip's personality. Must NOT contain or repeat the destination name. e.g. `"Coastal Culture Crawl"`, `"Ramen, Rails & Rooftops"`, `"Old Town Budget Blitz"`. This is the primary heading shown to users; `destination_name` is demoted to a subtitle.
 - **Specificity ratio:** Exactly 4 activities per day. 3 must name a specific venue/dish/experience. 1 must be an unstructured neighborhood exploration — no fixed destination, but still written with full descriptive depth (area vibe, what to look for, an orienting landmark).
 - **Banned patterns:** em dashes (—), "nestled", "vibrant", "bustling", "hidden gem", "a testament to", "boasts", "delve", "tapestry", "unwind", "indulge", "immerse yourself", "whether you're", "from X to Y" openers, "offers a unique".
 
-The current prompt (`ITINERARY_PROMPT_V1`) embeds a few-shot Barcelona day as a reference example. Any new version should include a comparable example.
+The current prompt (`ITINERARY_PROMPT_V2`) embeds a few-shot Barcelona day as a reference example and includes an ERROR REPORTING section so the AI can self-report invalid input. `ITINERARY_PROMPT_V1` has been deleted. Any future version should include both the Barcelona example and the error envelope instructions.
 
 ## Prompt Templates
 
@@ -98,6 +112,7 @@ Ensures clients polling `GET /trips/{id}` immediately see `GENERATING`.
 `_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores a user-friendly message in `trip.generation_error`. Raw exceptions go to server logs and `ai_call_logs.error_message` only — never shown to users.
 
 User-facing messages from `_humanize_error(exc)` in `services/generation.py`:
+- `AIInputError` → AI's own `ai_message` verbatim, with `suggestion` appended as "Tip: …" if present. Always checked first (before the `AIParseError` branch, since `AIInputError` is a subclass).
 - `AIParseError` → "The AI returned an invalid response. This is usually temporary — try again."
 - `ValueError` (wrong option count) → "The AI generated the wrong number of itinerary options..."
 - `httpx.HTTPStatusError` 429 → rate limit message

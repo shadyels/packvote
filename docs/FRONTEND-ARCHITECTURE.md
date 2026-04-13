@@ -117,6 +117,7 @@ Radix's `asChild` clones `onClick`/`aria-*` onto the child; Base UI's `ButtonPri
   - `isWinner` — applies green border + glow + Winner badge
   - `isGreyedOut` — applies `opacity-50 grayscale` to visually dim non-winner cards; pass `winnerId !== null && it.id !== winnerId` in any list that has a winner
   - In both `ItinerariesSection` (admin) and `VotingForm` (participant), itineraries are sorted winner-first when `winnerId` is set
+  - **`option_title` as primary heading:** `CardTitle` displays `option_title ?? destination_name`. `destination_name` is always rendered as a subtitle below it (used for Unsplash image lookup). Never swap these — `destination_name` must stay as the image key.
   - **Activity display — hybrid overview + drawer:** Daily itinerary renders as an always-visible list of compact day rows (title + activity count + activity pill tags). `VISIBLE_DAY_LIMIT = 5` (module-level constant) — trips longer than 5 days show a "Show N more days ↓ / Show fewer days ↑" toggle. Clicking a row opens `DayDetailDrawer`. The old expand/collapse flat list is removed.
 
 - `DayDetailDrawer` — `frontend/src/components/shared/DayDetailDrawer.tsx`
