@@ -9,7 +9,7 @@ import pytest
 
 from app.schemas.itinerary import AIGenerationResponse, ItineraryOption
 from app.services.ai.groq import GroqProvider
-from app.services.ai.json_utils import AIParseError
+from app.services.ai.json_utils import AIInputError, AIParseError
 
 # ---------------------------------------------------------------------------
 # Helpers (reuse the same builder used in test_ai_huggingface)
@@ -77,10 +77,11 @@ class TestGroqProvider:
         provider = GroqProvider(api_key="test-key")
         mock_client = _make_mock_client(_make_valid_response_json(num_options=1))
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(ValueError, match="expected 2"):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 2, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(ValueError, match="expected 2"),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 2, "model")
 
     async def test_reuses_split_prompt_from_huggingface(self) -> None:
         """GroqProvider imports _split_prompt from huggingface module."""
@@ -103,19 +104,21 @@ class TestGroqProvider:
         provider = GroqProvider(api_key="test-key")
         mock_client = _make_mock_client("not valid json at all")
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIParseError),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
     async def test_none_content_raises_ai_parse_error(self) -> None:
         provider = GroqProvider(api_key="test-key")
         mock_client = _make_mock_client(None)  # type: ignore[arg-type]
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIParseError),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
     async def test_markdown_wrapped_json_succeeds(self) -> None:
         provider = GroqProvider(api_key="test-key")
@@ -134,7 +137,31 @@ class TestGroqProvider:
         provider = GroqProvider(api_key="test-key")
         mock_client = _make_mock_client(json.dumps({"wrong_key": []}))
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIParseError),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
+
+    async def test_error_envelope_raises_ai_input_error(self) -> None:
+        provider = GroqProvider(api_key="test-key")
+        error_response = json.dumps(
+            {
+                "error": {
+                    "message": "I couldn't find a destination matching 'xxxxnotaplace'.",
+                    "suggestion": "Try 'Cancun, Mexico' or 'Bali, Indonesia'.",
+                    "field": "destination",
+                }
+            }
+        )
+        mock_client = _make_mock_client(error_response)
+
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIInputError) as exc_info,
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
+
+        err = exc_info.value
+        assert err.field == "destination"
+        assert "Cancun" in err.suggestion

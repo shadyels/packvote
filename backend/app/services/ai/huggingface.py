@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
-from app.services.ai.json_utils import AIParseError, extract_json
+from app.services.ai.json_utils import AIInputError, AIParseError, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +25,15 @@ class HuggingFaceProvider(AIProvider):
     Uses Qwen2.5-72B-Instruct by default.
     """
 
-    BASE_URL = "https://api-inference.huggingface.co/v1"
+    BASE_URL = "https://router.huggingface.co/v1"
 
     def __init__(self, api_token: str) -> None:
         self.api_token = api_token
 
     def _make_client(self) -> AsyncInferenceClient:
-        return AsyncInferenceClient(base_url=self.BASE_URL, api_key=self.api_token)
+        return AsyncInferenceClient(
+            base_url=self.BASE_URL, api_key=self.api_token, timeout=180
+        )
 
     async def generate_itineraries(
         self,
@@ -60,6 +62,13 @@ class HuggingFaceProvider(AIProvider):
                 raw_text,
             )
             raise
+        if "error" in data and isinstance(data["error"], dict):
+            err = data["error"]
+            raise AIInputError(
+                message=err.get("message", "The AI could not process this request."),
+                suggestion=err.get("suggestion", ""),
+                field=err.get("field", "general"),
+            )
         try:
             response = AIGenerationResponse.model_validate(data)
         except ValidationError as exc:

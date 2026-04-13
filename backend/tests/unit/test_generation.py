@@ -21,10 +21,12 @@ from app.schemas.itinerary import (
     DayItinerary,
     ItineraryOption,
 )
+from app.services.ai.json_utils import AIInputError
 from app.services.ai.service import AIService
 from app.services.generation import (
     _build_preferences_block,
     _compute_trip_duration,
+    _humanize_error,
     _upsert_prompt_template,
     run_generation,
 )
@@ -211,9 +213,10 @@ class TestUpsertPromptTemplate:
         template = await _upsert_prompt_template(db)
         assert template.id is not None
         assert template.name == "itinerary_generation"
-        assert template.version == "v1"
+        assert template.version == "v2"
         assert template.is_active is True
         assert "[SYSTEM]" in template.template_text
+        assert "ERROR REPORTING" in template.template_text
 
         # Verify it's in the DB
         result = await db.execute(
@@ -227,6 +230,45 @@ class TestUpsertPromptTemplate:
         template2 = await _upsert_prompt_template(db)
         assert template1.id == template2.id
 
+
+# ---------------------------------------------------------------------------
+# _humanize_error
+# ---------------------------------------------------------------------------
+
+
+class TestHumanizeError:
+    def test_ai_input_error_with_suggestion(self) -> None:
+        err = AIInputError(
+            message="I couldn't find a destination matching 'xxxxnotaplace'.",
+            suggestion="Try 'Cancun, Mexico' or 'Bali, Indonesia'.",
+            field="destination",
+        )
+        result = _humanize_error(err)
+        assert "xxxxnotaplace" in result
+        assert "Tip:" in result
+        assert "Cancun" in result
+
+    def test_ai_input_error_without_suggestion(self) -> None:
+        err = AIInputError(
+            message="Input is too vague.", suggestion="", field="general"
+        )
+        result = _humanize_error(err)
+        assert "Input is too vague." in result
+        assert "Tip:" not in result
+
+    def test_ai_input_error_takes_priority_over_generic(self) -> None:
+        """AIInputError must be checked before the generic AIParseError branch."""
+        from app.services.ai.json_utils import AIParseError
+
+        err = AIInputError("Bad destination", "Try Paris", "destination")
+        assert isinstance(err, AIParseError)
+        result = _humanize_error(err)
+        # Should use the AI message, not the generic parse-error message
+        assert "Bad destination" in result
+        assert "temporary" not in result
+
+
+class TestUpsertPromptTemplateIdempotency:
     async def test_idempotent_no_duplicates(self, db: AsyncSession):
         from sqlalchemy import func, select
 
@@ -240,7 +282,7 @@ class TestUpsertPromptTemplate:
         result = await db.execute(
             select(func.count(PromptTemplate.id)).where(
                 PromptTemplate.name == "itinerary_generation",
-                PromptTemplate.version == "v1",
+                PromptTemplate.version == "v2",
             )
         )
         count = result.scalar_one()
@@ -418,7 +460,10 @@ class TestRunGeneration:
         result = await db.execute(select(TripModel).where(TripModel.id == trip_id))
         trip = result.scalar_one()
         assert trip.status == "GENERATION_FAILED"
-        assert trip.generation_error == "Something went wrong while generating itineraries. Please try again."
+        assert (
+            trip.generation_error
+            == "Something went wrong while generating itineraries. Please try again."
+        )
 
     async def test_failure_logs_ai_call_invalid(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
@@ -442,6 +487,34 @@ class TestRunGeneration:
         assert log is not None
         assert log.response_valid is False
         assert "Provider unavailable" in log.error_message
+
+    async def test_ai_input_error_sets_generation_failed_with_ai_message(
+        self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
+    ):
+        from sqlalchemy import select
+
+        from app.models.trip import Trip as TripModel
+
+        trip_id = trip_with_preferences.id
+        input_err = AIInputError(
+            message="I couldn't find a destination matching 'xxxxnotaplace'.",
+            suggestion="Try 'Cancun, Mexico' or 'Bali, Indonesia'.",
+            field="destination",
+        )
+        with patch.object(
+            AIService,
+            "generate_itineraries",
+            new_callable=AsyncMock,
+            side_effect=input_err,
+        ):
+            await run_generation(trip_id, session_factory_fixture)
+
+        db.expire_all()
+        result = await db.execute(select(TripModel).where(TripModel.id == trip_id))
+        trip = result.scalar_one()
+        assert trip.status == "GENERATION_FAILED"
+        assert "xxxxnotaplace" in trip.generation_error
+        assert "Cancun" in trip.generation_error
 
     async def test_idempotency_guard_skips_if_not_generating(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture

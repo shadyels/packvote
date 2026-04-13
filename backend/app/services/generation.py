@@ -28,7 +28,7 @@ from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.prompt_template import PromptTemplate
 from app.models.trip import Trip
-from app.services.ai.json_utils import AIParseError
+from app.services.ai.json_utils import AIInputError, AIParseError
 from app.services.ai.service import AIService
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Prompt template (seeded into DB on first generate call)
 # ---------------------------------------------------------------------------
 
-ITINERARY_PROMPT_V1 = """\
+ITINERARY_PROMPT_V2 = """\
 [SYSTEM]
 You are an expert travel planner. Generate exactly {num_options} distinct travel itinerary options for a group trip. Respond with valid JSON ONLY — no markdown, no prose outside the JSON.
 
@@ -85,6 +85,16 @@ Rules:
 - total_estimated_budget must be a realistic float in the stated currency.
 - currency must be a valid 3-letter ISO 4217 code.
 - Return ONLY the JSON object — no preamble, no explanation.
+
+ERROR REPORTING:
+If you cannot fulfill the request because the destination is not a real, recognizable place, the constraints are contradictory or impossible, or the input is too vague to generate meaningful itineraries — do NOT attempt to generate options. Instead return ONLY this JSON:
+{{
+  "error": {{
+    "message": "<one sentence explaining what is wrong, addressed to the user>",
+    "suggestion": "<specific actionable fix — name 2-3 real alternatives if destination is the problem>",
+    "field": "<one of: destination | dates | budget | general>"
+  }}
+}}
 
 EXAMPLE (one day, Barcelona):
 {{
@@ -141,6 +151,11 @@ Generate {num_options} travel itinerary options that best satisfy the group's co
 
 def _humanize_error(exc: Exception) -> str:
     """Convert a technical exception into a user-friendly error message."""
+    if isinstance(exc, AIInputError):
+        msg = exc.ai_message
+        if exc.suggestion:
+            msg = f"{msg} Tip: {exc.suggestion}"
+        return msg
     if isinstance(exc, AIParseError):
         return (
             "The AI returned an invalid response. "
@@ -321,25 +336,39 @@ async def _reset_trip_status(
 
 
 async def _upsert_prompt_template(db: AsyncSession) -> PromptTemplate:
+    # Try to find the active v2 template first
     result = await db.execute(
         select(PromptTemplate).where(
             PromptTemplate.name == "itinerary_generation",
-            PromptTemplate.version == "v1",
+            PromptTemplate.version == "v2",
             PromptTemplate.is_active.is_(True),
         )
     )
     template = result.scalar_one_or_none()
-    if template is None:
-        template = PromptTemplate(
-            name="itinerary_generation",
-            version="v1",
-            template_text=ITINERARY_PROMPT_V1,
-            model_target="Qwen/Qwen2.5-72B-Instruct",
-            is_active=True,
-            traffic_weight=1.0,
+    if template is not None:
+        return template
+
+    # Deactivate any existing v1 templates
+    v1_result = await db.execute(
+        select(PromptTemplate).where(
+            PromptTemplate.name == "itinerary_generation",
+            PromptTemplate.version == "v1",
         )
-        db.add(template)
-        await db.flush()  # assigns template.id before we use it
+    )
+    for old in v1_result.scalars().all():
+        old.is_active = False
+
+    # Seed v2
+    template = PromptTemplate(
+        name="itinerary_generation",
+        version="v2",
+        template_text=ITINERARY_PROMPT_V2,
+        model_target="Qwen/Qwen2.5-72B-Instruct",
+        is_active=True,
+        traffic_weight=1.0,
+    )
+    db.add(template)
+    await db.flush()  # assigns template.id before we use it
     return template
 
 

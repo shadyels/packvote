@@ -44,7 +44,10 @@ class EmailService:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     BREVO_API_URL,
-                    headers={"api-key": self._api_key, "content-type": "application/json"},
+                    headers={
+                        "api-key": self._api_key,
+                        "content-type": "application/json",
+                    },
                     json=payload,
                     timeout=10,
                 )

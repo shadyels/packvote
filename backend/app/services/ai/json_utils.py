@@ -22,6 +22,23 @@ class AIParseError(Exception):
         self.raw_text = raw_text
 
 
+class AIInputError(AIParseError):
+    """Raised when the AI reports the trip input is invalid.
+
+    The AI itself diagnosed the problem (bad destination, contradictory constraints, etc.)
+    and returned a structured error envelope instead of itineraries.
+    Carries an actionable user-facing message and a suggestion for how to fix the input.
+    """
+
+    def __init__(
+        self, message: str, suggestion: str = "", field: str = "general"
+    ) -> None:
+        super().__init__(message)
+        self.ai_message = message
+        self.suggestion = suggestion
+        self.field = field  # "destination" | "dates" | "budget" | "general"
+
+
 def extract_json(raw: str | None) -> dict:
     """Extract a JSON object from an AI model response string.
 

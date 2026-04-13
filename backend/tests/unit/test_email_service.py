@@ -72,9 +72,12 @@ class TestSendInvitation:
             )
         assert result is True
 
-    async def test_returns_false_on_exception(self, email_service: EmailService) -> None:
+    async def test_returns_false_on_exception(
+        self, email_service: EmailService
+    ) -> None:
         with patch(
-            "app.services.email.brevo.httpx.AsyncClient", side_effect=RuntimeError("network error")
+            "app.services.email.brevo.httpx.AsyncClient",
+            side_effect=RuntimeError("network error"),
         ):
             result = await email_service.send_invitation(
                 to_email="alice@example.com",
@@ -86,7 +89,9 @@ class TestSendInvitation:
             )
         assert result is False
 
-    async def test_subject_contains_trip_title(self, email_service: EmailService) -> None:
+    async def test_subject_contains_trip_title(
+        self, email_service: EmailService
+    ) -> None:
         captured: dict = {}
 
         mock_client = AsyncMock()
@@ -99,7 +104,9 @@ class TestSendInvitation:
 
         mock_client.post = capture_post
 
-        with patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
+        ):
             await email_service.send_invitation(
                 to_email="a@a.com",
                 participant_name=None,
@@ -126,7 +133,9 @@ class TestSendInvitation:
 
         mock_client.post = capture_post
 
-        with patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
+        ):
             await email_service.send_invitation(
                 to_email="a@a.com",
                 participant_name=None,
@@ -161,7 +170,9 @@ class TestSendVotingNotification:
 
         mock_client.post = capture_post
 
-        with patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
+        ):
             await email_service.send_voting_notification(
                 to_email="a@a.com",
                 participant_name="Alice",
@@ -171,7 +182,9 @@ class TestSendVotingNotification:
                 token="tok",
             )
 
-        assert "Vote now" in captured["subject"] or "vote" in captured["subject"].lower()
+        assert (
+            "Vote now" in captured["subject"] or "vote" in captured["subject"].lower()
+        )
 
     async def test_body_contains_vote_link(self, email_service: EmailService) -> None:
         captured: dict = {}
@@ -186,7 +199,9 @@ class TestSendVotingNotification:
 
         mock_client.post = capture_post
 
-        with patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
+        ):
             await email_service.send_voting_notification(
                 to_email="a@a.com",
                 participant_name=None,
@@ -221,7 +236,9 @@ class TestSendNewIterationNotification:
 
         mock_client.post = capture_post
 
-        with patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
+        ):
             await email_service.send_new_iteration_notification(
                 to_email="a@a.com",
                 participant_name=None,
@@ -231,7 +248,9 @@ class TestSendNewIterationNotification:
                 token="tok",
             )
 
-        assert "New options" in captured["subject"] or "new" in captured["subject"].lower()
+        assert (
+            "New options" in captured["subject"] or "new" in captured["subject"].lower()
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +274,9 @@ class TestSendFinalizedNotification:
 
         mock_client.post = capture_post
 
-        with patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
+        ):
             await email_service.send_finalized_notification(
                 to_email="a@a.com",
                 participant_name=None,
@@ -269,9 +290,12 @@ class TestSendFinalizedNotification:
         assert "Bali" in captured["subject"]
         assert "Bali" in captured["textContent"]
 
-    async def test_returns_false_on_exception(self, email_service: EmailService) -> None:
+    async def test_returns_false_on_exception(
+        self, email_service: EmailService
+    ) -> None:
         with patch(
-            "app.services.email.brevo.httpx.AsyncClient", side_effect=Exception("api error")
+            "app.services.email.brevo.httpx.AsyncClient",
+            side_effect=Exception("api error"),
         ):
             result = await email_service.send_finalized_notification(
                 to_email="a@a.com",
