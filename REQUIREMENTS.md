@@ -77,6 +77,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Highlights list
 - All AI output is structured JSON, validated by Pydantic schemas
 - Failed/invalid AI responses are retried with exponential backoff (3 attempts on HuggingFace, then 1 attempt on Groq fallback)
+- **`AIInputError` fast-fail:** when the AI returns a structured error envelope (bad destination, contradictory constraints), retries are skipped entirely — the AI's own user-friendly message and suggestion are surfaced directly via `trip.generation_error`
 - If all providers fail, trip status is set to `GENERATION_FAILED` and a **user-friendly** error message is stored on the trip (raw technical errors go to logs only); the dashboard shows the error, an "Edit Trip" button, and a "Retry Generation" button; the admin can re-trigger from `GENERATION_FAILED` status
 - Each generation is logged with: prompt version, model used, provider used, latency, response validity
 
@@ -183,6 +184,7 @@ Chosen for:
 
 ### AI Output Schema (validated by Pydantic)
 Each itinerary option must include:
+- `option_title`: string — creative 3-5 word thematic name (e.g. "Coastal Culture Crawl"). Must not contain the destination name. Displayed as the primary heading; `destination_name` is demoted to a subtitle.
 - `destination_name`: string
 - `destination_description`: string
 - `daily_itinerary`: list of day objects (day_number, title, activities, estimated_cost)
