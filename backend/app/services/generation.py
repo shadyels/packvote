@@ -28,7 +28,7 @@ from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.prompt_template import PromptTemplate
 from app.models.trip import Trip
-from app.services.ai.json_utils import AIParseError
+from app.services.ai.json_utils import AIInputError, AIParseError
 from app.services.ai.service import AIService
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,113 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Prompt template (seeded into DB on first generate call)
 # ---------------------------------------------------------------------------
+
+ITINERARY_PROMPT_V2 = """\
+[SYSTEM]
+You are an expert travel planner. Generate exactly {num_options} distinct travel itinerary options for a group trip. Respond with valid JSON ONLY — no markdown, no prose outside the JSON.
+
+The JSON must conform exactly to this schema:
+{{
+  "options": [
+    {{
+      "destination_name": "string",
+      "destination_description": "string (2-3 sentences)",
+      "daily_itinerary": [
+        {{
+          "day_number": 1,
+          "title": "string",
+          "activities": [
+            {{
+              "time": null,
+              "title": "string",
+              "description": "string",
+              "estimated_cost": null
+            }}
+          ],
+          "estimated_cost": null
+        }}
+      ],
+      "total_estimated_budget": 1500.0,
+      "currency": "USD",
+      "match_reasoning": "string — why this option fits the group",
+      "highlights": ["string", "string", "string"]
+    }}
+  ]
+}}
+
+WRITING STYLE:
+- Activity titles: 2-3 word noun-phrases. Must name a specific real place, dish, or activity. No verbs, no filler words. Examples: "Tsukiji tuna auction", "Raval vintage digging", "Fushimi Inari sunrise".
+- Activity descriptions: 2-3 sentences. Open with a sensory or atmospheric detail, then give 1-2 practical specifics (location hint, timing tip, cost hint, insider knowledge). Write like a local friend texting a recommendation — casual, opinionated, useful. No guidebook voice.
+- Day titles: Same 2-3 word compact style as activity titles.
+- NEVER use these words or patterns — they are dead giveaways of AI-generated text: em dashes (—), "nestled", "vibrant", "bustling", "hidden gem", "a testament to", "boasts", "delve", "tapestry", "unwind", "indulge", "immerse yourself", "whether you're", "from X to Y" sentence openers, "offers a unique". Use plain dashes (-) if needed.
+
+Rules:
+- The "options" array must have exactly {num_options} items.
+- Each option must cover all {trip_duration_days} days of the trip.
+- Each day must have exactly 4 activities.
+- Of each day's 4 activities, exactly 3 must reference a specific named venue, dish, or experience. Exactly 1 must be an unstructured neighborhood exploration (no fixed destination) — but still written with full descriptive depth: describe the area's vibe, what to look for, a landmark to orient around.
+- All estimated_cost fields must be null (price data is not available yet).
+- total_estimated_budget must be a realistic float in the stated currency.
+- currency must be a valid 3-letter ISO 4217 code.
+- Return ONLY the JSON object — no preamble, no explanation.
+
+ERROR REPORTING:
+If you cannot fulfill the request because the destination is not a real, recognizable place, the constraints are contradictory or impossible, or the input is too vague to generate meaningful itineraries — do NOT attempt to generate options. Instead return ONLY this JSON:
+{{
+  "error": {{
+    "message": "<one sentence explaining what is wrong, addressed to the user>",
+    "suggestion": "<specific actionable fix — name 2-3 real alternatives if destination is the problem>",
+    "field": "<one of: destination | dates | budget | general>"
+  }}
+}}
+
+EXAMPLE (one day, Barcelona):
+{{
+  "day_number": 2,
+  "title": "Sant Antoni to Bunkers",
+  "activities": [
+    {{
+      "time": "09:00",
+      "title": "Boqueria back-stall breakfast",
+      "description": "Squeeze past the tourist clusters to the counter seats at Pinotxo Bar in the back. Chickpea stew and a cava for under €8. Best before 9:30 when the crowds hit.",
+      "estimated_cost": null
+    }},
+    {{
+      "time": "11:00",
+      "title": "Raval morning wander",
+      "description": "The blocks south of MACBA shift from skatepark chaos to quiet vintage shops within a few turns. Carrer dels Tallers is the vinyl-and-bookshop strip. Grab a cortado at Federal Café if you need an anchor, otherwise let the neighborhood happen.",
+      "estimated_cost": null
+    }},
+    {{
+      "time": "14:00",
+      "title": "Vermouth at Morro Fi",
+      "description": "Standing-room-only vermouth bar in Sant Antoni. House vermut on tap paired with conservas. The tinned mussels are the move. Cash only, closes at 2pm sharp so don't be late.",
+      "estimated_cost": null
+    }},
+    {{
+      "time": "18:30",
+      "title": "Bunkers del Carmel sunset",
+      "description": "Abandoned anti-aircraft batteries on a hilltop with the best 360° view of the city. Bring your own drinks from the Carmel market below. Arrive 45min before sunset or you'll be standing.",
+      "estimated_cost": null
+    }}
+  ],
+  "estimated_cost": null
+}}
+[USER]
+Plan a group trip with the following details:
+
+TRIP TITLE: {trip_title}
+PROPOSED DATES: {proposed_dates}
+TRIP DURATION: {trip_duration_days} days
+NUMBER OF OPTIONS REQUIRED: {num_options}
+{destination_constraint}
+
+PARTICIPANT PREFERENCES ({participant_count} participants):
+{preferences_block}
+
+Generate {num_options} travel itinerary options that best satisfy the group's collective preferences. Prioritize destinations and activities that maximize overlap between participants' interests and budgets.\
+"""
+
 
 ITINERARY_PROMPT_V1 = """\
 [SYSTEM]
@@ -141,6 +248,11 @@ Generate {num_options} travel itinerary options that best satisfy the group's co
 
 def _humanize_error(exc: Exception) -> str:
     """Convert a technical exception into a user-friendly error message."""
+    if isinstance(exc, AIInputError):
+        msg = exc.ai_message
+        if exc.suggestion:
+            msg = f"{msg} Tip: {exc.suggestion}"
+        return msg
     if isinstance(exc, AIParseError):
         return (
             "The AI returned an invalid response. "
@@ -321,25 +433,39 @@ async def _reset_trip_status(
 
 
 async def _upsert_prompt_template(db: AsyncSession) -> PromptTemplate:
+    # Try to find the active v2 template first
     result = await db.execute(
         select(PromptTemplate).where(
             PromptTemplate.name == "itinerary_generation",
-            PromptTemplate.version == "v1",
+            PromptTemplate.version == "v2",
             PromptTemplate.is_active.is_(True),
         )
     )
     template = result.scalar_one_or_none()
-    if template is None:
-        template = PromptTemplate(
-            name="itinerary_generation",
-            version="v1",
-            template_text=ITINERARY_PROMPT_V1,
-            model_target="Qwen/Qwen2.5-72B-Instruct",
-            is_active=True,
-            traffic_weight=1.0,
+    if template is not None:
+        return template
+
+    # Deactivate any existing v1 templates
+    v1_result = await db.execute(
+        select(PromptTemplate).where(
+            PromptTemplate.name == "itinerary_generation",
+            PromptTemplate.version == "v1",
         )
-        db.add(template)
-        await db.flush()  # assigns template.id before we use it
+    )
+    for old in v1_result.scalars().all():
+        old.is_active = False
+
+    # Seed v2
+    template = PromptTemplate(
+        name="itinerary_generation",
+        version="v2",
+        template_text=ITINERARY_PROMPT_V2,
+        model_target="Qwen/Qwen2.5-72B-Instruct",
+        is_active=True,
+        traffic_weight=1.0,
+    )
+    db.add(template)
+    await db.flush()  # assigns template.id before we use it
     return template
 
 

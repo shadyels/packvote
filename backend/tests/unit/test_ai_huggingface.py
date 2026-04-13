@@ -14,7 +14,7 @@ from app.schemas.itinerary import (
     ItineraryOption,
 )
 from app.services.ai.huggingface import HuggingFaceProvider, _split_prompt
-from app.services.ai.json_utils import AIParseError
+from app.services.ai.json_utils import AIInputError, AIParseError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -112,9 +112,7 @@ class TestHuggingFaceProviderGenerate:
         mock_client = _make_mock_client(_make_valid_response_json())
 
         with patch.object(provider, "_make_client", return_value=mock_client):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 1, "my-model"
-            )
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "my-model")
 
         create_call = mock_client.chat.completions.create
         assert create_call.call_args.kwargs["model"] == "my-model"
@@ -137,28 +135,31 @@ class TestHuggingFaceProviderGenerate:
         # Response has 1 option but we request 3
         mock_client = _make_mock_client(_make_valid_response_json(num_options=1))
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(ValueError, match="expected 3"):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 3, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(ValueError, match="expected 3"),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 3, "model")
 
     async def test_invalid_json_raises_ai_parse_error(self) -> None:
         provider = HuggingFaceProvider(api_token="test-token")
         mock_client = _make_mock_client("not valid json at all")
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIParseError),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
     async def test_none_content_raises_ai_parse_error(self) -> None:
         provider = HuggingFaceProvider(api_token="test-token")
         mock_client = _make_mock_client(None)  # type: ignore[arg-type]
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIParseError),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
     async def test_markdown_wrapped_json_succeeds(self) -> None:
         provider = HuggingFaceProvider(api_token="test-token")
@@ -178,7 +179,45 @@ class TestHuggingFaceProviderGenerate:
         # Valid JSON but wrong structure (missing required fields)
         mock_client = _make_mock_client(json.dumps({"wrong_key": []}))
 
-        with patch.object(provider, "_make_client", return_value=mock_client), pytest.raises(AIParseError):
-            await provider.generate_itineraries(
-                "[SYSTEM]\nS\n[USER]\nU", 1, "model"
-            )
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIParseError),
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
+
+    async def test_error_envelope_raises_ai_input_error(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        error_response = json.dumps(
+            {
+                "error": {
+                    "message": "I couldn't find a destination matching 'xxxxnotaplace'.",
+                    "suggestion": "Try 'Cancun, Mexico' or 'Bali, Indonesia'.",
+                    "field": "destination",
+                }
+            }
+        )
+        mock_client = _make_mock_client(error_response)
+
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIInputError) as exc_info,
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
+
+        err = exc_info.value
+        assert "xxxxnotaplace" in err.ai_message
+        assert err.field == "destination"
+        assert "Cancun" in err.suggestion
+
+    async def test_error_envelope_missing_fields_uses_defaults(self) -> None:
+        provider = HuggingFaceProvider(api_token="test-token")
+        error_response = json.dumps({"error": {}})
+        mock_client = _make_mock_client(error_response)
+
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(AIInputError) as exc_info,
+        ):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
+
+        assert exc_info.value.field == "general"

@@ -144,8 +144,10 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               placeholder="e.g. Barcelona, Spain"
               value={destination}
               onChange={(e) => { setDestination(e.target.value); }}
+              maxLength={100}
               className="bg-card border-border text-black placeholder:text-black/30"
             />
+            <p className="text-xs text-black/40">City, region, or country name</p>
           </div>
 
           {/* Dates */}

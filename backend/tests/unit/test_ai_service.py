@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.schemas.itinerary import AIGenerationResponse, ItineraryOption
+from app.services.ai.json_utils import AIInputError
 from app.services.ai.service import AIService
 
 # ---------------------------------------------------------------------------
@@ -123,9 +124,45 @@ class TestAIServiceRetry:
         primary.generate_itineraries.return_value = mock_result
         service = AIService(primary=primary)
 
-        with patch("asyncio.sleep"), patch("app.services.ai.service.get_settings") as mock_settings:
+        with (
+            patch("asyncio.sleep"),
+            patch("app.services.ai.service.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.DEFAULT_AI_MODEL = "Qwen2.5-72B-Instruct"
             await service.generate_itineraries("prompt", 1, model=None)
 
         call_args = primary.generate_itineraries.call_args
         assert call_args[0][2] == "Qwen2.5-72B-Instruct"
+
+    async def test_ai_input_error_not_retried(self) -> None:
+        """AIInputError must fail fast — no retry loop, no fallback."""
+        input_err = AIInputError("Bad destination", "Try Paris", "destination")
+        primary = AsyncMock()
+        primary.generate_itineraries.side_effect = input_err
+        fallback = AsyncMock()
+        fallback.generate_itineraries.return_value = (_make_response(), "groq")
+        service = AIService(primary=primary, fallback=fallback)
+
+        with patch("asyncio.sleep") as mock_sleep, pytest.raises(AIInputError):
+            await service.generate_itineraries("prompt", 1, "model")
+
+        # Called exactly once — no retries
+        primary.generate_itineraries.assert_called_once()
+        # No sleep between attempts
+        mock_sleep.assert_not_called()
+        # Fallback never reached
+        fallback.generate_itineraries.assert_not_called()
+
+    async def test_ai_input_error_skips_fallback(self) -> None:
+        """AIInputError from primary should not trigger Groq fallback."""
+        input_err = AIInputError("Cannot plan for 'xxxxnotaplace'", "", "destination")
+        primary = AsyncMock()
+        primary.generate_itineraries.side_effect = input_err
+        fallback = AsyncMock()
+        service = AIService(primary=primary, fallback=fallback)
+
+        with patch("asyncio.sleep"), pytest.raises(AIInputError) as exc_info:
+            await service.generate_itineraries("prompt", 1, "model")
+
+        assert exc_info.value is input_err
+        fallback.generate_itineraries.assert_not_called()

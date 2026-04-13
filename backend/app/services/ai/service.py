@@ -6,6 +6,7 @@ from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
 from app.services.ai.groq import GroqProvider
 from app.services.ai.huggingface import HuggingFaceProvider
+from app.services.ai.json_utils import AIInputError
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,9 @@ class AIService:
                 return await self.primary.generate_itineraries(
                     prompt, num_options, resolved_model
                 )
+            except AIInputError:
+                # AI diagnosed the input as invalid — retrying won't help
+                raise
             except Exception as exc:
                 last_exc = exc
                 logger.warning(
@@ -71,6 +75,9 @@ class AIService:
                 return await self.fallback.generate_itineraries(
                     prompt, num_options, resolved_model
                 )
+            except AIInputError:
+                # AI diagnosed the input as invalid — no point trying other providers
+                raise
             except Exception as exc:
                 last_exc = exc
                 logger.error(

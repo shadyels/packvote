@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.ai.json_utils import AIParseError, extract_json
+from app.services.ai.json_utils import AIInputError, AIParseError, extract_json
 
 
 class TestExtractJson:
@@ -50,3 +50,28 @@ class TestExtractJson:
         with pytest.raises(AIParseError) as exc_info:
             extract_json(None)
         assert exc_info.value.raw_text is None
+
+
+class TestAIInputError:
+    def test_is_subclass_of_ai_parse_error(self) -> None:
+        err = AIInputError("Bad destination", "Try Paris, France", "destination")
+        assert isinstance(err, AIParseError)
+
+    def test_attributes_stored_correctly(self) -> None:
+        err = AIInputError(
+            message="Unknown destination",
+            suggestion="Try 'Kyoto, Japan'",
+            field="destination",
+        )
+        assert err.ai_message == "Unknown destination"
+        assert err.suggestion == "Try 'Kyoto, Japan'"
+        assert err.field == "destination"
+
+    def test_defaults(self) -> None:
+        err = AIInputError("Something went wrong")
+        assert err.suggestion == ""
+        assert err.field == "general"
+
+    def test_str_message(self) -> None:
+        err = AIInputError("Bad input")
+        assert str(err) == "Bad input"

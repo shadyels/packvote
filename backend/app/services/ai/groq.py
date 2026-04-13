@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
 from app.services.ai.huggingface import _split_prompt
-from app.services.ai.json_utils import AIParseError, extract_json
+from app.services.ai.json_utils import AIInputError, AIParseError, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,13 @@ class GroqProvider(AIProvider):
                 raw_text,
             )
             raise
+        if "error" in data and isinstance(data["error"], dict):
+            err = data["error"]
+            raise AIInputError(
+                message=err.get("message", "The AI could not process this request."),
+                suggestion=err.get("suggestion", ""),
+                field=err.get("field", "general"),
+            )
         try:
             response = AIGenerationResponse.model_validate(data)
         except ValidationError as exc:
