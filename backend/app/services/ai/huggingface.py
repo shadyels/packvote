@@ -25,13 +25,15 @@ class HuggingFaceProvider(AIProvider):
     Uses Qwen2.5-72B-Instruct by default.
     """
 
-    BASE_URL = "https://api-inference.huggingface.co/v1"
+    BASE_URL = "https://router.huggingface.co/v1"
 
     def __init__(self, api_token: str) -> None:
         self.api_token = api_token
 
     def _make_client(self) -> AsyncInferenceClient:
-        return AsyncInferenceClient(base_url=self.BASE_URL, api_key=self.api_token)
+        return AsyncInferenceClient(
+            base_url=self.BASE_URL, api_key=self.api_token, timeout=180
+        )
 
     async def generate_itineraries(
         self,
