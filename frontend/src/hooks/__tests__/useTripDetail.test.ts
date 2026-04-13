@@ -57,6 +57,7 @@ const FAKE_ITINERARIES: Itinerary[] = [
     id: 10,
     trip_id: 1,
     iteration_number: 1,
+    option_title: null,
     destination_name: "Paris",
     destination_description: "City of light",
     daily_itinerary_json: "[]",

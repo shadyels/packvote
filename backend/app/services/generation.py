@@ -45,6 +45,7 @@ The JSON must conform exactly to this schema:
 {{
   "options": [
     {{
+      "option_title": "string",
       "destination_name": "string",
       "destination_description": "string (2-3 sentences)",
       "daily_itinerary": [
@@ -74,6 +75,7 @@ WRITING STYLE:
 - Activity titles: 2-3 word noun-phrases. Must name a specific real place, dish, or activity. No verbs, no filler words. Examples: "Tsukiji tuna auction", "Raval vintage digging", "Fushimi Inari sunrise".
 - Activity descriptions: 2-3 sentences. Open with a sensory or atmospheric detail, then give 1-2 practical specifics (location hint, timing tip, cost hint, insider knowledge). Write like a local friend texting a recommendation — casual, opinionated, useful. No guidebook voice.
 - Day titles: Same 2-3 word compact style as activity titles.
+- option_title: A creative 3-5 word thematic name capturing the trip's personality. Must NOT contain or repeat the destination name. Examples: "Coastal Culture Crawl", "Ramen, Rails & Rooftops", "Old Town Budget Blitz".
 - NEVER use these words or patterns — they are dead giveaways of AI-generated text: em dashes (—), "nestled", "vibrant", "bustling", "hidden gem", "a testament to", "boasts", "delve", "tapestry", "unwind", "indulge", "immerse yourself", "whether you're", "from X to Y" sentence openers, "offers a unique". Use plain dashes (-) if needed.
 
 Rules:
@@ -269,6 +271,7 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
         itinerary = Itinerary(
             trip_id=trip_id,
             iteration_number=iteration_number,
+            option_title=option.option_title,
             destination_name=option.destination_name,
             destination_description=option.destination_description,
             daily_itinerary_json=json.dumps(

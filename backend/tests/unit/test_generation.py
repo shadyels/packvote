@@ -79,6 +79,7 @@ def _make_pref(**kwargs) -> Preference:
 
 def _make_itinerary_option(destination: str = "Barcelona") -> ItineraryOption:
     return ItineraryOption(
+        option_title="Beach & Culture Escape",
         destination_name=destination,
         destination_description="A vibrant city with amazing beaches.",
         daily_itinerary=[

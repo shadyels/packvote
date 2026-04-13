@@ -81,18 +81,17 @@ export function SortableRankItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">
-          {itinerary.destination_name}
+          {itinerary.option_title ?? itinerary.destination_name}
         </p>
-        {(days > 0 || highlights > 0) && (
-          <p className="text-xs text-muted-foreground">
-            {[
-              highlights > 0 && `${highlights} highlight${highlights !== 1 ? "s" : ""}`,
-              days > 0 && `${days} day${days !== 1 ? "s" : ""}`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground truncate">
+          {[
+            itinerary.option_title && itinerary.destination_name,
+            highlights > 0 && `${highlights} highlight${highlights !== 1 ? "s" : ""}`,
+            days > 0 && `${days} day${days !== 1 ? "s" : ""}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
       </div>
 
       {/* Budget */}

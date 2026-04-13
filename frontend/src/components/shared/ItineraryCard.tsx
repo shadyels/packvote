@@ -96,7 +96,7 @@ export function ItineraryCard({
         <div className="flex items-start justify-between gap-2">
           <div>
             <CardTitle className="text-black text-base flex items-center gap-2">
-              {itinerary.destination_name}
+              {itinerary.option_title ?? itinerary.destination_name}
               {isWinner && (
                 <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100 flex items-center gap-1">
                   <Trophy className="h-3 w-3" />
@@ -105,7 +105,7 @@ export function ItineraryCard({
               )}
             </CardTitle>
             <p className="text-xs text-black/40 mt-0.5">
-              Iteration {itinerary.iteration_number}
+              {itinerary.option_title ? itinerary.destination_name : `Iteration ${itinerary.iteration_number.toString()}`}
             </p>
           </div>
           <div className="text-right shrink-0">
