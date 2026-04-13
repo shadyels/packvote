@@ -480,7 +480,9 @@ class TestParticipantsEndpointVoteStatus:
         assert resp.status_code == 200
         participants = resp.json()
 
-        creator_rows = [p for p in participants if p["email"] == creator_participant.email]
+        creator_rows = [
+            p for p in participants if p["email"] == creator_participant.email
+        ]
         invitee_rows = [p for p in participants if p["email"] == "voter@x.com"]
         assert len(creator_rows) == 1
         assert len(invitee_rows) == 1
