@@ -136,6 +136,18 @@ class TestPromptV2Compliance:
                 f"expected 4 activities, got {len(day.activities)}"
             )
 
+    async def test_option_title_is_distinct_from_destination(
+        self, hf_response: tuple[AIGenerationResponse, str]
+    ) -> None:
+        """V2 prompt instructs: option_title must not repeat the destination name."""
+        response, _ = hf_response
+        option = response.options[0]
+        assert option.option_title, "option_title should be non-empty"
+        assert option.option_title.lower() != option.destination_name.lower(), (
+            f"option_title {option.option_title!r} must differ from "
+            f"destination_name {option.destination_name!r}"
+        )
+
     async def test_activity_titles_avoid_banned_words(
         self, hf_response: tuple[AIGenerationResponse, str]
     ) -> None:

@@ -14,6 +14,7 @@ class Itinerary(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), nullable=False)
     iteration_number: Mapped[int] = mapped_column(Integer, default=1)
+    option_title: Mapped[str | None] = mapped_column(String(255))
     destination_name: Mapped[str] = mapped_column(String(255), nullable=False)
     destination_description: Mapped[str] = mapped_column(Text, nullable=False)
     daily_itinerary_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON

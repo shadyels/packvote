@@ -15,7 +15,8 @@ interface VotingSectionProps {
 }
 
 function itineraryName(id: number, itineraries: Itinerary[]): string {
-  return itineraries.find((it) => it.id === id)?.destination_name ?? `#${id.toString()}`;
+  const it = itineraries.find((i) => i.id === id);
+  return it?.option_title ?? it?.destination_name ?? `#${id.toString()}`;
 }
 
 export function VotingSection({

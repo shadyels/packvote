@@ -20,6 +20,7 @@ from app.services.ai.service import AIService
 
 def _make_option(destination: str = "Paris") -> ItineraryOption:
     return ItineraryOption(
+        option_title="City Culture Trip",
         destination_name=destination,
         destination_description="A great city",
         daily_itinerary=[],

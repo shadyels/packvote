@@ -20,6 +20,7 @@ class DayItinerary(BaseModel):
 class ItineraryOption(BaseModel):
     """AI-generated itinerary option — validated output schema."""
 
+    option_title: str
     destination_name: str
     destination_description: str
     daily_itinerary: list[DayItinerary]
@@ -39,6 +40,7 @@ class ItineraryResponse(BaseModel):
     id: int
     trip_id: int
     iteration_number: int
+    option_title: str | None
     destination_name: str
     destination_description: str
     daily_itinerary_json: str

@@ -199,6 +199,7 @@ describe("TripPage", () => {
       id: 99,
       trip_id: 1,
       iteration_number: 1,
+      option_title: null,
       destination_name: "Paris",
       destination_description: "City of Light",
       daily_itinerary_json: "[]",

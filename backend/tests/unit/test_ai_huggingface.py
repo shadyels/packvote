@@ -23,6 +23,7 @@ from app.services.ai.json_utils import AIInputError, AIParseError
 
 def _make_valid_response_json(num_options: int = 1) -> str:
     option = ItineraryOption(
+        option_title="Bistros & Boulevards",
         destination_name="Paris",
         destination_description="City of Light",
         daily_itinerary=[

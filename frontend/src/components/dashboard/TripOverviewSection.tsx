@@ -329,7 +329,7 @@ export function TripOverviewSection({
                 <SelectContent className="bg-card border-border text-black">
                   {currentIterationItineraries.map((it) => (
                     <SelectItem key={it.id} value={String(it.id)}>
-                      {it.destination_name}
+                      {it.option_title ?? it.destination_name}
                     </SelectItem>
                   ))}
                 </SelectContent>

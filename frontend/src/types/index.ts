@@ -84,6 +84,7 @@ export interface Itinerary {
   id: number;
   trip_id: number;
   iteration_number: number;
+  option_title: string | null;
   destination_name: string;
   destination_description: string;
   daily_itinerary_json: string;
