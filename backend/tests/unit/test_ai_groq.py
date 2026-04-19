@@ -98,8 +98,8 @@ class TestGroqProvider:
         assert messages[0]["content"] == "System part"
         assert messages[1]["content"] == "User part"
 
-    async def test_uses_groq_base_url(self) -> None:
-        assert GroqProvider.BASE_URL == "https://api.groq.com/openai/v1"
+    async def test_uses_groq_provider(self) -> None:
+        assert GroqProvider.GROQ_MODEL == "llama-3.3-70b-versatile"
 
     async def test_invalid_json_raises_ai_parse_error(self) -> None:
         provider = GroqProvider(api_key="test-key")

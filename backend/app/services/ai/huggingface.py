@@ -21,18 +21,16 @@ def _split_prompt(prompt: str) -> tuple[str, str]:
 class HuggingFaceProvider(AIProvider):
     """HuggingFace Inference Providers — default AI provider.
 
-    Routes requests via the HuggingFace OpenAI-compatible inference endpoint.
+    Routes via huggingface_hub native provider routing (1.x API).
     Uses Qwen2.5-72B-Instruct by default.
     """
-
-    BASE_URL = "https://router.huggingface.co/v1"
 
     def __init__(self, api_token: str) -> None:
         self.api_token = api_token
 
     def _make_client(self) -> AsyncInferenceClient:
         return AsyncInferenceClient(
-            base_url=self.BASE_URL, api_key=self.api_token, timeout=180
+            provider="auto", token=self.api_token, timeout=180
         )
 
     async def generate_itineraries(

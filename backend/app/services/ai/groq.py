@@ -18,14 +18,15 @@ class GroqProvider(AIProvider):
     Implements the same interface as HuggingFaceProvider via Groq's OpenAI-compatible API.
     """
 
-    BASE_URL = "https://api.groq.com/openai/v1"
     GROQ_MODEL = "llama-3.3-70b-versatile"
 
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
     def _make_client(self) -> AsyncInferenceClient:
-        return AsyncInferenceClient(base_url=self.BASE_URL, api_key=self.api_key)
+        return AsyncInferenceClient(
+            provider="groq", api_key=self.api_key, timeout=180
+        )
 
     async def generate_itineraries(
         self,
