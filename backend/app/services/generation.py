@@ -18,7 +18,7 @@ import time
 from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
@@ -83,6 +83,9 @@ Rules:
 - Each option must cover all {trip_duration_days} days of the trip.
 - Each day must have exactly 4 activities.
 - Of each day's 4 activities, exactly 3 must reference a specific named venue, dish, or experience. Exactly 1 must be an unstructured neighborhood exploration (no fixed destination) — but still written with full descriptive depth: describe the area's vibe, what to look for, a landmark to orient around.
+- NEVER use logistics as activities: no check-in, check-out, arrival, departure, hotel settling, packing, transfers, or airport activities. Every activity slot must be a real experience the group will remember.
+- Meals are NOT activities unless they reference a specific, well-known restaurant or food experience by name (e.g. "Dinner at Noma", "Tsukiji tuna auction breakfast", "Michelin-starred lunch at Osteria Francescana"). Generic meals — "lunch at a local restaurant", "dinner in the old town", "grab street food" — are banned.
+- All activity time fields must be null. Activities are ordered sequentially within each day; do not assign clock times.
 - All estimated_cost fields must be null (price data is not available yet).
 - total_estimated_budget must be a realistic float in the stated currency.
 - currency must be a valid 3-letter ISO 4217 code.
@@ -104,25 +107,25 @@ EXAMPLE (one day, Barcelona):
   "title": "Sant Antoni to Bunkers",
   "activities": [
     {{
-      "time": "09:00",
+      "time": null,
       "title": "Boqueria back-stall breakfast",
       "description": "Squeeze past the tourist clusters to the counter seats at Pinotxo Bar in the back. Chickpea stew and a cava for under €8. Best before 9:30 when the crowds hit.",
       "estimated_cost": null
     }},
     {{
-      "time": "11:00",
+      "time": null,
       "title": "Raval morning wander",
       "description": "The blocks south of MACBA shift from skatepark chaos to quiet vintage shops within a few turns. Carrer dels Tallers is the vinyl-and-bookshop strip. Grab a cortado at Federal Café if you need an anchor, otherwise let the neighborhood happen.",
       "estimated_cost": null
     }},
     {{
-      "time": "14:00",
+      "time": null,
       "title": "Vermouth at Morro Fi",
       "description": "Standing-room-only vermouth bar in Sant Antoni. House vermut on tap paired with conservas. The tinned mussels are the move. Cash only, closes at 2pm sharp so don't be late.",
       "estimated_cost": null
     }},
     {{
-      "time": "18:30",
+      "time": null,
       "title": "Bunkers del Carmel sunset",
       "description": "Abandoned anti-aircraft batteries on a hilltop with the best 360° view of the city. Bring your own drinks from the Carmel market below. Arrive 45min before sunset or you'll be standing.",
       "estimated_cost": null
@@ -139,7 +142,9 @@ TRIP DURATION: {trip_duration_days} days
 NUMBER OF OPTIONS REQUIRED: {num_options}
 {destination_constraint}
 
-PARTICIPANT PREFERENCES ({participant_count} participants):
+GROUP SIZE: {group_size} participants total ({participant_count} submitted preferences)
+
+PARTICIPANT PREFERENCES:
 {preferences_block}
 
 Generate {num_options} travel itinerary options that best satisfy the group's collective preferences. Prioritize destinations and activities that maximize overlap between participants' interests and budgets.\
@@ -233,8 +238,14 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
     )
     preferences = list(prefs_result.scalars().all())
 
+    # Count all participants (including creator who never submits a Preference row)
+    participant_result = await db.execute(
+        select(func.count(Participant.id)).where(Participant.trip_id == trip_id)
+    )
+    group_size = participant_result.scalar_one()
+
     # Render prompt
-    prompt = _render_prompt(template, trip, preferences)
+    prompt = _render_prompt(template, trip, preferences, group_size=group_size)
 
     # Call AI with retry + fallback
     ai_service = AIService.from_settings()
@@ -384,6 +395,8 @@ def _render_prompt(
     template: PromptTemplate,
     trip: Trip,
     preferences: list[Preference],
+    *,
+    group_size: int,
 ) -> str:
     trip_duration_days = _compute_trip_duration(trip, preferences)
 
@@ -409,6 +422,7 @@ def _render_prompt(
         trip_title=trip.title,
         proposed_dates=proposed_dates,
         destination_constraint=destination_constraint,
+        group_size=group_size,
         participant_count=len(preferences),
         preferences_block=preferences_block,
     )
