@@ -135,6 +135,7 @@ export const participants = {
   submitPreferences: (
     token: string,
     payload: {
+      name?: string;
       preferred_start_date?: string;
       preferred_end_date?: string;
       budget_min?: number;

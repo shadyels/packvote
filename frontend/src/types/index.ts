@@ -142,6 +142,7 @@ export interface TripPublicInfo {
 export interface ParticipantBrief {
   id: number;
   name: string | null;
+  email_local: string;
   preferences_submitted: boolean;
 }
 

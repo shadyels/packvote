@@ -42,7 +42,7 @@ function makeTripView(
       generation_error: null,
       notes: null,
     },
-    participants: [{ id: 1, name: null, preferences_submitted: false }],
+    participants: [{ id: 1, name: null, email_local: "participant", preferences_submitted: false }],
     itineraries: [],
     voting_results: null,
     has_voted: false,

@@ -49,11 +49,13 @@ export function SortableRankItem({
       ref={setNodeRef}
       style={style}
       className={[
-        "flex items-center gap-3 rounded-lg border bg-card px-4 py-3 select-none",
+        "flex items-center gap-3 rounded-lg border bg-card px-4 py-3 select-none cursor-grab active:cursor-grabbing touch-none",
         isDragging
           ? "shadow-lg border-brand/40 ring-1 ring-brand/20 scale-[1.02] z-50 opacity-90"
           : "border-border shadow-sm hover:shadow-md transition-shadow duration-150",
       ].join(" ")}
+      {...attributes}
+      {...listeners}
     >
       {/* Rank badge */}
       <div
@@ -67,16 +69,10 @@ export function SortableRankItem({
         {rank}
       </div>
 
-      {/* Drag handle */}
-      <button
-        type="button"
-        className="shrink-0 cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing focus:outline-none"
-        aria-label="Drag to reorder"
-        {...attributes}
-        {...listeners}
-      >
+      {/* Drag handle affordance */}
+      <div className="shrink-0 p-1 text-muted-foreground">
         <GripVertical className="h-4 w-4" />
-      </button>
+      </div>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
