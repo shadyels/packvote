@@ -32,6 +32,7 @@ def _build_minimal_prompt(
         trip_title="Live Test Trip",
         proposed_dates="2025-09-01 to 2025-09-06",
         destination_constraint=destination_constraint,
+        group_size=3,
         participant_count=2,
         preferences_block=(
             "Participant 1:\n"
@@ -223,6 +224,7 @@ class TestErrorEnvelopeLive:
             trip_title="Impossible Trip",
             proposed_dates="2025-01-01 to 2024-12-25",
             destination_constraint=_OPEN_DESTINATION,
+            group_size=1,
             participant_count=1,
             preferences_block=(
                 "Participant 1:\n"
