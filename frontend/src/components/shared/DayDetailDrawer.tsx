@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { ChevronLeft, ChevronRight, XIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import type { DayItinerary } from "@/types";
@@ -118,13 +118,6 @@ export function DayDetailDrawer({
                 <ChevronRight className="w-4 h-4" />
               </button>
 
-              {/* Close button */}
-              <DialogPrimitive.Close
-                aria-label="Close"
-                className="absolute -top-1 -right-1 flex items-center justify-center w-7 h-7 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <XIcon className="w-3.5 h-3.5" />
-              </DialogPrimitive.Close>
             </div>
 
             {/* Activity timeline */}

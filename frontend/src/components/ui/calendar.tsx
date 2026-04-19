@@ -23,7 +23,7 @@ export function Calendar({
         month: "flex flex-col gap-4",
         month_caption: "flex justify-center pt-1 relative items-center w-full",
         caption_label: "text-sm font-medium text-foreground",
-        nav: "flex items-center gap-1 absolute inset-x-0 top-1 justify-between px-1",
+        nav: "flex items-center gap-1 absolute inset-x-0 top-1 justify-between px-1 z-10",
         button_previous: cn(
           "inline-flex items-center justify-center h-7 w-7 rounded-md border border-border bg-transparent p-0",
           "hover:bg-accent hover:text-accent-foreground",

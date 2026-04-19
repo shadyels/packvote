@@ -4,11 +4,18 @@ interface ParticipantProgressProps {
   participants: ParticipantBrief[];
 }
 
-function getInitials(name: string | null, id: number): string {
-  if (!name) return `P${id.toString()}`;
-  const parts = name.trim().split(/\s+/);
+function getInitialsFromString(value: string): string {
+  const parts = value.trim().split(/[\s._-]+/).filter(Boolean);
+  if (parts.length === 0) return "";
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+function getInitials(name: string | null, emailLocal: string, id: number): string {
+  if (name) return getInitialsFromString(name);
+  const fromEmail = getInitialsFromString(emailLocal);
+  if (fromEmail) return fromEmail;
+  return `P${id.toString()}`;
 }
 
 export function ParticipantProgress({ participants }: ParticipantProgressProps) {
@@ -31,7 +38,7 @@ export function ParticipantProgress({ participants }: ParticipantProgressProps) 
                 : "bg-muted text-muted-foreground ring-1 ring-border"
             }`}
           >
-            {getInitials(p.name, p.id)}
+            {getInitials(p.name, p.email_local, p.id)}
           </div>
         ))}
       </div>

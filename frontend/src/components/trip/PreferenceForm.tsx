@@ -13,6 +13,7 @@ interface PreferenceFormProps {
 }
 
 export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) {
+  const [name, setName] = useState("");
   const [startDate, setStartDate] = useState<Date | undefined>(
     trip.proposed_start_date ? parseISO(trip.proposed_start_date) : undefined
   );
@@ -39,6 +40,7 @@ export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) 
 
     try {
       await participantsApi.submitPreferences(token, {
+        name: name.trim() || undefined,
         preferred_start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
         preferred_end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
         budget_min: budgetMin ? parseFloat(budgetMin) : undefined,
@@ -75,6 +77,23 @@ export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) 
         }}
         className="space-y-4"
       >
+        {/* Name */}
+        <div>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            Your Name
+            <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+            }}
+            placeholder="How should we call you?"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
+          />
+        </div>
+
         {/* Dates */}
         <div className="space-y-2">
           {(trip.proposed_start_date ?? trip.proposed_end_date) && (

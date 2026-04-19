@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class PreferenceCreate(BaseModel):
+    name: str | None = None
     preferred_start_date: datetime | None = None
     preferred_end_date: datetime | None = None
     budget_min: float | None = Field(default=None, ge=0)

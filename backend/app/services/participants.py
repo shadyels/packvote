@@ -69,6 +69,7 @@ async def get_participant_trip_view(
         ParticipantBrief(
             id=p.id,
             name=p.name,
+            email_local=p.email.split("@")[0],
             preferences_submitted=p.preferences_submitted,
         )
         for p in all_participants
@@ -169,6 +170,10 @@ async def submit_preferences(
         pref.interests = payload.interests
         pref.activity_tags = tags_json
 
+    if payload.name is not None:
+        stripped = payload.name.strip()
+        if stripped:
+            participant.name = stripped
     participant.preferences_submitted = True
 
     await db.commit()
