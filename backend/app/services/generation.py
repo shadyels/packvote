@@ -18,6 +18,7 @@ import time
 from datetime import UTC, datetime
 
 import httpx
+from huggingface_hub.errors import HfHubHTTPError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -173,13 +174,14 @@ def _humanize_error(exc: Exception) -> str:
             "The AI generated the wrong number of itinerary options. "
             "Try again or reduce the number of options in the trip settings."
         )
-    if isinstance(exc, httpx.HTTPStatusError):
-        if exc.response.status_code == 429:
+    if isinstance(exc, HfHubHTTPError | httpx.HTTPStatusError):
+        status = exc.response.status_code
+        if status == 429:
             return (
                 "The AI service is currently busy (rate limit reached). "
                 "Please wait a few minutes and try again."
             )
-        if exc.response.status_code >= 500:
+        if status >= 500:
             return (
                 "The AI service is temporarily unavailable. "
                 "Please try again in a few minutes."

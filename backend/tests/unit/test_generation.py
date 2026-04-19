@@ -268,6 +268,28 @@ class TestHumanizeError:
         assert "Bad destination" in result
         assert "temporary" not in result
 
+    def test_hf_hub_429_returns_rate_limit_message(self) -> None:
+        from unittest.mock import MagicMock
+
+        from huggingface_hub.errors import HfHubHTTPError
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        err = HfHubHTTPError("Rate limit exceeded", response=mock_response)
+        result = _humanize_error(err)
+        assert "rate limit" in result.lower()
+
+    def test_hf_hub_500_returns_unavailable_message(self) -> None:
+        from unittest.mock import MagicMock
+
+        from huggingface_hub.errors import HfHubHTTPError
+
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        err = HfHubHTTPError("Service unavailable", response=mock_response)
+        result = _humanize_error(err)
+        assert "unavailable" in result.lower()
+
 
 class TestUpsertPromptTemplateIdempotency:
     async def test_idempotent_no_duplicates(self, db: AsyncSession):
