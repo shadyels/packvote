@@ -1,4 +1,4 @@
-"""Unit tests for HuggingFaceProvider (app/services/ai/huggingface.py)."""
+"""Unit tests for CerebrasProvider (app/services/ai/cerebras.py)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from app.schemas.itinerary import (
     DayItinerary,
     ItineraryOption,
 )
-from app.services.ai.huggingface import HuggingFaceProvider, _split_prompt
+from app.services.ai.cerebras import CerebrasProvider, _split_prompt
 from app.services.ai.json_utils import AIInputError, AIParseError
 
 # ---------------------------------------------------------------------------
@@ -88,28 +88,28 @@ class TestSplitPrompt:
 
 
 # ---------------------------------------------------------------------------
-# HuggingFaceProvider.generate_itineraries tests
+# CerebrasProvider.generate_itineraries tests
 # ---------------------------------------------------------------------------
 
 
-class TestHuggingFaceProviderGenerate:
+class TestCerebrasProviderGenerate:
     async def test_success_returns_response_and_provider_name(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         response_json = _make_valid_response_json(num_options=1)
         mock_client = _make_mock_client(response_json)
 
         with patch.object(provider, "_make_client", return_value=mock_client):
             response, provider_name = await provider.generate_itineraries(
-                "[SYSTEM]\nSystem\n[USER]\nUser", 1, "Qwen2.5-72B-Instruct"
+                "[SYSTEM]\nSystem\n[USER]\nUser", 1, "qwen-3-235b-a22b-instruct-2507"
             )
 
-        assert provider_name == "huggingface"
+        assert provider_name == "cerebras"
         assert isinstance(response, AIGenerationResponse)
         assert len(response.options) == 1
         assert response.options[0].destination_name == "Paris"
 
     async def test_passes_model_to_client(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         mock_client = _make_mock_client(_make_valid_response_json())
 
         with patch.object(provider, "_make_client", return_value=mock_client):
@@ -119,7 +119,7 @@ class TestHuggingFaceProviderGenerate:
         assert create_call.call_args.kwargs["model"] == "my-model"
 
     async def test_sends_system_and_user_messages(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         mock_client = _make_mock_client(_make_valid_response_json())
 
         with patch.object(provider, "_make_client", return_value=mock_client):
@@ -132,8 +132,7 @@ class TestHuggingFaceProviderGenerate:
         assert messages[1] == {"role": "user", "content": "User text"}
 
     async def test_wrong_option_count_raises_value_error(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
-        # Response has 1 option but we request 3
+        provider = CerebrasProvider(api_key="test-key")
         mock_client = _make_mock_client(_make_valid_response_json(num_options=1))
 
         with (
@@ -143,7 +142,7 @@ class TestHuggingFaceProviderGenerate:
             await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 3, "model")
 
     async def test_invalid_json_raises_ai_parse_error(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         mock_client = _make_mock_client("not valid json at all")
 
         with (
@@ -153,7 +152,7 @@ class TestHuggingFaceProviderGenerate:
             await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
     async def test_none_content_raises_ai_parse_error(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         mock_client = _make_mock_client(None)  # type: ignore[arg-type]
 
         with (
@@ -163,7 +162,7 @@ class TestHuggingFaceProviderGenerate:
             await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
     async def test_markdown_wrapped_json_succeeds(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         fenced = f"```json\n{_make_valid_response_json(num_options=1)}\n```"
         mock_client = _make_mock_client(fenced)
 
@@ -176,8 +175,7 @@ class TestHuggingFaceProviderGenerate:
         assert len(response.options) == 1
 
     async def test_wrong_schema_raises_ai_parse_error(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
-        # Valid JSON but wrong structure (missing required fields)
+        provider = CerebrasProvider(api_key="test-key")
         mock_client = _make_mock_client(json.dumps({"wrong_key": []}))
 
         with (
@@ -187,7 +185,7 @@ class TestHuggingFaceProviderGenerate:
             await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
     async def test_error_envelope_raises_ai_input_error(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         error_response = json.dumps(
             {
                 "error": {
@@ -211,7 +209,7 @@ class TestHuggingFaceProviderGenerate:
         assert "Cancun" in err.suggestion
 
     async def test_error_envelope_missing_fields_uses_defaults(self) -> None:
-        provider = HuggingFaceProvider(api_token="test-token")
+        provider = CerebrasProvider(api_key="test-key")
         error_response = json.dumps({"error": {}})
         mock_client = _make_mock_client(error_response)
 

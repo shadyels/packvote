@@ -76,7 +76,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Why this matches the group's preferences (`match_reasoning`)
   - Highlights list
 - All AI output is structured JSON, validated by Pydantic schemas
-- Failed/invalid AI responses are retried with exponential backoff (3 attempts on HuggingFace, then 1 attempt on Groq fallback)
+- Failed/invalid AI responses are retried with exponential backoff (3 attempts with Cerebras)
 - **`AIInputError` fast-fail:** when the AI returns a structured error envelope (bad destination, contradictory constraints), retries are skipped entirely — the AI's own user-friendly message and suggestion are surfaced directly via `trip.generation_error`
 - If all providers fail, trip status is set to `GENERATION_FAILED` and a **user-friendly** error message is stored on the trip (raw technical errors go to logs only); the dashboard shows the error, an "Edit Trip" button, and a "Retry Generation" button; the admin can re-trigger from `GENERATION_FAILED` status
 - Each generation is logged with: prompt version, model used, provider used, latency, response validity
@@ -152,26 +152,19 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 ### Provider-Agnostic Service Layer
 ```
 AIServiceLayer (abstract interface)
-├── HuggingFaceProvider (default)
-│   └── Routes via HF Inference Providers API
-│   └── Supports: Sambanova, Together AI, Cerebras, Groq, etc.
-├── GroqProvider (fallback)
-│   └── Direct Groq API (free tier)
-└── Any future OpenAI-compatible provider
+└── CerebrasProvider (default)
+    └── Routes via Cerebras Inference API (AsyncCerebras)
 ```
 
 - All providers implement the same interface: `generate_itineraries()`, `generate_followup_survey()`, `organize_preferences()`
-- Provider selection is configurable per request (for A/B testing)
-- Automatic fallback: if primary provider fails or credits exhausted, try fallback
+- Retry: 3 attempts with exponential backoff; no fallback provider
 
-### Default Model: Qwen2.5-72B-Instruct
+### Default Model: Qwen-3-235B-A22B-Instruct
 Chosen for:
-- Best-in-class structured JSON output among open-source models
-- Superior instruction following reliability for structured data generation
-- Token-efficient (no thinking mode overhead), critical for limited free-tier credits
+- High-quality structured JSON output
+- Instruct checkpoint (non-thinking) — no thinking-mode token overhead
+- Available on Cerebras Inference with fast inference speeds
 - Apache 2.0 licensed, commercially usable
-- Widely available across multiple HuggingFace Inference Providers (Sambanova, Together, etc.)
-- Qwen 3.5 variants available as swappable alternatives for A/B testing
 
 ### Prompt Management
 - Prompts stored in database table: `prompt_templates`
@@ -270,12 +263,10 @@ PackVote uses a REST API. GraphQL was considered and rejected because:
 - REST endpoints map naturally to the app's operations (`GET /trips/{id}`, `POST /trips/{id}/vote`, etc.)
 - GraphQL would add schema definition and resolver boilerplate without meaningful benefit
 
-### HuggingFace Inference Providers Free Tier
-The project uses HuggingFace's free tier, which has significant constraints:
-- Limited monthly inference credits (exact amount not publicly documented, but users report hitting limits with moderate usage)
-- Rate limits on requests per minute/day
-- This is why Qwen2.5-72B-Instruct was chosen over Qwen 3.5 (no thinking mode token overhead)
-- This is why the provider-agnostic service layer includes a Groq free tier fallback
+### Cerebras Inference
+The project uses Cerebras Inference for AI generation:
+- Fast inference speeds — significantly faster than most hosted inference providers
+- Rate limits apply; exponential backoff (3 attempts × [1s, 2s, 4s]) handles transient errors
 - AI calls should be minimized: generate only when needed, cache results, avoid redundant calls
 - Failed requests should use exponential backoff, not immediate retries
 
@@ -368,8 +359,7 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 - `SECRET_KEY` — JWT/session signing key
 - `BREVO_API_KEY` — Brevo transactional email API key
 - `BREVO_FROM_EMAIL` — verified sender address in Brevo (must be added and verified under Settings → Senders before emails will send)
-- `HF_API_TOKEN` — HuggingFace Inference Providers token
-- `GROQ_API_KEY` — Groq fallback provider token (optional)
+- `CEREBRAS_API_KEY` — Cerebras inference API key
 - `FRONTEND_URL` — Frontend base URL (for CORS and email links)
 - `ENVIRONMENT` — development / staging / production
 

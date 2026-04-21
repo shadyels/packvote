@@ -1,4 +1,4 @@
-"""Unit tests for AIService retry/fallback logic (app/services/ai/service.py).
+"""Unit tests for AIService retry logic (app/services/ai/service.py).
 
 All tests use AsyncMock providers — no real API calls.
 """
@@ -42,128 +42,85 @@ def _make_response(destination: str = "Paris") -> AIGenerationResponse:
 
 class TestAIServiceRetry:
     async def test_primary_succeeds_first_attempt(self) -> None:
-        mock_result = (_make_response(), "huggingface")
-        primary = AsyncMock()
-        primary.generate_itineraries.return_value = mock_result
-        service = AIService(primary=primary)
+        mock_result = (_make_response(), "cerebras")
+        provider = AsyncMock()
+        provider.generate_itineraries.return_value = mock_result
+        service = AIService(provider=provider)
 
         with patch("asyncio.sleep") as mock_sleep:
             result = await service.generate_itineraries("prompt", 1, "model")
 
         assert result == mock_result
-        primary.generate_itineraries.assert_called_once()
+        provider.generate_itineraries.assert_called_once()
         mock_sleep.assert_not_called()
 
     async def test_primary_fails_once_then_succeeds(self) -> None:
-        mock_result = (_make_response(), "huggingface")
-        primary = AsyncMock()
-        primary.generate_itineraries.side_effect = [
+        mock_result = (_make_response(), "cerebras")
+        provider = AsyncMock()
+        provider.generate_itineraries.side_effect = [
             RuntimeError("transient error"),
             mock_result,
         ]
-        service = AIService(primary=primary)
+        service = AIService(provider=provider)
 
         with patch("asyncio.sleep") as mock_sleep:
             result = await service.generate_itineraries("prompt", 1, "model")
 
         assert result == mock_result
-        assert primary.generate_itineraries.call_count == 2
+        assert provider.generate_itineraries.call_count == 2
         mock_sleep.assert_called_once_with(1.0)
 
-    async def test_primary_fails_all_fallback_succeeds(self) -> None:
-        mock_result = (_make_response("Tokyo"), "groq")
-        primary = AsyncMock()
-        primary.generate_itineraries.side_effect = RuntimeError("always fail")
-        fallback = AsyncMock()
-        fallback.generate_itineraries.return_value = mock_result
-        service = AIService(primary=primary, fallback=fallback)
+    async def test_primary_fails_all_raises(self) -> None:
+        provider = AsyncMock()
+        provider.generate_itineraries.side_effect = RuntimeError("always fail")
+        service = AIService(provider=provider)
 
-        with patch("asyncio.sleep") as mock_sleep:
-            result = await service.generate_itineraries("prompt", 1, "model")
-
-        assert result == mock_result
-        assert primary.generate_itineraries.call_count == 3
-        fallback.generate_itineraries.assert_called_once()
-        # sleep called after attempt 0 (1.0s) and attempt 1 (2.0s), not after attempt 2
-        assert mock_sleep.call_count == 2
-        mock_sleep.assert_any_call(1.0)
-        mock_sleep.assert_any_call(2.0)
-
-    async def test_primary_fails_all_no_fallback_raises(self) -> None:
-        primary = AsyncMock()
-        primary.generate_itineraries.side_effect = RuntimeError("primary fail")
-        service = AIService(primary=primary, fallback=None)
-
-        with patch("asyncio.sleep"), pytest.raises(RuntimeError, match="primary fail"):
+        with patch("asyncio.sleep"), pytest.raises(RuntimeError, match="always fail"):
             await service.generate_itineraries("prompt", 1, "model")
 
-    async def test_primary_and_fallback_both_fail_raises_last(self) -> None:
-        primary = AsyncMock()
-        primary.generate_itineraries.side_effect = RuntimeError("primary fail")
-        fallback = AsyncMock()
-        fallback.generate_itineraries.side_effect = RuntimeError("fallback fail")
-        service = AIService(primary=primary, fallback=fallback)
-
-        with patch("asyncio.sleep"), pytest.raises(RuntimeError, match="fallback fail"):
-            await service.generate_itineraries("prompt", 1, "model")
+        assert provider.generate_itineraries.call_count == 3
 
     async def test_explicit_model_passed_to_provider(self) -> None:
-        mock_result = (_make_response(), "huggingface")
-        primary = AsyncMock()
-        primary.generate_itineraries.return_value = mock_result
-        service = AIService(primary=primary)
+        mock_result = (_make_response(), "cerebras")
+        provider = AsyncMock()
+        provider.generate_itineraries.return_value = mock_result
+        service = AIService(provider=provider)
 
         with patch("asyncio.sleep"):
             await service.generate_itineraries("prompt", 1, "my-custom-model")
 
-        call_args = primary.generate_itineraries.call_args
+        call_args = provider.generate_itineraries.call_args
         assert call_args[0][2] == "my-custom-model"
 
     async def test_default_model_resolved_from_settings(self) -> None:
-        mock_result = (_make_response(), "huggingface")
-        primary = AsyncMock()
-        primary.generate_itineraries.return_value = mock_result
-        service = AIService(primary=primary)
+        mock_result = (_make_response(), "cerebras")
+        provider = AsyncMock()
+        provider.generate_itineraries.return_value = mock_result
+        service = AIService(provider=provider)
 
         with (
             patch("asyncio.sleep"),
             patch("app.services.ai.service.get_settings") as mock_settings,
         ):
-            mock_settings.return_value.DEFAULT_AI_MODEL = "Qwen2.5-72B-Instruct"
+            mock_settings.return_value.DEFAULT_AI_MODEL = (
+                "qwen-3-235b-a22b-instruct-2507"
+            )
             await service.generate_itineraries("prompt", 1, model=None)
 
-        call_args = primary.generate_itineraries.call_args
-        assert call_args[0][2] == "Qwen2.5-72B-Instruct"
+        call_args = provider.generate_itineraries.call_args
+        assert call_args[0][2] == "qwen-3-235b-a22b-instruct-2507"
 
     async def test_ai_input_error_not_retried(self) -> None:
-        """AIInputError must fail fast — no retry loop, no fallback."""
+        """AIInputError must fail fast — no retry loop."""
         input_err = AIInputError("Bad destination", "Try Paris", "destination")
-        primary = AsyncMock()
-        primary.generate_itineraries.side_effect = input_err
-        fallback = AsyncMock()
-        fallback.generate_itineraries.return_value = (_make_response(), "groq")
-        service = AIService(primary=primary, fallback=fallback)
+        provider = AsyncMock()
+        provider.generate_itineraries.side_effect = input_err
+        service = AIService(provider=provider)
 
         with patch("asyncio.sleep") as mock_sleep, pytest.raises(AIInputError):
             await service.generate_itineraries("prompt", 1, "model")
 
         # Called exactly once — no retries
-        primary.generate_itineraries.assert_called_once()
+        provider.generate_itineraries.assert_called_once()
         # No sleep between attempts
         mock_sleep.assert_not_called()
-        # Fallback never reached
-        fallback.generate_itineraries.assert_not_called()
-
-    async def test_ai_input_error_skips_fallback(self) -> None:
-        """AIInputError from primary should not trigger Groq fallback."""
-        input_err = AIInputError("Cannot plan for 'xxxxnotaplace'", "", "destination")
-        primary = AsyncMock()
-        primary.generate_itineraries.side_effect = input_err
-        fallback = AsyncMock()
-        service = AIService(primary=primary, fallback=fallback)
-
-        with patch("asyncio.sleep"), pytest.raises(AIInputError) as exc_info:
-            await service.generate_itineraries("prompt", 1, "model")
-
-        assert exc_info.value is input_err
-        fallback.generate_itineraries.assert_not_called()

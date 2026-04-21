@@ -14,7 +14,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 
 ## Key Features
 
-- **AI itinerary generation** — Qwen2.5-72B (HuggingFace) generates complete day-by-day itineraries tailored to group preferences, with automatic failover to Llama 3.3-70B (Groq)
+- **AI itinerary generation** — Qwen-3-235B (Cerebras) generates complete day-by-day itineraries tailored to group preferences
 - **Ranked-choice voting** — full instant-runoff algorithm; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
 - **Zero-friction participant flow** — no account required; join via a tokenized email link or trip code + 4-digit PIN
 - **Real-time status tracking** — 7 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → VOTING → FINALIZED) with polling and live UI updates
@@ -46,7 +46,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 | Alembic | Database migrations |
 | Pydantic v2 + pydantic-settings | Schema validation + config |
 | python-jose + bcrypt | JWT auth + password hashing |
-| huggingface\_hub `AsyncInferenceClient` | AI inference (HuggingFace + Groq via same client) |
+| cerebras-cloud-sdk `AsyncCerebras` | AI inference (Cerebras) |
 | Brevo API | Transactional email |
 | Ruff | Linting + formatting |
 | pytest + pytest-asyncio | Testing |
@@ -71,15 +71,14 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 | Railway (Railpack) | Deployment — 2 services (backend + frontend) |
 | PostgreSQL | Production database (Railway add-on) |
 | GitHub Actions | CI/CD — lint → type-check → unit tests → integration tests |
-| HuggingFace Inference Providers | Primary AI provider (free tier) |
-| Groq | Fallback AI provider |
+| Cerebras | AI inference provider |
 | Unsplash API | Destination photography |
 
 ---
 
 ## Architecture Highlights
 
-- **Provider-agnostic AI service** — `HuggingFaceProvider` and `GroqProvider` share the same `AsyncInferenceClient` interface; the service retries HuggingFace 3× with exponential backoff before falling back to Groq automatically
+- **Provider-agnostic AI service** — `CerebrasProvider` implements the `AIProvider` interface; the service retries up to 3× with exponential backoff on transient failures
 - **Background task session isolation** — FastAPI closes request-scoped DB sessions before background tasks run; generation tasks open their own `async with session_factory()` session to avoid stale-connection errors
 - **Pure ranked-choice algorithm** — `services/voting/ranked_choice.py` is a stateless function with zero DB dependencies, making it trivially unit-testable and reusable
 - **Robust AI JSON extraction** — open-source models sometimes wrap responses in markdown fences; `extract_json()` tries direct parse → strip fences → brace-extraction before raising `AIParseError` with the raw text attached for logging
@@ -132,7 +131,7 @@ docker run -d --name packvote-db \
   -p 5432:5432 postgres:16
 
 cd backend
-cp .env.example .env          # fill in DATABASE_URL, SECRET_KEY, HF_API_TOKEN, etc.
+cp .env.example .env          # fill in DATABASE_URL, SECRET_KEY, CEREBRAS_API_KEY, etc.
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload

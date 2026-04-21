@@ -13,7 +13,6 @@ import json
 import pytest
 
 from app.schemas.itinerary import AIGenerationResponse
-from app.services.ai.groq import GroqProvider
 from app.services.ai.json_utils import AIInputError
 from app.services.ai.service import AIService
 from app.services.generation import ITINERARY_PROMPT_V2
@@ -50,24 +49,24 @@ def _build_minimal_prompt(
 
 
 # ---------------------------------------------------------------------------
-# Module-scoped fixture — one API call shared by TestHuggingFaceLive AND
+# Module-scoped fixture — one API call shared by TestCerebrasLive AND
 # TestPromptV2Compliance (both exercise the same happy-path response).
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
-async def hf_response() -> tuple[AIGenerationResponse, str]:
-    """Single HuggingFace API call reused across all happy-path tests."""
+async def cerebras_response() -> tuple[AIGenerationResponse, str]:
+    """Single Cerebras API call reused across all happy-path tests."""
     service = AIService.from_settings()
     prompt = _build_minimal_prompt(num_options=1)
     response, provider = await service.generate_itineraries(prompt, num_options=1)
 
     # Print raw AI output so it's visible in pytest -s output
-    print("\n\n=== AI RESPONSE (HuggingFace) ===")
+    print("\n\n=== AI RESPONSE (Cerebras) ===")
     print(f"Provider : {provider}")
     print(f"Destination: {response.options[0].destination_name}")
     print(json.dumps(response.options[0].model_dump(), indent=2, ensure_ascii=False))
-    print("=================================\n")
+    print("==============================\n")
 
     return response, provider
 
@@ -78,20 +77,20 @@ async def hf_response() -> tuple[AIGenerationResponse, str]:
 
 
 @pytest.mark.live
-class TestHuggingFaceLive:
+class TestCerebrasLive:
     async def test_generate_returns_valid_response(
-        self, hf_response: tuple[AIGenerationResponse, str]
+        self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
-        """Calls real HF API — requires HF_API_TOKEN in .env."""
-        response, provider = hf_response
+        """Calls real Cerebras API — requires CEREBRAS_API_KEY in .env."""
+        response, provider = cerebras_response
         assert isinstance(response, AIGenerationResponse)
         assert len(response.options) == 1
-        assert provider == "huggingface"
+        assert provider == "cerebras"
 
     async def test_each_option_has_required_fields(
-        self, hf_response: tuple[AIGenerationResponse, str]
+        self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
-        response, _ = hf_response
+        response, _ = cerebras_response
         for option in response.options:
             assert option.destination_name
             assert option.destination_description
@@ -102,9 +101,9 @@ class TestHuggingFaceLive:
             assert len(option.daily_itinerary) >= 1
 
     async def test_each_day_has_activities(
-        self, hf_response: tuple[AIGenerationResponse, str]
+        self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
-        response, _ = hf_response
+        response, _ = cerebras_response
         for option in response.options:
             for day in option.daily_itinerary:
                 assert day.day_number >= 1
@@ -123,10 +122,10 @@ class TestHuggingFaceLive:
 @pytest.mark.live
 class TestPromptV2Compliance:
     async def test_each_day_has_exactly_four_activities(
-        self, hf_response: tuple[AIGenerationResponse, str]
+        self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
         """V2 prompt instructs: each day must have exactly 4 activities."""
-        response, _ = hf_response
+        response, _ = cerebras_response
         option = response.options[0]
         assert len(option.daily_itinerary) == 5, (
             f"Expected 5 days, got {len(option.daily_itinerary)}"
@@ -138,10 +137,10 @@ class TestPromptV2Compliance:
             )
 
     async def test_option_title_is_distinct_from_destination(
-        self, hf_response: tuple[AIGenerationResponse, str]
+        self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
         """V2 prompt instructs: option_title must not repeat the destination name."""
-        response, _ = hf_response
+        response, _ = cerebras_response
         option = response.options[0]
         assert option.option_title, "option_title should be non-empty"
         assert option.option_title.lower() != option.destination_name.lower(), (
@@ -150,7 +149,7 @@ class TestPromptV2Compliance:
         )
 
     async def test_activity_titles_avoid_banned_words(
-        self, hf_response: tuple[AIGenerationResponse, str]
+        self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
         """V2 prompt bans AI-sounding filler words."""
         banned = {
@@ -166,7 +165,7 @@ class TestPromptV2Compliance:
             "indulge",
             "immerse yourself",
         }
-        response, _ = hf_response
+        response, _ = cerebras_response
         violations: list[str] = []
         for option in response.options:
             for day in option.daily_itinerary:
@@ -240,37 +239,3 @@ class TestErrorEnvelopeLive:
 
         err = exc_info.value
         assert err.field in {"dates", "general"}
-
-
-# ---------------------------------------------------------------------------
-# Groq fallback test
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.live
-class TestGroqLive:
-    async def test_groq_provider_generates_valid_response(self) -> None:
-        """Directly tests Groq provider — requires GROQ_API_KEY in .env."""
-        from app.core.config import get_settings
-
-        settings = get_settings()
-        if not settings.GROQ_API_KEY:
-            pytest.skip("GROQ_API_KEY not set")
-
-        provider = GroqProvider(api_key=settings.GROQ_API_KEY)
-        prompt = _build_minimal_prompt(num_options=1)
-        response, provider_name = await provider.generate_itineraries(
-            prompt, num_options=1, model=""
-        )
-
-        print("\n\n=== AI RESPONSE (Groq) ===")
-        print(f"Provider   : {provider_name}")
-        print(f"Destination: {response.options[0].destination_name}")
-        print(
-            json.dumps(response.options[0].model_dump(), indent=2, ensure_ascii=False)
-        )
-        print("==========================\n")
-
-        assert isinstance(response, AIGenerationResponse)
-        assert len(response.options) == 1
-        assert provider_name == "groq"

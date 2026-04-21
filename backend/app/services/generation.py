@@ -18,7 +18,15 @@ import time
 from datetime import UTC, datetime
 
 import httpx
-from huggingface_hub.errors import HfHubHTTPError
+from cerebras.cloud.sdk import (
+    APIConnectionError as CerebrasConnectionError,
+)
+from cerebras.cloud.sdk import (
+    APIStatusError as CerebrasAPIStatusError,
+)
+from cerebras.cloud.sdk import (
+    RateLimitError as CerebrasRateLimitError,
+)
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -174,19 +182,17 @@ def _humanize_error(exc: Exception) -> str:
             "The AI generated the wrong number of itinerary options. "
             "Try again or reduce the number of options in the trip settings."
         )
-    if isinstance(exc, HfHubHTTPError | httpx.HTTPStatusError):
-        status = exc.response.status_code
-        if status == 429:
-            return (
-                "The AI service is currently busy (rate limit reached). "
-                "Please wait a few minutes and try again."
-            )
-        if status >= 500:
-            return (
-                "The AI service is temporarily unavailable. "
-                "Please try again in a few minutes."
-            )
-    if isinstance(exc, httpx.ConnectError | TimeoutError | httpx.TimeoutException):
+    if isinstance(exc, CerebrasRateLimitError):
+        return (
+            "The AI service is currently busy (rate limit reached). "
+            "Please wait a few minutes and try again."
+        )
+    if isinstance(exc, CerebrasAPIStatusError) and exc.status_code >= 500:
+        return (
+            "The AI service is temporarily unavailable. "
+            "Please try again in a few minutes."
+        )
+    if isinstance(exc, CerebrasConnectionError | TimeoutError | httpx.TimeoutException):
         return (
             "Could not connect to the AI service. "
             "Please check your internet connection and try again."

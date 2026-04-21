@@ -7,7 +7,7 @@ class AIProvider(ABC):
     """Abstract interface for AI inference providers.
 
     All providers must implement these methods so the AIService can
-    swap between HuggingFace, Groq, or any future provider transparently.
+    swap between Cerebras or any future provider transparently.
     """
 
     @abstractmethod
@@ -19,7 +19,7 @@ class AIProvider(ABC):
     ) -> tuple[AIGenerationResponse, str]:
         """Generate N itinerary options from the rendered prompt.
 
-        Returns (response, provider_name) where provider_name is e.g. "huggingface" or "groq".
+        Returns (response, provider_name) where provider_name is e.g. "cerebras".
         """
         ...
 
