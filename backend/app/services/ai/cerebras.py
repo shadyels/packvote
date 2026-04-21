@@ -47,14 +47,20 @@ class CerebrasProvider(AIProvider):
             ],
             response_format={"type": "json_object"},
             temperature=0.7,
-            max_tokens=8192,
+            max_tokens=16384,
         )
-        raw_text = completion.choices[0].message.content
+        choice = completion.choices[0]
+        if choice.finish_reason == "length":
+            logger.warning(
+                "Cerebras response truncated (finish_reason=length) — "
+                "JSON will be incomplete; consider reducing trip complexity."
+            )
+        raw_text = choice.message.content
         try:
             data = extract_json(raw_text)
         except AIParseError:
             logger.warning(
-                "Cerebras response JSON extraction failed. Raw (first 500): %.500s",
+                "Cerebras response JSON extraction failed. Raw: %.2000s",
                 raw_text,
             )
             raise
@@ -65,11 +71,17 @@ class CerebrasProvider(AIProvider):
                 suggestion=err.get("suggestion", ""),
                 field=err.get("field", "general"),
             )
+        # Qwen-3 sometimes omits option_title despite schema instructions.
+        # Inject a fallback before validation to avoid a hard failure.
+        for opt in data.get("options", []):
+            if isinstance(opt, dict) and not opt.get("option_title"):
+                opt["option_title"] = opt.get("destination_name", "")
         try:
             response = AIGenerationResponse.model_validate(data)
         except ValidationError as exc:
             logger.warning(
-                "Cerebras response failed schema validation. Raw (first 500): %.500s",
+                "Cerebras response failed schema validation: %s. Raw: %.2000s",
+                exc,
                 raw_text,
             )
             raise AIParseError(str(exc), raw_text=raw_text) from exc
