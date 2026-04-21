@@ -104,7 +104,7 @@ describe("useTripDetail", () => {
     const { result } = renderHook(() => useTripDetail(1));
     expect(result.current.isLoading).toBe(true);
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.trip).toEqual(trip);
     expect(result.current.participants).toEqual(FAKE_PARTICIPANTS);
@@ -120,7 +120,7 @@ describe("useTripDetail", () => {
     mockVotesGetResults.mockResolvedValue(FAKE_VOTING_RESULTS);
 
     const { result } = renderHook(() => useTripDetail(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockVotesGetResults).toHaveBeenCalledWith(1);
     expect(result.current.votingResults).toEqual(FAKE_VOTING_RESULTS);
@@ -133,7 +133,7 @@ describe("useTripDetail", () => {
     mockVotesGetResults.mockResolvedValue(FAKE_VOTING_RESULTS);
 
     const { result } = renderHook(() => useTripDetail(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockVotesGetResults).toHaveBeenCalledWith(1);
   });
@@ -144,7 +144,7 @@ describe("useTripDetail", () => {
     mockItinerariesGet.mockResolvedValue([]);
 
     const { result } = renderHook(() => useTripDetail(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockVotesGetResults).not.toHaveBeenCalled();
     expect(result.current.votingResults).toBeNull();
@@ -158,7 +158,7 @@ describe("useTripDetail", () => {
     mockItinerariesGet.mockRejectedValue(new Error("500 Server Error"));
 
     const { result } = renderHook(() => useTripDetail(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.trip).not.toBeNull();
     expect(result.current.participants).toEqual([]);
@@ -173,7 +173,7 @@ describe("useTripDetail", () => {
     mockVotesGetResults.mockRejectedValue(new Error("not available yet"));
 
     const { result } = renderHook(() => useTripDetail(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.votingResults).toBeNull();
     expect(result.current.error).toBeNull();
@@ -185,13 +185,13 @@ describe("useTripDetail", () => {
     mockItinerariesGet.mockResolvedValue([]);
 
     const { result } = renderHook(() => useTripDetail(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
     expect(mockTripsGet).toHaveBeenCalledTimes(1);
 
     act(() => {
       result.current.refetch();
     });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockTripsGet).toHaveBeenCalledTimes(2);
   });

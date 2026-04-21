@@ -68,9 +68,9 @@ describe("AuthContext", () => {
 
   it("unauthenticated when no token in localStorage", async () => {
     render(<Wrapped />);
-    await waitFor(() =>
-      expect(screen.getByTestId("loading").textContent).toBe("done")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("done");
+    });
     expect(screen.getByTestId("authenticated").textContent).toBe("no");
     expect(screen.getByTestId("user").textContent).toBe("none");
   });
@@ -80,9 +80,9 @@ describe("AuthContext", () => {
     mockMe.mockResolvedValue(FAKE_USER);
 
     render(<Wrapped />);
-    await waitFor(() =>
-      expect(screen.getByTestId("authenticated").textContent).toBe("yes")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("authenticated").textContent).toBe("yes");
+    });
     expect(screen.getByTestId("user").textContent).toBe("test@test.com");
   });
 
@@ -91,9 +91,9 @@ describe("AuthContext", () => {
     mockMe.mockRejectedValue(new Error("Unauthorized"));
 
     render(<Wrapped />);
-    await waitFor(() =>
-      expect(screen.getByTestId("loading").textContent).toBe("done")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("done");
+    });
     expect(screen.getByTestId("authenticated").textContent).toBe("no");
     expect(window.localStorage.getItem("access_token")).toBeNull();
   });
@@ -104,14 +104,14 @@ describe("AuthContext", () => {
     const user = userEvent.setup();
 
     render(<Wrapped />);
-    await waitFor(() =>
-      expect(screen.getByTestId("loading").textContent).toBe("done")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("done");
+    });
 
     await user.click(screen.getByText("login"));
-    await waitFor(() =>
-      expect(screen.getByTestId("authenticated").textContent).toBe("yes")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("authenticated").textContent).toBe("yes");
+    });
     expect(window.localStorage.getItem("access_token")).toBe("new-token");
   });
 
@@ -121,9 +121,9 @@ describe("AuthContext", () => {
     const user = userEvent.setup();
 
     render(<Wrapped />);
-    await waitFor(() =>
-      expect(screen.getByTestId("authenticated").textContent).toBe("yes")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("authenticated").textContent).toBe("yes");
+    });
 
     await user.click(screen.getByText("logout"));
     expect(screen.getByTestId("authenticated").textContent).toBe("no");
@@ -137,14 +137,14 @@ describe("AuthContext", () => {
     const user = userEvent.setup();
 
     render(<Wrapped />);
-    await waitFor(() =>
-      expect(screen.getByTestId("loading").textContent).toBe("done")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("done");
+    });
 
     await user.click(screen.getByText("register"));
-    await waitFor(() =>
-      expect(screen.getByTestId("authenticated").textContent).toBe("yes")
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("authenticated").textContent).toBe("yes");
+    });
     expect(mockRegister).toHaveBeenCalled();
     expect(mockLogin).toHaveBeenCalled();
     expect(mockMe).toHaveBeenCalled();

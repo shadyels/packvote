@@ -101,8 +101,8 @@ export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) 
               Organizer suggested{" "}
               <span className="font-medium text-foreground">
                 {[trip.proposed_start_date, trip.proposed_end_date]
-                  .filter(Boolean)
-                  .map((d) => format(parseISO(d!), "MMM d"))
+                  .filter((d): d is string => Boolean(d))
+                  .map((d) => format(parseISO(d), "MMM d"))
                   .join(" – ")}
               </span>
               {" "}— change if needed

@@ -471,13 +471,18 @@ export function TripOverviewSection({
                   </div>
                 </SortableContext>
                 <DragOverlay>
-                  {activeId !== null && itineraryMap.get(activeId) ? (
-                    <SortableRankItem
-                      itinerary={itineraryMap.get(activeId)!}
-                      rank={orderedIds.indexOf(activeId) + 1}
-                      isDragging
-                    />
-                  ) : null}
+                  {(() => {
+                    if (activeId === null) return null;
+                    const active = itineraryMap.get(activeId);
+                    if (!active) return null;
+                    return (
+                      <SortableRankItem
+                        itinerary={active}
+                        rank={orderedIds.indexOf(activeId) + 1}
+                        isDragging
+                      />
+                    );
+                  })()}
                 </DragOverlay>
               </DndContext>
               <Button

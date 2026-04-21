@@ -11,7 +11,8 @@ function formatDateRange(start: string | null, end: string | null): string | nul
   const fmt = (d: string) => format(parseISO(d), "MMM d, yyyy");
   if (start && end) return `${fmt(start)} – ${fmt(end)}`;
   if (start) return `From ${fmt(start)}`;
-  return `Until ${fmt(end!)}`;
+  if (end) return `Until ${fmt(end)}`;
+  return null;
 }
 
 export function TripDetails({ trip }: TripDetailsProps) {

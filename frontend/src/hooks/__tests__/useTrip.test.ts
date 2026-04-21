@@ -42,7 +42,7 @@ describe("useTrip", () => {
     const { result } = renderHook(() => useTrip(1));
     expect(result.current.isLoading).toBe(true);
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.trip).toEqual(trip);
     expect(result.current.error).toBeNull();
@@ -60,7 +60,7 @@ describe("useTrip", () => {
     mockGet.mockRejectedValue(new Error("Not found"));
 
     const { result } = renderHook(() => useTrip(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.error).toBe("Not found");
     expect(result.current.trip).toBeNull();
@@ -71,13 +71,13 @@ describe("useTrip", () => {
     mockGet.mockResolvedValue(trip);
 
     const { result } = renderHook(() => useTrip(1));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
     expect(mockGet).toHaveBeenCalledTimes(1);
 
     act(() => {
       result.current.refetch();
     });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockGet).toHaveBeenCalledTimes(2);
   });
@@ -89,12 +89,12 @@ describe("useTrip", () => {
       ({ id }: { id: number | null }) => useTrip(id),
       { initialProps: { id: 1 } }
     );
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
     expect(mockGet).toHaveBeenCalledWith(1);
 
     mockGet.mockResolvedValue(makeTrip(2));
     rerender({ id: 2 });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockGet).toHaveBeenCalledWith(2);
   });

@@ -7,7 +7,8 @@ describe("cn", () => {
   });
 
   it("handles conditional classes (falsy values ignored)", () => {
-    expect(cn("base", false && "cond", "end")).toBe("base end");
+    const cond = false as boolean;
+    expect(cn("base", cond && "cond", "end")).toBe("base end");
   });
 
   it("deduplicates conflicting Tailwind classes (last wins)", () => {
