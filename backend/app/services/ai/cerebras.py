@@ -47,9 +47,15 @@ class CerebrasProvider(AIProvider):
             ],
             response_format={"type": "json_object"},
             temperature=0.7,
-            max_tokens=8192,
+            max_tokens=16384,
         )
-        raw_text = completion.choices[0].message.content
+        choice = completion.choices[0]
+        if choice.finish_reason == "length":
+            logger.warning(
+                "Cerebras response truncated (finish_reason=length) — "
+                "JSON will be incomplete; consider reducing trip complexity."
+            )
+        raw_text = choice.message.content
         try:
             data = extract_json(raw_text)
         except AIParseError:
