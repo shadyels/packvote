@@ -69,7 +69,7 @@ describe("useTripView", () => {
     const { result } = renderHook(() => useTripView("test-token"));
     expect(result.current.isLoading).toBe(true);
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.data).toEqual(view);
     expect(result.current.error).toBeNull();
@@ -79,7 +79,7 @@ describe("useTripView", () => {
     mockGetTripView.mockRejectedValue(new Error("Trip not found"));
 
     const { result } = renderHook(() => useTripView("bad-token"));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.error).toBe("Trip not found");
     expect(result.current.data).toBeNull();
@@ -90,13 +90,13 @@ describe("useTripView", () => {
     mockGetTripView.mockResolvedValue(view);
 
     const { result } = renderHook(() => useTripView("token"));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
     expect(mockGetTripView).toHaveBeenCalledTimes(1);
 
     act(() => {
       result.current.refetch();
     });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockGetTripView).toHaveBeenCalledTimes(2);
   });

@@ -57,7 +57,7 @@ describe("LoginPage", () => {
     await user.type(screen.getByLabelText(/email/i), "user@test.com");
     await user.type(screen.getByLabelText(/password/i), "password123");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => { expect(mockNavigate).toHaveBeenCalledWith("/dashboard"); });
   });
 
   it("shows error message when login fails", async () => {
@@ -67,9 +67,9 @@ describe("LoginPage", () => {
     await user.type(screen.getByLabelText(/email/i), "user@test.com");
     await user.type(screen.getByLabelText(/password/i), "wrongpass");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
-    await waitFor(() =>
-      expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument();
+    });
   });
 
   it("button shows loading text while submitting", async () => {

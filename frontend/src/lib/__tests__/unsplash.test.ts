@@ -33,7 +33,7 @@ describe("useDestinationImage", () => {
   it("returns a deterministic gradient fallback when no API key", async () => {
     // No VITE_UNSPLASH_ACCESS_KEY → fetchUnsplashPhoto returns null immediately
     const { result } = renderHook(() => useDestinationImage("Paris"));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.imageUrl).toBeNull();
     expect(result.current.gradient).toMatch(/linear-gradient/);
@@ -66,7 +66,7 @@ describe("useDestinationImage", () => {
     );
 
     const { result } = renderHook(() => useDestinationImage(uniqueDest));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.imageUrl).toBe(
       "https://images.unsplash.com/photo.jpg"
@@ -82,12 +82,12 @@ describe("useDestinationImage", () => {
 
     // First render
     const { result: r1 } = renderHook(() => useDestinationImage(uniqueDest));
-    await waitFor(() => expect(r1.current.isLoading).toBe(false));
+    await waitFor(() => { expect(r1.current.isLoading).toBe(false); });
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     // Second render with same destination — should use cache
     const { result: r2 } = renderHook(() => useDestinationImage(uniqueDest));
-    await waitFor(() => expect(r2.current.isLoading).toBe(false));
+    await waitFor(() => { expect(r2.current.isLoading).toBe(false); });
     expect(mockFetch).toHaveBeenCalledTimes(1); // still only 1 call
     expect(r2.current.imageUrl).toBe("https://img.example.com/1.jpg");
   });

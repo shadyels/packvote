@@ -46,7 +46,7 @@ async function request<T>(
     throw new ApiError(res.status, body.detail);
   }
 
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) return null as T;
   return res.json() as Promise<T>;
 }
 
@@ -116,7 +116,7 @@ export const trips = {
     }),
 
   delete: (tripId: number) =>
-    request<void>(`/trips/${tripId.toString()}`, { method: "DELETE" }),
+    request<null>(`/trips/${tripId.toString()}`, { method: "DELETE" }),
 };
 
 // Participants

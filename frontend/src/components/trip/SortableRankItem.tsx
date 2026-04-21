@@ -82,8 +82,8 @@ export function SortableRankItem({
         <p className="text-xs text-muted-foreground truncate">
           {[
             itinerary.option_title && itinerary.destination_name,
-            highlights > 0 && `${highlights} highlight${highlights !== 1 ? "s" : ""}`,
-            days > 0 && `${days} day${days !== 1 ? "s" : ""}`,
+            highlights > 0 && `${highlights.toString()} highlight${highlights !== 1 ? "s" : ""}`,
+            days > 0 && `${days.toString()} day${days !== 1 ? "s" : ""}`,
           ]
             .filter(Boolean)
             .join(" · ")}

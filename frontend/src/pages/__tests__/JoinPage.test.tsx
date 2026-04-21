@@ -76,9 +76,9 @@ describe("JoinPage", () => {
     await user.type(screen.getByLabelText(/pin/i), "5678");
     await user.click(screen.getByRole("button", { name: /join trip/i }));
 
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith("/trip/my-participant-token")
-    );
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith("/trip/my-participant-token");
+    });
   });
 
   it("sends uppercase trip code to the API", async () => {
@@ -90,7 +90,7 @@ describe("JoinPage", () => {
     await user.type(screen.getByLabelText(/pin/i), "1234");
     await user.click(screen.getByRole("button", { name: /join trip/i }));
 
-    await waitFor(() => expect(mockAccessByCode).toHaveBeenCalled());
+    await waitFor(() => { expect(mockAccessByCode).toHaveBeenCalled(); });
     const [tripCode] = mockAccessByCode.mock.calls[0] as [string, string];
     expect(tripCode).toBe("ABCD1234");
   });
@@ -104,11 +104,11 @@ describe("JoinPage", () => {
     await user.type(screen.getByLabelText(/pin/i), "0000");
     await user.click(screen.getByRole("button", { name: /join trip/i }));
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         screen.getByText(/invalid trip code or pin/i)
-      ).toBeInTheDocument()
-    );
+      ).toBeInTheDocument();
+    });
   });
 
   it("shows generic error message on non-404 API error", async () => {
@@ -120,8 +120,8 @@ describe("JoinPage", () => {
     await user.type(screen.getByLabelText(/pin/i), "1234");
     await user.click(screen.getByRole("button", { name: /join trip/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/server error/i)).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText(/server error/i)).toBeInTheDocument();
+    });
   });
 });

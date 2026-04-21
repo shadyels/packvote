@@ -35,7 +35,7 @@ describe("useTrips", () => {
     const { result } = renderHook(() => useTrips());
     expect(result.current.isLoading).toBe(true);
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.trips).toEqual(FAKE_TRIPS);
     expect(result.current.error).toBeNull();
@@ -45,7 +45,7 @@ describe("useTrips", () => {
     mockList.mockRejectedValue(new Error("Network error"));
 
     const { result } = renderHook(() => useTrips());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(result.current.error).toBe("Network error");
     expect(result.current.trips).toEqual([]);
@@ -55,14 +55,14 @@ describe("useTrips", () => {
     mockList.mockResolvedValue(FAKE_TRIPS);
 
     const { result } = renderHook(() => useTrips());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockList).toHaveBeenCalledTimes(1);
 
     act(() => {
       result.current.refetch();
     });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => { expect(result.current.isLoading).toBe(false); });
 
     expect(mockList).toHaveBeenCalledTimes(2);
   });

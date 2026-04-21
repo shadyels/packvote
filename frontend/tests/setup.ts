@@ -11,10 +11,10 @@ const _buildStorage = (): Storage => {
   return {
     getItem: (key: string): string | null => (key in store ? store[key] : null),
     setItem: (key: string, value: string): void => {
-      store[key] = String(value);
+      store[key] = value;
     },
     removeItem: (key: string): void => {
-      delete store[key];
+      Reflect.deleteProperty(store, key);
     },
     clear: (): void => {
       store = {};
