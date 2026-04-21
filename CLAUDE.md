@@ -43,7 +43,8 @@ uv run alembic upgrade head      # Run database migrations
 uv run uvicorn app.main:app --reload  # Start dev server
 uv run pytest                    # Run all tests
 uv run pytest tests/unit         # Run unit tests only
-uv run pytest tests/ai -m live   # Run live AI integration tests (uses real API credits)
+uv run pytest tests/integration  # Run integration tests (HTTP + in-memory SQLite)
+uv run pytest tests/ai -m live   # Run live AI tests (uses real API credits)
 uv run ruff check .              # Lint
 uv run ruff format .             # Format
 ```
@@ -125,8 +126,8 @@ Price monitoring agent for finalized trips.
 ## Testing Strategy
 
 ### Backend
-- Unit tests for all `services/` logic
-- Integration tests for API endpoints
+- Unit tests for all `services/` logic in `tests/unit/`
+- Integration tests in `tests/integration/` — smoke E2E coverage for auth, trip creation, and participant access, using in-memory SQLite + `MockEmailService`. CI gates on these collecting + passing (exit 5 if empty).
 - AI tests: mocked by default; `@pytest.mark.live` for real API calls (manual only)
 
 ### Frontend
