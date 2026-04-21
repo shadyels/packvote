@@ -75,6 +75,10 @@ class CerebrasProvider(AIProvider):
         # Inject a fallback before validation to avoid a hard failure.
         for opt in data.get("options", []):
             if isinstance(opt, dict) and not opt.get("option_title"):
+                logger.warning(
+                    "Qwen-3 omitted option_title for destination=%s — applying fallback",
+                    opt.get("destination_name", "<unknown>"),
+                )
                 opt["option_title"] = opt.get("destination_name", "")
         try:
             response = AIGenerationResponse.model_validate(data)
