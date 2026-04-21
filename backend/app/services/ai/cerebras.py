@@ -60,7 +60,7 @@ class CerebrasProvider(AIProvider):
             data = extract_json(raw_text)
         except AIParseError:
             logger.warning(
-                "Cerebras response JSON extraction failed. Raw (first 500): %.500s",
+                "Cerebras response JSON extraction failed. Raw: %.2000s",
                 raw_text,
             )
             raise
@@ -75,7 +75,8 @@ class CerebrasProvider(AIProvider):
             response = AIGenerationResponse.model_validate(data)
         except ValidationError as exc:
             logger.warning(
-                "Cerebras response failed schema validation. Raw (first 500): %.500s",
+                "Cerebras response failed schema validation: %s. Raw: %.2000s",
+                exc,
                 raw_text,
             )
             raise AIParseError(str(exc), raw_text=raw_text) from exc
