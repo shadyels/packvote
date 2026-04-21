@@ -20,8 +20,7 @@ class Settings(BaseSettings):
     BREVO_FROM_EMAIL: str = "noreply@packvote.app"
 
     # AI providers
-    HF_API_TOKEN: str = ""
-    GROQ_API_KEY: str = ""
+    CEREBRAS_API_KEY: str = ""
 
     # Unsplash
     UNSPLASH_ACCESS_KEY: str = ""
@@ -31,8 +30,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # AI model defaults
-    DEFAULT_AI_MODEL: str = "Qwen/Qwen2.5-72B-Instruct"
-    DEFAULT_AI_PROVIDER: str = "huggingface"
+    DEFAULT_AI_MODEL: str = "qwen-3-235b-a22b-instruct-2507"
 
 
 @lru_cache

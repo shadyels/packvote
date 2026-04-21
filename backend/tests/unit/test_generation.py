@@ -108,7 +108,7 @@ def _mock_ai_response(num_options: int = 3) -> tuple[AIGenerationResponse, str]:
     options = [
         _make_itinerary_option(f"Destination {i + 1}") for i in range(num_options)
     ]
-    return AIGenerationResponse(options=options), "huggingface"
+    return AIGenerationResponse(options=options), "cerebras"
 
 
 # ---------------------------------------------------------------------------
@@ -268,25 +268,22 @@ class TestHumanizeError:
         assert "Bad destination" in result
         assert "temporary" not in result
 
-    def test_hf_hub_429_returns_rate_limit_message(self) -> None:
-        from unittest.mock import MagicMock
+    def test_cerebras_rate_limit_returns_rate_limit_message(self) -> None:
+        import cerebras.cloud.sdk
 
-        from huggingface_hub.errors import HfHubHTTPError
-
-        mock_response = MagicMock()
-        mock_response.status_code = 429
-        err = HfHubHTTPError("Rate limit exceeded", response=mock_response)
+        err = cerebras.cloud.sdk.RateLimitError.__new__(
+            cerebras.cloud.sdk.RateLimitError
+        )
         result = _humanize_error(err)
         assert "rate limit" in result.lower()
 
-    def test_hf_hub_500_returns_unavailable_message(self) -> None:
-        from unittest.mock import MagicMock
+    def test_cerebras_500_returns_unavailable_message(self) -> None:
+        import cerebras.cloud.sdk
 
-        from huggingface_hub.errors import HfHubHTTPError
-
-        mock_response = MagicMock()
-        mock_response.status_code = 503
-        err = HfHubHTTPError("Service unavailable", response=mock_response)
+        err = cerebras.cloud.sdk.APIStatusError.__new__(
+            cerebras.cloud.sdk.APIStatusError
+        )
+        err.status_code = 503
         result = _humanize_error(err)
         assert "unavailable" in result.lower()
 

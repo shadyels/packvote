@@ -1,6 +1,6 @@
 import logging
 
-from huggingface_hub import AsyncInferenceClient
+from cerebras.cloud.sdk import AsyncCerebras
 from pydantic import ValidationError
 
 from app.schemas.itinerary import AIGenerationResponse
@@ -11,27 +11,25 @@ logger = logging.getLogger(__name__)
 
 
 def _split_prompt(prompt: str) -> tuple[str, str]:
-    """Split a [SYSTEM]/[USER] delimited prompt string into two messages."""
     parts = prompt.split("\n[USER]\n", maxsplit=1)
     system = parts[0].removeprefix("[SYSTEM]\n").strip()
     user = parts[1].strip() if len(parts) > 1 else ""
     return system, user
 
 
-class HuggingFaceProvider(AIProvider):
-    """HuggingFace Inference Providers — default AI provider.
+class CerebrasProvider(AIProvider):
+    """Cerebras inference provider — primary AI provider.
 
-    Routes via huggingface_hub native provider routing (1.x API).
-    Uses Qwen2.5-72B-Instruct by default.
+    Uses AsyncCerebras client with Qwen-3-235B-A22B-Instruct.
+    Qwen-3 Instruct is a non-thinking checkpoint — disable_reasoning is
+    GLM-family-specific and is intentionally omitted.
     """
 
-    def __init__(self, api_token: str) -> None:
-        self.api_token = api_token
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
 
-    def _make_client(self) -> AsyncInferenceClient:
-        return AsyncInferenceClient(
-            provider="auto", token=self.api_token, timeout=180
-        )
+    def _make_client(self) -> AsyncCerebras:
+        return AsyncCerebras(api_key=self.api_key, timeout=180)
 
     async def generate_itineraries(
         self,
@@ -56,7 +54,7 @@ class HuggingFaceProvider(AIProvider):
             data = extract_json(raw_text)
         except AIParseError:
             logger.warning(
-                "HuggingFace response JSON extraction failed. Raw (first 500): %.500s",
+                "Cerebras response JSON extraction failed. Raw (first 500): %.500s",
                 raw_text,
             )
             raise
@@ -71,7 +69,7 @@ class HuggingFaceProvider(AIProvider):
             response = AIGenerationResponse.model_validate(data)
         except ValidationError as exc:
             logger.warning(
-                "HuggingFace response failed schema validation. Raw (first 500): %.500s",
+                "Cerebras response failed schema validation. Raw (first 500): %.500s",
                 raw_text,
             )
             raise AIParseError(str(exc), raw_text=raw_text) from exc
@@ -79,14 +77,13 @@ class HuggingFaceProvider(AIProvider):
             raise ValueError(
                 f"AI returned {len(response.options)} options, expected {num_options}"
             )
-        return response, "huggingface"
+        return response, "cerebras"
 
     async def generate_followup_survey(
         self,
         prompt: str,
         model: str,
     ) -> list[str]:
-        # TODO: implement in iteration step
         raise NotImplementedError
 
     async def organize_preferences(
@@ -94,5 +91,4 @@ class HuggingFaceProvider(AIProvider):
         prompt: str,
         model: str,
     ) -> dict:
-        # TODO: implement in iteration step
         raise NotImplementedError

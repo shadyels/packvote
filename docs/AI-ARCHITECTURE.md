@@ -2,30 +2,26 @@
 
 ## AI Service Layer
 
-- Provider-agnostic: `HuggingFaceProvider` (default) → `GroqProvider` (fallback). Any OpenAI-compatible API can be swapped in.
-- Default model: `Qwen2.5-72B-Instruct`
-- Free tier constraint (HuggingFace): minimize AI calls, cache results, use exponential backoff.
+- Single provider: `CerebrasProvider` using `cerebras-cloud-sdk`. Interface is `AIProvider` (abstract); provider is swappable.
+- Default model: `qwen-3-235b-a22b-instruct-2507` (Qwen-3 Instruct — non-thinking checkpoint)
 - All AI responses MUST return validated JSON (Pydantic validation).
 - Prompts are versioned in the database (`prompt_templates` table) with basic A/B testing (traffic split, metrics per version).
 
 ## Provider Implementation
 
-**`AsyncInferenceClient` for all providers:**
-Both `HuggingFaceProvider` and `GroqProvider` use `AsyncInferenceClient` from `huggingface_hub`. Groq exposes an OpenAI-compatible API — same client, different `base_url` and `api_key`. Do not use raw `httpx` for AI inference.
-- HuggingFace `base_url`: `https://router.huggingface.co/v1` (the old endpoint is 410 Gone — do not revert)
-- `AsyncInferenceClient` is initialized with `timeout=180` seconds to accommodate slow model cold-starts
+**`AsyncCerebras` from `cerebras-cloud-sdk`:**
+`CerebrasProvider` uses `AsyncCerebras` from `cerebras-cloud-sdk`. Do not use raw `httpx` or `huggingface_hub` for AI inference.
+- Client is initialized with `timeout=180` seconds to accommodate slow model cold-starts.
+- Qwen-3 Instruct is a non-thinking checkpoint. `disable_reasoning` is GLM-family-specific and must not be passed.
 
 **Provider return type includes provider name:**
-`AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `"huggingface"` or `"groq"`. Required so the generation service can log which provider answered in `AICallLog.provider` and `Itinerary.provider`.
+`AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `"cerebras"`. Required so the generation service can log which provider answered in `AICallLog.provider` and `Itinerary.provider`.
 
 **Retry strategy:**
-`AIService.generate_itineraries()` retries HuggingFace up to 3 times with exponential backoff (1s, 2s, 4s). On exhaustion, tries Groq once. If both fail, re-raises the last exception. Never use immediate retries.
+`AIService.generate_itineraries()` retries the Cerebras provider up to 3 times with exponential backoff (1s, 2s, 4s). On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries.
 
 **`AIInputError` fast-fail (no retry):**
-When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), providers raise `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. The Groq fallback is also skipped. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
-
-**Groq ignores the `model` parameter:**
-`GroqProvider` hardcodes `GROQ_MODEL = "llama-3.3-70b-versatile"` and ignores the `model` argument (which is always a HF model ID). This is intentional.
+When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), providers raise `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
 
 ## JSON Extraction
 
@@ -115,9 +111,9 @@ User-facing messages from `_humanize_error(exc)` in `services/generation.py`:
 - `AIInputError` → AI's own `ai_message` verbatim, with `suggestion` appended as "Tip: …" if present. Always checked first (before the `AIParseError` branch, since `AIInputError` is a subclass).
 - `AIParseError` → "The AI returned an invalid response. This is usually temporary — try again."
 - `ValueError` (wrong option count) → "The AI generated the wrong number of itinerary options..."
-- `httpx.HTTPStatusError` 429 → rate limit message
-- `httpx.HTTPStatusError` 5xx → service unavailable message
-- `httpx.ConnectError` / `TimeoutError` → connection error message
+- `CerebrasRateLimitError` → rate limit message
+- `CerebrasAPIStatusError` (5xx) → service unavailable message
+- `CerebrasConnectionError` / `TimeoutError` → connection error message
 - Anything else → generic "Something went wrong" message
 
 On next successful `POST /trips/{id}/generate`, both `status` and `generation_error` are cleared before setting `GENERATING`. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`).

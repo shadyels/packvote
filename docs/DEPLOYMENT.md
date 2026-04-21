@@ -27,8 +27,7 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 - `SECRET_KEY` — JWT signing key
 - `BREVO_API_KEY` — Brevo transactional email API key
 - `BREVO_FROM_EMAIL` — verified sender address (must be verified in Brevo → Settings → Senders)
-- `HF_API_TOKEN` — HuggingFace Inference Providers
-- `GROQ_API_KEY` — Groq fallback (optional)
+- `CEREBRAS_API_KEY` — Cerebras inference API key
 - `FRONTEND_URL` — Frontend public domain, no port (e.g. `https://xxx.up.railway.app`). Used for CORS — must be the public URL, NOT `.railway.internal`
 - `ENVIRONMENT` — `production`
 
