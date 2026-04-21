@@ -56,7 +56,7 @@ When writing or updating a prompt version, maintain these constraints — they e
 - **Specificity ratio:** Exactly 4 activities per day. 3 must name a specific venue/dish/experience. 1 must be an unstructured neighborhood exploration — no fixed destination, but still written with full descriptive depth (area vibe, what to look for, an orienting landmark).
 - **Banned patterns:** em dashes (—), "nestled", "vibrant", "bustling", "hidden gem", "a testament to", "boasts", "delve", "tapestry", "unwind", "indulge", "immerse yourself", "whether you're", "from X to Y" openers, "offers a unique".
 
-The current prompt (`ITINERARY_PROMPT_V2`) embeds a few-shot Barcelona day as a reference example and includes an ERROR REPORTING section so the AI can self-report invalid input. `ITINERARY_PROMPT_V1` has been deleted. Any future version should include both the Barcelona example and the error envelope instructions.
+The current prompt (`ITINERARY_PROMPT_V3`) embeds a full-option Barcelona example (not just a single day) so the model pattern-matches the complete schema including `option_title`, adds inline `REQUIRED` annotations on schema fields, and promotes `option_title` to Rule #1 to prevent the field being silently omitted. It also includes an ERROR REPORTING section so the AI can self-report invalid input. `ITINERARY_PROMPT_V1` and `ITINERARY_PROMPT_V2` have been retired. Any future version should preserve the full-option example, the REQUIRED markers, and the error envelope instructions.
 
 ## Prompt Templates
 

@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 # Prompt template (seeded into DB on first generate call)
 # ---------------------------------------------------------------------------
 
-ITINERARY_PROMPT_V2 = """\
+ITINERARY_PROMPT_V3 = """\
 [SYSTEM]
 You are an expert travel planner. Generate exactly {num_options} distinct travel itinerary options for a group trip. Respond with valid JSON ONLY — no markdown, no prose outside the JSON.
 
@@ -54,18 +54,18 @@ The JSON must conform exactly to this schema:
 {{
   "options": [
     {{
-      "option_title": "string",
-      "destination_name": "string",
-      "destination_description": "string (2-3 sentences)",
+      "option_title": "string — REQUIRED: non-empty creative theme name (see WRITING STYLE)",
+      "destination_name": "string — REQUIRED",
+      "destination_description": "string (2-3 sentences) — REQUIRED",
       "daily_itinerary": [
         {{
           "day_number": 1,
-          "title": "string",
+          "title": "string — REQUIRED",
           "activities": [
             {{
               "time": null,
-              "title": "string",
-              "description": "string",
+              "title": "string — REQUIRED",
+              "description": "string — REQUIRED",
               "estimated_cost": null
             }}
           ],
@@ -74,7 +74,7 @@ The JSON must conform exactly to this schema:
       ],
       "total_estimated_budget": 1500.0,
       "currency": "USD",
-      "match_reasoning": "string — why this option fits the group",
+      "match_reasoning": "string — why this option fits the group — REQUIRED",
       "highlights": ["string", "string", "string"]
     }}
   ]
@@ -88,6 +88,7 @@ WRITING STYLE:
 - NEVER use these words or patterns — they are dead giveaways of AI-generated text: em dashes (—), "nestled", "vibrant", "bustling", "hidden gem", "a testament to", "boasts", "delve", "tapestry", "unwind", "indulge", "immerse yourself", "whether you're", "from X to Y" sentence openers, "offers a unique". Use plain dashes (-) if needed.
 
 Rules:
+- EVERY option MUST include a non-empty "option_title" field. An option missing option_title is invalid and will be rejected.
 - The "options" array must have exactly {num_options} items.
 - Each option must cover all {trip_duration_days} days of the trip.
 - Each day must have exactly 4 activities.
@@ -110,37 +111,48 @@ If you cannot fulfill the request because the destination is not a real, recogni
   }}
 }}
 
-EXAMPLE (one day, Barcelona):
+EXAMPLE (one option, one day shown, Barcelona):
 {{
-  "day_number": 2,
-  "title": "Sant Antoni to Bunkers",
-  "activities": [
+  "option_title": "Barcelona Back-Alley Binge",
+  "destination_name": "Barcelona, Spain",
+  "destination_description": "Barcelona trades on contrasts - Gothic stone alleys spill into Modernista show-offs, and every neighbourhood has its own pace. The food scene runs from standing-room-only tapas bars to decade-long reservation lists. Salt air off the Mediterranean shows up in unexpected places.",
+  "daily_itinerary": [
     {{
-      "time": null,
-      "title": "Boqueria back-stall breakfast",
-      "description": "Squeeze past the tourist clusters to the counter seats at Pinotxo Bar in the back. Chickpea stew and a cava for under €8. Best before 9:30 when the crowds hit.",
-      "estimated_cost": null
-    }},
-    {{
-      "time": null,
-      "title": "Raval morning wander",
-      "description": "The blocks south of MACBA shift from skatepark chaos to quiet vintage shops within a few turns. Carrer dels Tallers is the vinyl-and-bookshop strip. Grab a cortado at Federal Café if you need an anchor, otherwise let the neighborhood happen.",
-      "estimated_cost": null
-    }},
-    {{
-      "time": null,
-      "title": "Vermouth at Morro Fi",
-      "description": "Standing-room-only vermouth bar in Sant Antoni. House vermut on tap paired with conservas. The tinned mussels are the move. Cash only, closes at 2pm sharp so don't be late.",
-      "estimated_cost": null
-    }},
-    {{
-      "time": null,
-      "title": "Bunkers del Carmel sunset",
-      "description": "Abandoned anti-aircraft batteries on a hilltop with the best 360° view of the city. Bring your own drinks from the Carmel market below. Arrive 45min before sunset or you'll be standing.",
+      "day_number": 2,
+      "title": "Sant Antoni to Bunkers",
+      "activities": [
+        {{
+          "time": null,
+          "title": "Boqueria back-stall breakfast",
+          "description": "Squeeze past the tourist clusters to the counter seats at Pinotxo Bar in the back. Chickpea stew and a cava for under €8. Best before 9:30 when the crowds hit.",
+          "estimated_cost": null
+        }},
+        {{
+          "time": null,
+          "title": "Raval morning wander",
+          "description": "The blocks south of MACBA shift from skatepark chaos to quiet vintage shops within a few turns. Carrer dels Tallers is the vinyl-and-bookshop strip. Grab a cortado at Federal Café if you need an anchor, otherwise let the neighbourhood happen.",
+          "estimated_cost": null
+        }},
+        {{
+          "time": null,
+          "title": "Vermouth at Morro Fi",
+          "description": "Standing-room-only vermouth bar in Sant Antoni. House vermut on tap paired with conservas. The tinned mussels are the move. Cash only, closes at 2pm sharp so don't be late.",
+          "estimated_cost": null
+        }},
+        {{
+          "time": null,
+          "title": "Bunkers del Carmel sunset",
+          "description": "Abandoned anti-aircraft batteries on a hilltop with the best 360° view of the city. Bring your own drinks from the Carmel market below. Arrive 45min before sunset or you'll be standing.",
+          "estimated_cost": null
+        }}
+      ],
       "estimated_cost": null
     }}
   ],
-  "estimated_cost": null
+  "total_estimated_budget": 1800.0,
+  "currency": "EUR",
+  "match_reasoning": "Barcelona suits this group because the budget range comfortably covers mid-range accommodation plus daily dining. The food-first interests align with the city's eating culture, and the mix of architecture and nightlife covers the activity variety the group asked for.",
+  "highlights": ["Vermouth culture in Sant Antoni", "Gothic Quarter night maze", "Beachfront morning runs"]
 }}
 [USER]
 Plan a group trip with the following details:
@@ -358,11 +370,11 @@ async def _reset_trip_status(
 
 
 async def _upsert_prompt_template(db: AsyncSession) -> PromptTemplate:
-    # Try to find the active v2 template first
+    # Try to find the active v3 template first
     result = await db.execute(
         select(PromptTemplate).where(
             PromptTemplate.name == "itinerary_generation",
-            PromptTemplate.version == "v2",
+            PromptTemplate.version == "v3",
             PromptTemplate.is_active.is_(True),
         )
     )
@@ -370,22 +382,22 @@ async def _upsert_prompt_template(db: AsyncSession) -> PromptTemplate:
     if template is not None:
         return template
 
-    # Deactivate any existing v1 templates
-    v1_result = await db.execute(
+    # Deactivate any existing v1/v2 templates
+    old_result = await db.execute(
         select(PromptTemplate).where(
             PromptTemplate.name == "itinerary_generation",
-            PromptTemplate.version == "v1",
+            PromptTemplate.version.in_(["v1", "v2"]),
         )
     )
-    for old in v1_result.scalars().all():
+    for old in old_result.scalars().all():
         old.is_active = False
 
-    # Seed v2
+    # Seed v3
     template = PromptTemplate(
         name="itinerary_generation",
-        version="v2",
-        template_text=ITINERARY_PROMPT_V2,
-        model_target="Qwen/Qwen2.5-72B-Instruct",
+        version="v3",
+        template_text=ITINERARY_PROMPT_V3,
+        model_target="Qwen/Qwen3-235B-A22B-Instruct",
         is_active=True,
         traffic_weight=1.0,
     )

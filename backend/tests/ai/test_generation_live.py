@@ -15,7 +15,7 @@ import pytest
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.json_utils import AIInputError
 from app.services.ai.service import AIService
-from app.services.generation import ITINERARY_PROMPT_V2
+from app.services.generation import ITINERARY_PROMPT_V3
 
 _OPEN_DESTINATION = "DESTINATION: Open — suggest the best fit for this group"
 
@@ -25,7 +25,7 @@ def _build_minimal_prompt(
     destination_constraint: str = _OPEN_DESTINATION,
 ) -> str:
     """Minimal rendered prompt for live testing — no DB needed."""
-    return ITINERARY_PROMPT_V2.format(
+    return ITINERARY_PROMPT_V3.format(
         num_options=num_options,
         trip_duration_days=5,
         trip_title="Live Test Trip",
@@ -50,7 +50,7 @@ def _build_minimal_prompt(
 
 # ---------------------------------------------------------------------------
 # Module-scoped fixture — one API call shared by TestCerebrasLive AND
-# TestPromptV2Compliance (both exercise the same happy-path response).
+# TestPromptV3Compliance (both exercise the same happy-path response).
 # ---------------------------------------------------------------------------
 
 
@@ -115,16 +115,16 @@ class TestCerebrasLive:
 
 
 # ---------------------------------------------------------------------------
-# V2 prompt compliance tests — strict rule enforcement
+# V3 prompt compliance tests — strict rule enforcement
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.live
-class TestPromptV2Compliance:
+class TestPromptV3Compliance:
     async def test_each_day_has_exactly_four_activities(
         self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
-        """V2 prompt instructs: each day must have exactly 4 activities."""
+        """V3 prompt instructs: each day must have exactly 4 activities."""
         response, _ = cerebras_response
         option = response.options[0]
         assert len(option.daily_itinerary) == 5, (
@@ -139,7 +139,7 @@ class TestPromptV2Compliance:
     async def test_option_title_is_distinct_from_destination(
         self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
-        """V2 prompt instructs: option_title must not repeat the destination name."""
+        """V3 prompt instructs: option_title must not repeat the destination name."""
         response, _ = cerebras_response
         option = response.options[0]
         assert option.option_title, "option_title should be non-empty"
@@ -151,7 +151,7 @@ class TestPromptV2Compliance:
     async def test_activity_titles_avoid_banned_words(
         self, cerebras_response: tuple[AIGenerationResponse, str]
     ) -> None:
-        """V2 prompt bans AI-sounding filler words."""
+        """V3 prompt bans AI-sounding filler words."""
         banned = {
             "nestled",
             "vibrant",
@@ -217,7 +217,7 @@ class TestErrorEnvelopeLive:
     async def test_contradictory_dates_raises_ai_input_error(self) -> None:
         """AI may detect end-before-start dates as invalid input."""
         service = AIService.from_settings()
-        prompt = ITINERARY_PROMPT_V2.format(
+        prompt = ITINERARY_PROMPT_V3.format(
             num_options=1,
             trip_duration_days=0,
             trip_title="Impossible Trip",

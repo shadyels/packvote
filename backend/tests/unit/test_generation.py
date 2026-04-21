@@ -214,7 +214,7 @@ class TestUpsertPromptTemplate:
         template = await _upsert_prompt_template(db)
         assert template.id is not None
         assert template.name == "itinerary_generation"
-        assert template.version == "v2"
+        assert template.version == "v3"
         assert template.is_active is True
         assert "[SYSTEM]" in template.template_text
         assert "ERROR REPORTING" in template.template_text
@@ -302,7 +302,7 @@ class TestUpsertPromptTemplateIdempotency:
         result = await db.execute(
             select(func.count(PromptTemplate.id)).where(
                 PromptTemplate.name == "itinerary_generation",
-                PromptTemplate.version == "v2",
+                PromptTemplate.version == "v3",
             )
         )
         count = result.scalar_one()
