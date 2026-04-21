@@ -71,6 +71,11 @@ class CerebrasProvider(AIProvider):
                 suggestion=err.get("suggestion", ""),
                 field=err.get("field", "general"),
             )
+        # Qwen-3 sometimes omits option_title despite schema instructions.
+        # Inject a fallback before validation to avoid a hard failure.
+        for opt in data.get("options", []):
+            if isinstance(opt, dict) and not opt.get("option_title"):
+                opt["option_title"] = opt.get("destination_name", "")
         try:
             response = AIGenerationResponse.model_validate(data)
         except ValidationError as exc:
