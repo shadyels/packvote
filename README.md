@@ -2,7 +2,7 @@
 
 **AI-powered collaborative trip planning — from idea to voted-on itinerary.**
 
-Live demo: [https://frontend-production-7f5a.up.railway.app](https://frontend-production-7f5a.up.railway.app) *(custom domain coming soon)*
+Live demo: [https://packvote.shadyels.com](https://packvote.shadyels.com)
 
 ---
 
@@ -17,7 +17,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 - **AI itinerary generation** — Qwen-3-235B (Cerebras) generates complete day-by-day itineraries tailored to group preferences
 - **Ranked-choice voting** — full instant-runoff algorithm; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
 - **Zero-friction participant flow** — no account required; join via a tokenized email link or trip code + 4-digit PIN
-- **Real-time status tracking** — 7 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → VOTING → FINALIZED) with polling and live UI updates
+- **Real-time status tracking** — 7 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → GENERATION\_FAILED → VOTING → ITERATING → FINALIZED) with polling and live UI updates
 - **Destination photography** — Unsplash API integration with in-memory caching, graceful gradient fallback, and proper attribution
 - **Transactional email** — Brevo-powered invitations containing the direct link and trip code + PIN
 - **Multi-iteration support** — if no winner emerges, the creator triggers a new AI generation round (up to 10 iterations)
@@ -57,7 +57,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 |---|---|
 | React 18 + TypeScript | UI framework |
 | Vite | Build tool |
-| Tailwind CSS + shadcn/ui | Styling + component library |
+| Tailwind CSS + shadcn/ui + @base-ui/react | Styling + component library (base-ui primitives, not Radix) |
 | React Router v6 | Client-side routing |
 | Lucide React | Icons |
 | date-fns + react-day-picker v9 | Date utilities + custom drill-down calendar |
