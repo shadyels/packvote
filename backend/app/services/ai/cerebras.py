@@ -20,9 +20,11 @@ def _split_prompt(prompt: str) -> tuple[str, str]:
 class CerebrasProvider(AIProvider):
     """Cerebras inference provider — primary AI provider.
 
-    Uses AsyncCerebras client with Qwen-3-235B-A22B-Instruct.
-    Qwen-3 Instruct is a non-thinking checkpoint — disable_reasoning is
-    GLM-family-specific and is intentionally omitted.
+    Uses AsyncCerebras with gpt-oss-120b. reasoning_format="hidden" suppresses
+    the reasoning channel so message.content is JSON-only, matching the
+    ITINERARY_PROMPT_V3 contract. reasoning_effort is caller-supplied (default
+    "low") — escalate via DEFAULT_REASONING_EFFORT env var if prompt adherence
+    regresses. disable_reasoning is GLM-only and must not be used here.
     """
 
     def __init__(self, api_key: str) -> None:
@@ -36,6 +38,7 @@ class CerebrasProvider(AIProvider):
         prompt: str,
         num_options: int,
         model: str,
+        reasoning_effort: str = "low",
     ) -> tuple[AIGenerationResponse, str]:
         system_msg, user_msg = _split_prompt(prompt)
         client = self._make_client()
@@ -46,6 +49,8 @@ class CerebrasProvider(AIProvider):
                 {"role": "user", "content": user_msg},
             ],
             response_format={"type": "json_object"},
+            reasoning_format="hidden",
+            reasoning_effort=reasoning_effort,
             temperature=0.7,
             max_tokens=16384,
         )
@@ -71,12 +76,12 @@ class CerebrasProvider(AIProvider):
                 suggestion=err.get("suggestion", ""),
                 field=err.get("field", "general"),
             )
-        # Qwen-3 sometimes omits option_title despite schema instructions.
+        # AI sometimes omits option_title despite schema instructions.
         # Inject a fallback before validation to avoid a hard failure.
         for opt in data.get("options", []):
             if isinstance(opt, dict) and not opt.get("option_title"):
                 logger.warning(
-                    "Qwen-3 omitted option_title for destination=%s — applying fallback",
+                    "AI omitted option_title for destination=%s — applying fallback",
                     opt.get("destination_name", "<unknown>"),
                 )
                 opt["option_title"] = opt.get("destination_name", "")

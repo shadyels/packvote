@@ -394,7 +394,7 @@ async def _upsert_prompt_template(db: AsyncSession) -> PromptTemplate:
         name="itinerary_generation",
         version="v3",
         template_text=ITINERARY_PROMPT_V3,
-        model_target="Qwen/Qwen3-235B-A22B-Instruct",
+        model_target="openai/gpt-oss-120b",
         is_active=True,
         traffic_weight=1.0,
     )

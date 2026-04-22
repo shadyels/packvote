@@ -100,7 +100,7 @@ class TestCerebrasProviderGenerate:
 
         with patch.object(provider, "_make_client", return_value=mock_client):
             response, provider_name = await provider.generate_itineraries(
-                "[SYSTEM]\nSystem\n[USER]\nUser", 1, "qwen-3-235b-a22b-instruct-2507"
+                "[SYSTEM]\nSystem\n[USER]\nUser", 1, "gpt-oss-120b"
             )
 
         assert provider_name == "cerebras"
@@ -117,6 +117,19 @@ class TestCerebrasProviderGenerate:
 
         create_call = mock_client.chat.completions.create
         assert create_call.call_args.kwargs["model"] == "my-model"
+
+    async def test_passes_reasoning_params_to_client(self) -> None:
+        provider = CerebrasProvider(api_key="test-key")
+        mock_client = _make_mock_client(_make_valid_response_json())
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "gpt-oss-120b", reasoning_effort="low"
+            )
+
+        kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert kwargs["reasoning_format"] == "hidden"
+        assert kwargs["reasoning_effort"] == "low"
 
     async def test_sends_system_and_user_messages(self) -> None:
         provider = CerebrasProvider(api_key="test-key")

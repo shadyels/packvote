@@ -3,7 +3,7 @@
 ## AI Service Layer
 
 - Single provider: `CerebrasProvider` using `cerebras-cloud-sdk`. Interface is `AIProvider` (abstract); provider is swappable.
-- Default model: `qwen-3-235b-a22b-instruct-2507` (Qwen-3 Instruct — non-thinking checkpoint)
+- Default model: `gpt-oss-120b` (OpenAI gpt-oss, Apache 2.0)
 - All AI responses MUST return validated JSON (Pydantic validation).
 - Prompts are versioned in the database (`prompt_templates` table) with basic A/B testing (traffic split, metrics per version).
 
@@ -12,7 +12,7 @@
 **`AsyncCerebras` from `cerebras-cloud-sdk`:**
 `CerebrasProvider` uses `AsyncCerebras` from `cerebras-cloud-sdk`. Do not use raw `httpx` or `huggingface_hub` for AI inference.
 - Client is initialized with `timeout=180` seconds to accommodate slow model cold-starts.
-- Qwen-3 Instruct is a non-thinking checkpoint. `disable_reasoning` is GLM-family-specific and must not be passed.
+- `gpt-oss-120b` has reasoning enabled by default. We pass `reasoning_format="hidden"` to suppress the reasoning channel so `message.content` is JSON-only, matching the `ITINERARY_PROMPT_V3` contract. `reasoning_effort` (default `"low"`) minimises internally-generated tokens; escalate via `DEFAULT_REASONING_EFFORT` env var if prompt-adherence regressions are observed. `disable_reasoning` is GLM-family-specific and must not be used here.
 
 **Provider return type includes provider name:**
 `AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `"cerebras"`. Required so the generation service can log which provider answered in `AICallLog.provider` and `Itinerary.provider`.

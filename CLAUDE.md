@@ -31,7 +31,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 - **Database:** PostgreSQL
 - **Email:** Brevo (free tier, 300 emails/day)
 - **AI Inference:** Cerebras (`cerebras-cloud-sdk`, `AsyncCerebras`)
-- **Default AI Model:** Qwen-3-235B-A22B-Instruct (`qwen-3-235b-a22b-instruct-2507`)
+- **Default AI Model:** gpt-oss-120b (`gpt-oss-120b`, Apache 2.0). Reasoning suppressed via `reasoning_format="hidden"` + `reasoning_effort="low"` (escalate via `DEFAULT_REASONING_EFFORT` env var).
 - **Auth:** Email + password (trip creators), token-based links + trip code/PIN (participants)
 - **Password Hashing:** `bcrypt` directly — do NOT use `passlib` (incompatible with `bcrypt >= 4.0`)
 

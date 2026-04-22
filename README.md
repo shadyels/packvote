@@ -14,8 +14,8 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 
 ## Key Features
 
-- **AI itinerary generation** — Qwen-3-235B (Cerebras) generates complete day-by-day itineraries tailored to group preferences
-- **Ranked-choice voting** — full instant-runoff algorithm with drag-and-drop ranking UI; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
+- **AI itinerary generation** — gpt-oss-120b (Cerebras) generates complete day-by-day itineraries tailored to group preferences
+- **Ranked-choice voting** — full instant-runoff algorithm; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
 - **Zero-friction participant flow** — no account required; join via a tokenized email link or trip code + 4-digit PIN
 - **Real-time status tracking** — 7 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → GENERATION\_FAILED → VOTING → ITERATING → FINALIZED) with polling and live UI updates
 - **Destination photography** — Unsplash API integration with in-memory caching, graceful gradient fallback, and proper attribution
