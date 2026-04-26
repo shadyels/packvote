@@ -16,7 +16,7 @@ from app.models.trip import Trip
 from app.models.user import User
 from app.models.vote import Vote
 from app.models.vote_round import VoteRound
-from app.schemas.trip import TripCreate, TripSummary, TripUpdate
+from app.schemas.trip import InvitedTripSummary, TripCreate, TripSummary, TripUpdate
 from app.services.email.brevo import EmailService
 
 _ALPHANUM = string.ascii_uppercase + string.digits
@@ -198,7 +198,7 @@ async def list_trips_for_user(user_id: int, db: AsyncSession) -> list[TripSummar
 
 async def list_invited_trips_for_user(
     user_id: int, db: AsyncSession
-) -> list[TripSummary]:
+) -> list[InvitedTripSummary]:
     participant_count_sq = (
         select(func.count(Participant.id))
         .where(Participant.trip_id == Trip.id)
@@ -219,6 +219,7 @@ async def list_invited_trips_for_user(
             Trip,
             participant_count_sq.label("participant_count"),
             pref_submitted_sq.label("preferences_submitted_count"),
+            Participant.token.label("participant_token"),
         )
         .join(Participant, Participant.trip_id == Trip.id)
         .where(
@@ -229,9 +230,9 @@ async def list_invited_trips_for_user(
     )
     result = await db.execute(stmt)
     summaries = []
-    for trip, participant_count, preferences_submitted_count in result.all():
+    for trip, participant_count, preferences_submitted_count, participant_token in result.all():
         summaries.append(
-            TripSummary.model_validate(
+            InvitedTripSummary.model_validate(
                 {
                     "id": trip.id,
                     "trip_code": trip.trip_code,
@@ -241,6 +242,7 @@ async def list_invited_trips_for_user(
                     "participant_count": participant_count,
                     "preferences_submitted_count": preferences_submitted_count,
                     "created_at": trip.created_at,
+                    "participant_token": participant_token,
                 }
             )
         )

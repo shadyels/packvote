@@ -157,8 +157,13 @@ class TestInvitedTripsFlow:
 
         resp = await client.get(INVITED_URL, headers=headers_b)
         assert resp.status_code == 200
-        ids = [t["id"] for t in resp.json()]
+        payload = resp.json()
+        ids = [t["id"] for t in payload]
         assert trip_id in ids
+        invited = next(t for t in payload if t["id"] == trip_id)
+        assert "participant_token" in invited
+        assert isinstance(invited["participant_token"], str)
+        assert len(invited["participant_token"]) > 0
 
     async def test_create_trip_then_register_backfills(
         self, client: AsyncClient, mock_email
@@ -181,8 +186,13 @@ class TestInvitedTripsFlow:
 
         resp = await client.get(INVITED_URL, headers=headers_b)
         assert resp.status_code == 200
-        ids = [t["id"] for t in resp.json()]
+        payload = resp.json()
+        ids = [t["id"] for t in payload]
         assert trip_id in ids
+        invited = next(t for t in payload if t["id"] == trip_id)
+        assert "participant_token" in invited
+        assert isinstance(invited["participant_token"], str)
+        assert len(invited["participant_token"]) > 0
 
     async def test_get_trips_excludes_invited(self, client: AsyncClient, mock_email):
         """GET /trips/ for invitee must not include trips they were only invited to."""

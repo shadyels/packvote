@@ -43,6 +43,10 @@ export interface TripSummary {
   created_at: string;
 }
 
+export interface InvitedTripSummary extends TripSummary {
+  participant_token: string;
+}
+
 export interface Participant {
   id: number;
   trip_id: number;
