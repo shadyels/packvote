@@ -8,6 +8,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import TripDetailPage from "@/pages/TripDetailPage";
 import TripPage from "@/pages/TripPage";
 import JoinPage from "@/pages/JoinPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 
 function LayoutWrapper() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
     <Routes>
       {/* Login and landing render their own full-screen layouts */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={<LandingPage />} />
 
       {/* All other routes wrapped in Layout */}

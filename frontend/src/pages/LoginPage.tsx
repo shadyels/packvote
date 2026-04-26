@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ApiError } from "@/lib/api";
+import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 
 type Mode = "login" | "register";
 
@@ -25,6 +26,7 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,9 +105,20 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-black/80">
-                  Password
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-black/80">
+                    Password
+                  </Label>
+                  {mode === "login" && (
+                    <button
+                      type="button"
+                      onClick={() => { setForgotOpen(true); }}
+                      className="text-xs text-brand hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
                 <Input
                   id="password"
                   type="password"
@@ -173,6 +186,8 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} />
     </div>
   );
 }
