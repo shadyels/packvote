@@ -128,6 +128,25 @@ class EmailService:
             ),
         )
 
+    async def send_password_reset(
+        self,
+        to_email: str,
+        full_name: str | None,
+        reset_token: str,
+    ) -> bool:
+        """Send password reset email with single-use link (expires in 60 min)."""
+        return await self._send(
+            to_email=to_email,
+            subject="Reset your PackVote password",
+            body=(
+                f"Hi {full_name or 'there'},\n\n"
+                f"We received a request to reset your PackVote password.\n\n"
+                f"Reset your password: {self._frontend_url}/reset-password?token={reset_token}\n\n"
+                f"This link expires in 60 minutes.\n\n"
+                f"If you didn't request this, you can safely ignore this email.\n"
+            ),
+        )
+
     async def send_finalized_notification(
         self,
         to_email: str,

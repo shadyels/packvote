@@ -66,6 +66,18 @@ export const auth = {
     }),
 
   me: () => request<User>("/auth/me"),
+
+  requestPasswordReset: (email: string) =>
+    request<{ message: string }>("/auth/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  confirmPasswordReset: (token: string, new_password: string) =>
+    request<{ message: string }>("/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token, new_password }),
+    }),
 };
 
 // Trips
