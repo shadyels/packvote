@@ -14,7 +14,13 @@ from app.models.trip import Trip
 from app.models.user import User
 from app.schemas.itinerary import ItineraryResponse
 from app.schemas.participant import ParticipantResponse
-from app.schemas.trip import InvitedTripSummary, TripCreate, TripResponse, TripSummary, TripUpdate
+from app.schemas.trip import (
+    InvitedTripSummary,
+    TripCreate,
+    TripResponse,
+    TripSummary,
+    TripUpdate,
+)
 from app.schemas.vote import PickWinnerRequest
 from app.services.email.brevo import EmailService
 from app.services.generation import run_generation
