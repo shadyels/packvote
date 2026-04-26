@@ -54,3 +54,7 @@ class TripSummary(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class InvitedTripSummary(TripSummary):
+    participant_token: str

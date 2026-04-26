@@ -124,12 +124,10 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 
 ### F8: Trip Creator Dashboard
 - Authenticated, creator-only view
+- Two tabs:
+  - **Created** — trips the user created, with status badges, participant response progress, voting results, AI generation history, and controls (trigger generation, trigger new iteration, pick winner, close voting, delete trip)
+  - **Invited** — trips where the authenticated user was invited as a participant (matched by email at trip creation or registration); links directly to the participant trip page via `participant_token`
 - Shows:
-  - All trips with status badges
-  - Participant response progress per trip
-  - Voting results and round details
-  - AI generation history (prompt version, model, latency)
-  - Controls: trigger generation, trigger new iteration, pick winner, close voting, delete trip
 - **Edit trip:** Creator can edit trip details (title, destination, dates, number of options, notes) when the trip is in `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` status. Useful for fixing inputs before retrying a failed generation. Editing is blocked in `GENERATING`, `VOTING`, `ITERATING`, and `FINALIZED` states.
 - **Delete trip:** Creator can permanently delete a trip and all associated data (participants, preferences, itineraries, votes). Deletion is blocked while AI generation is in progress (`GENERATING` status). Requires confirmation before executing.
 
@@ -328,7 +326,7 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 ### Core Tables
 - `users` — trip creators (email, hashed_password, created_at)
 - `trips` — (id, trip_code_8char_alphanum, creator_id, destination, proposed_dates, num_options, status, generation_error, max_iterations, current_iteration, created_at)
-- `participants` — (id, trip_id, email, name, pin_4digit, token, preferences_submitted, user_id nullable FK→users, created_at) — PIN is unique per participant within a trip. `user_id` is set only for the trip creator's participant row (partial-unique index on `(trip_id, user_id) WHERE user_id IS NOT NULL`). The creator row is inserted automatically on trip creation with `preferences_submitted = True`.
+- `participants` — (id, trip_id, email, name, pin_4digit, token, preferences_submitted, user_id nullable FK→users, created_at) — PIN is unique per participant within a trip. `user_id` is set eagerly for any invited participant whose email matches an existing registered user (at trip creation time, or at registration time via a bulk `UPDATE`). Partial-unique index on `(trip_id, user_id) WHERE user_id IS NOT NULL`. The creator row is inserted automatically on trip creation with `preferences_submitted = True`.
 - `preferences` — (id, participant_id, trip_id, preferred_dates, budget_min, budget_max, currency, interests, submitted_at)
 - `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary_json, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at)
 - `votes` — (id, participant_id nullable, user_id nullable, trip_id, iteration_number, rankings_json, submitted_at) — `participant_id` is set for all votes (both invitees and the creator, who has a participant row). `user_id` is legacy/unused by new code.

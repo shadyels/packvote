@@ -33,6 +33,13 @@ onSubmit={(e) => { void handleSubmit(e); }}
 
 ## Dashboard (F8)
 
+**Tabs — Created vs Invited:**
+`DashboardPage` has two tabs powered by `Tabs`/`TabsList`/`TabsContent` from shadcn. The **Created** tab shows trips the user created; the **Invited** tab shows trips where the user was invited as a participant.
+
+`useInvitedTrips` hook (`frontend/src/hooks/useInvitedTrips.ts`) fetches `GET /trips/invited` and returns `{ trips: InvitedTripSummary[], isLoading, error, refetch }`. `InvitedTripSummary` extends `TripSummary` with a `participant_token` field used to build the link `href=/trip/:token`.
+
+`TripGrid` component (local to `DashboardPage`) is a shared render helper for both tabs — accepts `{ trips, isLoading, error, refetch, emptyTitle, emptyBody, hrefFn? }`. The Invited tab passes `hrefFn={(trip) => /trip/${trip.participant_token}}`.
+
 **`useTripDetail` hook:**
 `frontend/src/hooks/useTripDetail.ts` orchestrates parallel fetches (trip, participants, itineraries, voting results, AI logs) via `Promise.allSettled`. Polls every 5s when `trip.status === "GENERATING"`, stops on status change or unmount.
 

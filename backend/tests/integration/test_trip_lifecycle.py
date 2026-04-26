@@ -132,3 +132,82 @@ class TestTripLifecycle:
             json={"title": "No Auth", "participant_emails": ["x@test.com"]},
         )
         assert resp.status_code == 401
+
+
+INVITED_URL = "/trips/invited"
+
+
+class TestInvitedTripsFlow:
+    async def test_register_then_invited_trip_visible(
+        self, client: AsyncClient, mock_email
+    ):
+        """B registers before A creates trip; create_trip links user_id immediately."""
+        token_b = await _register_and_login(client, "b_first@test.com")
+        token_a = await _register_and_login(client, "a_creator@test.com")
+        headers_a = {"Authorization": f"Bearer {token_a}"}
+        headers_b = {"Authorization": f"Bearer {token_b}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "B was first", "participant_emails": ["b_first@test.com"]},
+            headers=headers_a,
+        )
+        assert resp.status_code == 201, resp.text
+        trip_id = resp.json()["id"]
+
+        resp = await client.get(INVITED_URL, headers=headers_b)
+        assert resp.status_code == 200
+        payload = resp.json()
+        ids = [t["id"] for t in payload]
+        assert trip_id in ids
+        invited = next(t for t in payload if t["id"] == trip_id)
+        assert "participant_token" in invited
+        assert isinstance(invited["participant_token"], str)
+        assert len(invited["participant_token"]) > 0
+
+    async def test_create_trip_then_register_backfills(
+        self, client: AsyncClient, mock_email
+    ):
+        """A creates trip inviting B; B registers after; backfill links participant."""
+        token_a = await _register_and_login(client, "a_early@test.com")
+        headers_a = {"Authorization": f"Bearer {token_a}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "B joins late", "participant_emails": ["b_late@test.com"]},
+            headers=headers_a,
+        )
+        assert resp.status_code == 201, resp.text
+        trip_id = resp.json()["id"]
+
+        # B registers after trip creation
+        token_b = await _register_and_login(client, "b_late@test.com")
+        headers_b = {"Authorization": f"Bearer {token_b}"}
+
+        resp = await client.get(INVITED_URL, headers=headers_b)
+        assert resp.status_code == 200
+        payload = resp.json()
+        ids = [t["id"] for t in payload]
+        assert trip_id in ids
+        invited = next(t for t in payload if t["id"] == trip_id)
+        assert "participant_token" in invited
+        assert isinstance(invited["participant_token"], str)
+        assert len(invited["participant_token"]) > 0
+
+    async def test_get_trips_excludes_invited(self, client: AsyncClient, mock_email):
+        """GET /trips/ for invitee must not include trips they were only invited to."""
+        token_a = await _register_and_login(client, "a_host@test.com")
+        token_b = await _register_and_login(client, "b_guest@test.com")
+        headers_a = {"Authorization": f"Bearer {token_a}"}
+        headers_b = {"Authorization": f"Bearer {token_b}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "A hosts B", "participant_emails": ["b_guest@test.com"]},
+            headers=headers_a,
+        )
+        assert resp.status_code == 201, resp.text
+
+        resp = await client.get(TRIPS_URL, headers=headers_b)
+        assert resp.status_code == 200
+        assert resp.json() == []

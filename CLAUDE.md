@@ -118,6 +118,14 @@ Read the relevant `docs/` file before working in any of these areas:
 - Participants: token link OR trip code (8-char alphanumeric) + PIN (4 digits, per-participant)
 - No account required for participants
 
+### Participant ↔ User linking
+`Participant.user_id` is set in two places — keep both in sync if the logic ever changes:
+1. **`create_trip` (`services/trips.py`)** — batch-looks up users by lowercased email at trip creation time and sets `user_id` immediately if the invitee already has an account.
+2. **`register` (`api/auth.py`)** — after inserting the new user, bulk-updates all existing `Participant` rows whose email matches (case-insensitive) to backfill `user_id`.
+
+### Trips router — static routes before dynamic
+`GET /trips/invited` **must** be declared before `GET /trips/{trip_id}` in `app/api/trips.py`. FastAPI matches routes top-to-bottom; placing a static segment after a dynamic one causes `/invited` to be swallowed by the `{trip_id}` pattern.
+
 ### Phase 2 (DO NOT BUILD YET)
 Price monitoring agent for finalized trips.
 

@@ -1,4 +1,5 @@
 import type {
+  InvitedTripSummary,
   Itinerary,
   Participant,
   ParticipantAccessResponse,
@@ -70,6 +71,8 @@ export const auth = {
 // Trips
 export const trips = {
   list: () => request<TripSummary[]>("/trips/"),
+
+  listInvited: () => request<InvitedTripSummary[]>("/trips/invited"),
 
   get: (tripId: number) => request<Trip>(`/trips/${tripId.toString()}`),
 
