@@ -1,12 +1,13 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
+from app.models.participant import Participant
 from app.models.user import User
 from app.schemas.user import TokenResponse, UserCreate, UserLogin, UserResponse
 
@@ -31,6 +32,14 @@ async def register(
         full_name=payload.full_name,
     )
     db.add(user)
+    await db.flush()
+
+    await db.execute(
+        update(Participant)
+        .where(func.lower(Participant.email) == payload.email.lower())
+        .values(user_id=user.id)
+    )
+
     await db.commit()
     await db.refresh(user)
     return UserResponse.model_validate(user)

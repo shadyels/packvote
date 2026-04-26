@@ -488,3 +488,268 @@ class TestParticipantsEndpointVoteStatus:
         assert len(invitee_rows) == 1
         assert creator_rows[0]["has_voted_current_iteration"] is True
         assert invitee_rows[0]["has_voted_current_iteration"] is False
+
+
+INVITED_URL = "/trips/invited"
+
+
+class TestCreateTripLinksUserIdToInvitee:
+    async def test_invitee_user_id_set_when_user_exists(
+        self, client: AsyncClient, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+
+        invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
+        creator_email = f"creator_{secrets.token_hex(4)}@test.com"
+
+        # Register invitee first
+        await client.post(
+            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+        await client.post(
+            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+        from app.models.user import User
+
+        user_result = await db.execute(select(User).where(User.email == invitee_email))
+        invitee_user = user_result.scalar_one()
+
+        # Register creator and create trip inviting invitee
+        await client.post(
+            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        r_creator = await client.post(
+            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        headers = {"Authorization": f"Bearer {r_creator.json()['access_token']}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "Link Test", "participant_emails": [invitee_email]},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        trip_id = resp.json()["id"]
+
+        result = await db.execute(
+            select(Participant).where(
+                Participant.trip_id == trip_id,
+                Participant.email == invitee_email,
+            )
+        )
+        participant = result.scalar_one()
+        assert participant.user_id == invitee_user.id
+
+    async def test_invitee_user_id_none_when_no_user(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={
+                "title": "No User Invite",
+                "participant_emails": ["ghost@nowhere.com"],
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
+        trip_id = resp.json()["id"]
+
+        result = await db.execute(
+            select(Participant).where(
+                Participant.trip_id == trip_id,
+                Participant.email == "ghost@nowhere.com",
+            )
+        )
+        participant = result.scalar_one()
+        assert participant.user_id is None
+
+    async def test_invitee_link_case_insensitive(
+        self, client: AsyncClient, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+        from app.models.user import User
+
+        invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
+        creator_email = f"creator_{secrets.token_hex(4)}@test.com"
+
+        await client.post(
+            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+        user_result = await db.execute(select(User).where(User.email == invitee_email))
+        invitee_user = user_result.scalar_one()
+
+        await client.post(
+            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        r = await client.post(
+            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={
+                "title": "Case Link",
+                "participant_emails": [invitee_email.upper()],
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        trip_id = resp.json()["id"]
+
+        result = await db.execute(
+            select(Participant).where(
+                Participant.trip_id == trip_id,
+                Participant.email == invitee_email.upper(),
+            )
+        )
+        participant = result.scalar_one()
+        assert participant.user_id == invitee_user.id
+
+
+class TestRegisterBackfillsParticipant:
+    async def test_register_backfills_user_id_on_existing_participant(
+        self, client: AsyncClient, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+
+        invitee_email = f"late_{secrets.token_hex(4)}@test.com"
+        creator_email = f"creator_{secrets.token_hex(4)}@test.com"
+
+        # Creator creates trip BEFORE invitee registers
+        await client.post(
+            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        r = await client.post(
+            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "Backfill Trip", "participant_emails": [invitee_email]},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        trip_id = resp.json()["id"]
+
+        # Participant row should have no user_id yet
+        result = await db.execute(
+            select(Participant).where(
+                Participant.trip_id == trip_id, Participant.email == invitee_email
+            )
+        )
+        p_before = result.scalar_one()
+        assert p_before.user_id is None
+
+        # Invitee now registers
+        await client.post(
+            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+
+        # Participant row should now be linked
+        await db.refresh(p_before)
+        assert p_before.user_id is not None
+
+
+class TestListInvitedTrips:
+    async def test_invited_endpoint_returns_trip(self, client: AsyncClient, mock_email):
+        creator_email = f"creator_{secrets.token_hex(4)}@test.com"
+        invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
+
+        await client.post(
+            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+        await client.post(
+            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        r_c = await client.post(
+            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        headers_c = {"Authorization": f"Bearer {r_c.json()['access_token']}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "Invited Trip", "participant_emails": [invitee_email]},
+            headers=headers_c,
+        )
+        assert resp.status_code == 201
+        trip_id = resp.json()["id"]
+
+        r_i = await client.post(
+            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+        headers_i = {"Authorization": f"Bearer {r_i.json()['access_token']}"}
+
+        resp = await client.get(INVITED_URL, headers=headers_i)
+        assert resp.status_code == 200
+        ids = [t["id"] for t in resp.json()]
+        assert trip_id in ids
+
+    async def test_invited_excludes_own_created_trips(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "My Own Trip", "participant_emails": []},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
+
+        resp = await client.get(INVITED_URL, headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_invited_empty_when_no_invites(
+        self, client: AsyncClient, auth_headers
+    ):
+        resp = await client.get(INVITED_URL, headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_invited_no_auth_returns_401(self, client: AsyncClient):
+        resp = await client.get(INVITED_URL)
+        assert resp.status_code == 401
+
+    async def test_get_trips_does_not_include_invited_trips(
+        self, client: AsyncClient, mock_email
+    ):
+        creator_email = f"creator_{secrets.token_hex(4)}@test.com"
+        invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
+
+        await client.post(
+            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+        await client.post(
+            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        r_c = await client.post(
+            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
+        )
+        headers_c = {"Authorization": f"Bearer {r_c.json()['access_token']}"}
+        r_i = await client.post(
+            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
+        )
+        headers_i = {"Authorization": f"Bearer {r_i.json()['access_token']}"}
+
+        resp = await client.post(
+            TRIPS_URL,
+            json={"title": "Creator Trip", "participant_emails": [invitee_email]},
+            headers=headers_c,
+        )
+        assert resp.status_code == 201
+
+        # GET /trips/ as invitee — should not include creator's trip
+        resp = await client.get(TRIPS_URL, headers=headers_i)
+        assert resp.status_code == 200
+        assert resp.json() == []

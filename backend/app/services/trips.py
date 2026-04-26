@@ -89,12 +89,29 @@ async def create_trip(
         e for e in payload.participant_emails if e.lower() != creator.email.lower()
     ]
 
+    # Batch lookup users by lowercased email to link user_id on participant rows
+    lowered = [e.lower() for e in invite_emails]
+    email_to_user_id: dict[str, int] = {}
+    if lowered:
+        user_rows = (
+            await db.execute(
+                select(User.id, func.lower(User.email)).where(
+                    func.lower(User.email).in_(lowered)
+                )
+            )
+        ).all()
+        email_to_user_id = {email: uid for uid, email in user_rows}
+
     participants: list[Participant] = []
     used_pins: set[str] = set()
     for email in invite_emails:
         token = secrets.token_urlsafe(32)
         participant = Participant(
-            trip_id=trip.id, email=email, token=token, pin=_next_unique_pin(used_pins)
+            trip_id=trip.id,
+            email=email,
+            token=token,
+            pin=_next_unique_pin(used_pins),
+            user_id=email_to_user_id.get(email.lower()),
         )
         db.add(participant)
         participants.append(participant)
@@ -157,6 +174,57 @@ async def list_trips_for_user(user_id: int, db: AsyncSession) -> list[TripSummar
             pref_submitted_sq.label("preferences_submitted_count"),
         )
         .where(Trip.creator_id == user_id)
+        .order_by(Trip.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    summaries = []
+    for trip, participant_count, preferences_submitted_count in result.all():
+        summaries.append(
+            TripSummary.model_validate(
+                {
+                    "id": trip.id,
+                    "trip_code": trip.trip_code,
+                    "title": trip.title,
+                    "destination": trip.destination,
+                    "status": trip.status,
+                    "participant_count": participant_count,
+                    "preferences_submitted_count": preferences_submitted_count,
+                    "created_at": trip.created_at,
+                }
+            )
+        )
+    return summaries
+
+
+async def list_invited_trips_for_user(
+    user_id: int, db: AsyncSession
+) -> list[TripSummary]:
+    participant_count_sq = (
+        select(func.count(Participant.id))
+        .where(Participant.trip_id == Trip.id)
+        .correlate(Trip)
+        .scalar_subquery()
+    )
+    pref_submitted_sq = (
+        select(func.count(Participant.id))
+        .where(
+            Participant.trip_id == Trip.id,
+            Participant.preferences_submitted.is_(True),
+        )
+        .correlate(Trip)
+        .scalar_subquery()
+    )
+    stmt = (
+        select(
+            Trip,
+            participant_count_sq.label("participant_count"),
+            pref_submitted_sq.label("preferences_submitted_count"),
+        )
+        .join(Participant, Participant.trip_id == Trip.id)
+        .where(
+            Participant.user_id == user_id,
+            Trip.creator_id != user_id,
+        )
         .order_by(Trip.created_at.desc())
     )
     result = await db.execute(stmt)

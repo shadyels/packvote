@@ -22,6 +22,7 @@ from app.services.trips import (
     create_trip,
     delete_trip,
     get_trip,
+    list_invited_trips_for_user,
     list_itineraries_for_trip,
     list_participants_for_trip,
     list_trips_for_user,
@@ -38,6 +39,14 @@ async def list_trips(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[TripSummary]:
     return await list_trips_for_user(current_user.id, db)
+
+
+@router.get("/invited", response_model=list[TripSummary])
+async def list_invited(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[TripSummary]:
+    return await list_invited_trips_for_user(current_user.id, db)
 
 
 @router.post("/", response_model=TripResponse, status_code=201)
