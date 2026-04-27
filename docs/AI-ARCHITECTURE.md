@@ -66,11 +66,12 @@ Templates are stored as a single string in `prompt_templates` using `[SYSTEM]\n.
 **Seeded at runtime, not via migration:**
 `_upsert_prompt_template()` in `services/generation.py` does SELECT then INSERT if missing on every generation run. Idempotent. Do NOT create an Alembic data migration for this.
 
-## JSON Serialization of Itinerary Fields
+## JSON Columns for Structured Fields
 
-`Itinerary.daily_itinerary_json` and `Itinerary.highlights` are `Text` columns storing JSON strings (not native JSON columns) for SQLite/PostgreSQL portability. Always serialize with:
-- `json.dumps([day.model_dump() for day in ...])`
-- Use `.model_dump()` not `dict()` for nested Pydantic models.
+`Itinerary.daily_itinerary` (`list`), `Itinerary.highlights` (`list[str]`), `Preference.activity_tags` (`list[str] | None`), `Vote.rankings` (`list[int]`), and `VoteRound.results` (`dict`) are native `JSON` columns. SQLAlchemy serializes/deserializes automatically — no `json.dumps`/`json.loads` at call sites.
+
+When assigning from Pydantic models, use `.model_dump()` to produce plain dicts/lists before storing:
+- `[day.model_dump() for day in daily_itinerary]`
 
 ## Background Tasks and Session Isolation
 
