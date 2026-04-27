@@ -136,7 +136,6 @@ Radix's `asChild` clones `onClick`/`aria-*` onto the child; Base UI's `ButtonPri
   - Renders `DailyActivity.estimated_cost` (if not null) as `~{currency}{cost} per person` in brand orange.
 
 - `STATUS_CONFIG` — `frontend/src/lib/trip-status.ts`
-- `parseJson` (safe JSON.parse with fallback) — `frontend/src/lib/utils.ts`
 
 ## CSS Animations
 

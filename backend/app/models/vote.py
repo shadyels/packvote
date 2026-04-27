@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -17,9 +17,7 @@ class Vote(Base):
     )
     trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), nullable=False)
     iteration_number: Mapped[int] = mapped_column(Integer, default=1)
-    rankings_json: Mapped[str] = mapped_column(
-        Text, nullable=False
-    )  # JSON: [itinerary_id, ...]
+    rankings: Mapped[list[int]] = mapped_column(JSON, nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

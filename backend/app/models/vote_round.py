@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -18,9 +18,7 @@ class VoteRound(Base):
     eliminated_option_id: Mapped[int | None] = mapped_column(
         ForeignKey("itineraries.id")
     )
-    results_json: Mapped[str] = mapped_column(
-        Text, nullable=False
-    )  # JSON: {itinerary_id: vote_count}
+    results: Mapped[dict] = mapped_column(JSON, nullable=False)
     winner_id: Mapped[int | None] = mapped_column(ForeignKey("itineraries.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

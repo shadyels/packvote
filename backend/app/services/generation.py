@@ -12,7 +12,6 @@ On total failure the trip is reset to COLLECTING_PREFERENCES so the creator can 
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from datetime import UTC, datetime
@@ -305,13 +304,11 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
             option_title=option.option_title,
             destination_name=option.destination_name,
             destination_description=option.destination_description,
-            daily_itinerary_json=json.dumps(
-                [day.model_dump() for day in option.daily_itinerary]
-            ),
+            daily_itinerary=[day.model_dump() for day in option.daily_itinerary],
             total_estimated_budget=option.total_estimated_budget,
             currency=option.currency,
             match_reasoning=option.match_reasoning,
-            highlights=json.dumps(option.highlights),
+            highlights=option.highlights,
             prompt_version_id=template.id,
             model_used=get_settings().DEFAULT_AI_MODEL,
             provider=provider_name,
@@ -476,12 +473,7 @@ def _build_preferences_block(preferences: list[Preference]) -> str:
             lines.append(f"  - Interests: {pref.interests}")
 
         if pref.activity_tags:
-            try:
-                tags = json.loads(pref.activity_tags)
-                if tags:
-                    lines.append(f"  - Activity tags: {', '.join(tags)}")
-            except (json.JSONDecodeError, TypeError):
-                pass
+            lines.append(f"  - Activity tags: {', '.join(pref.activity_tags)}")
 
         lines.append("")  # blank line between participants
 

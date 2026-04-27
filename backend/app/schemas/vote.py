@@ -12,7 +12,7 @@ class VoteResponse(BaseModel):
     participant_id: int | None
     trip_id: int
     iteration_number: int
-    rankings_json: str
+    rankings: list[int]
     submitted_at: datetime
 
     model_config = {"from_attributes": True}

@@ -2,7 +2,6 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import type { Itinerary } from "@/types";
-import { parseJson } from "@/lib/utils";
 
 interface SortableRankItemProps {
   itinerary: Itinerary;
@@ -38,11 +37,8 @@ export function SortableRankItem({
     transition,
   };
 
-  // Parse day count from daily_itinerary_json
-  const days = parseJson<unknown[]>(itinerary.daily_itinerary_json, []).length;
-
-  // Parse highlight count
-  const highlights = parseJson<string[]>(itinerary.highlights, []).length;
+  const days = itinerary.daily_itinerary.length;
+  const highlights = itinerary.highlights.length;
 
   return (
     <div

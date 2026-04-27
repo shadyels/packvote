@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -47,22 +46,22 @@ async def voting_context(
         iteration_number=1,
         destination_name="Destination A",
         destination_description="Desc A",
-        daily_itinerary_json=json.dumps([]),
+        daily_itinerary=[],
         total_estimated_budget=1000.0,
         currency="USD",
         match_reasoning="reason",
-        highlights=json.dumps(["h1"]),
+        highlights=["h1"],
     )
     itin2 = Itinerary(
         trip_id=trip_id,
         iteration_number=1,
         destination_name="Destination B",
         destination_description="Desc B",
-        daily_itinerary_json=json.dumps([]),
+        daily_itinerary=[],
         total_estimated_budget=1200.0,
         currency="USD",
         match_reasoning="reason",
-        highlights=json.dumps(["h2"]),
+        highlights=["h2"],
     )
     db.add(itin1)
     db.add(itin2)

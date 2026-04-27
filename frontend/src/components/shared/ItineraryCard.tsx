@@ -8,9 +8,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { parseJson } from "@/lib/utils";
 import { useDestinationImage } from "@/lib/unsplash";
-import type { Itinerary, DayItinerary } from "@/types";
+import type { Itinerary } from "@/types";
 import { DayDetailDrawer } from "./DayDetailDrawer";
 
 const VISIBLE_DAY_LIMIT = 5;
@@ -73,8 +72,8 @@ export function ItineraryCard({
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [showAllDays, setShowAllDays] = useState(false);
 
-  const highlights = parseJson<string[]>(itinerary.highlights, []);
-  const days = parseJson<DayItinerary[]>(itinerary.daily_itinerary_json, []);
+  const highlights = itinerary.highlights;
+  const days = itinerary.daily_itinerary;
   const visibleDays = showAllDays ? days : days.slice(0, VISIBLE_DAY_LIMIT);
 
   return (

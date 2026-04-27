@@ -91,11 +91,11 @@ export interface Itinerary {
   option_title: string | null;
   destination_name: string;
   destination_description: string;
-  daily_itinerary_json: string;
+  daily_itinerary: DayItinerary[];
   total_estimated_budget: number;
   currency: string;
   match_reasoning: string;
-  highlights: string;
+  highlights: string[];
   model_used: string | null;
   provider: string | null;
   created_at: string;
@@ -110,7 +110,7 @@ export interface Vote {
   participant_id: number;
   trip_id: number;
   iteration_number: number;
-  rankings_json: string;
+  rankings: number[];
   submitted_at: string;
 }
 

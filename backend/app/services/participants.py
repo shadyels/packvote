@@ -1,5 +1,3 @@
-import json
-
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -144,10 +142,6 @@ async def submit_preferences(
     )
     pref = result.scalar_one_or_none()
 
-    tags_json = (
-        json.dumps(payload.activity_tags) if payload.activity_tags is not None else None
-    )
-
     if pref is None:
         pref = Preference(
             participant_id=participant.id,
@@ -158,7 +152,7 @@ async def submit_preferences(
             budget_max=payload.budget_max,
             currency=payload.currency,
             interests=payload.interests,
-            activity_tags=tags_json,
+            activity_tags=payload.activity_tags,
         )
         db.add(pref)
     else:
@@ -168,7 +162,7 @@ async def submit_preferences(
         pref.budget_max = payload.budget_max
         pref.currency = payload.currency
         pref.interests = payload.interests
-        pref.activity_tags = tags_json
+        pref.activity_tags = payload.activity_tags
 
     if payload.name is not None:
         stripped = payload.name.strip()

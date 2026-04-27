@@ -70,7 +70,7 @@ def _make_pref(**kwargs) -> Preference:
         budget_max=1500.0,
         currency="USD",
         interests="beaches, local food",
-        activity_tags='["beach", "snorkeling"]',
+        activity_tags=["beach", "snorkeling"],
         submitted_at=NOW,
     )
     defaults.update(kwargs)
@@ -149,10 +149,6 @@ class TestBuildPreferencesBlock:
         assert "Participant 2" in result
         assert "Participant 3" in result
 
-    def test_invalid_activity_tags_json_ignored(self):
-        pref = _make_pref(activity_tags="not-valid-json")
-        result = _build_preferences_block([pref])
-        assert "Participant 1" in result  # still renders; tags are just skipped
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +355,7 @@ async def trip_with_preferences(db: AsyncSession):
             budget_max=2000.0,
             currency="USD",
             interests="beaches and hiking",
-            activity_tags='["beach", "hiking"]',
+            activity_tags=["beach", "hiking"],
         )
         db.add(pref)
 
