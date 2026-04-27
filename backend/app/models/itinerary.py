@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -17,11 +17,11 @@ class Itinerary(Base):
     option_title: Mapped[str | None] = mapped_column(String(255))
     destination_name: Mapped[str] = mapped_column(String(255), nullable=False)
     destination_description: Mapped[str] = mapped_column(Text, nullable=False)
-    daily_itinerary_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON
+    daily_itinerary: Mapped[list] = mapped_column(JSON, nullable=False)
     total_estimated_budget: Mapped[float] = mapped_column(Float, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     match_reasoning: Mapped[str] = mapped_column(Text, nullable=False)
-    highlights: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
+    highlights: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
     # AI generation metadata
     prompt_version_id: Mapped[int | None] = mapped_column(

@@ -1,4 +1,3 @@
-import json
 import logging
 
 from fastapi import BackgroundTasks, HTTPException, status
@@ -257,18 +256,17 @@ async def _upsert_vote(
     )
 
     vote = existing_result.scalar_one_or_none()
-    rankings_json = json.dumps(rankings)
 
     if vote is None:
         vote = Vote(
             participant_id=participant_id,
             trip_id=trip_id,
             iteration_number=iteration_number,
-            rankings_json=rankings_json,
+            rankings=rankings,
         )
         db.add(vote)
     else:
-        vote.rankings_json = rankings_json
+        vote.rankings = rankings
 
     await db.commit()
     await db.refresh(vote)
@@ -320,7 +318,7 @@ async def _load_stored_rounds(
     round_results = [
         VoteRoundResult(
             round_number=r.round_number,
-            results={int(k): v for k, v in json.loads(r.results_json).items()},
+            results={int(k): v for k, v in r.results.items()},
             eliminated_option_id=r.eliminated_option_id,
             winner_id=r.winner_id,
         )
@@ -354,7 +352,7 @@ async def _compute_and_persist_results(
     )
     votes = votes_result.scalars().all()
 
-    ballots = [json.loads(v.rankings_json) for v in votes]
+    ballots = [v.rankings for v in votes]
 
     itin_result = await db.execute(
         select(Itinerary.id).where(
@@ -381,7 +379,7 @@ async def _compute_and_persist_results(
                     iteration_number=iteration_number,
                     round_number=r.round_number,
                     eliminated_option_id=r.eliminated_option_id,
-                    results_json=json.dumps(r.results),
+                    results=r.results,
                     winner_id=r.winner_id,
                 )
             )

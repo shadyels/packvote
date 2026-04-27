@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cn, parseJson } from "../utils";
+import { cn } from "../utils";
 
 describe("cn", () => {
   it("merges class names", () => {
@@ -17,27 +17,5 @@ describe("cn", () => {
 
   it("handles undefined and null gracefully", () => {
     expect(cn("base", undefined, null, "extra")).toBe("base extra");
-  });
-});
-
-describe("parseJson", () => {
-  it("parses a valid JSON array", () => {
-    expect(parseJson<number[]>("[1,2,3]", [])).toEqual([1, 2, 3]);
-  });
-
-  it("parses a valid JSON object", () => {
-    expect(parseJson<{ a: number }>('{"a":1}', { a: 0 })).toEqual({ a: 1 });
-  });
-
-  it("returns fallback on invalid JSON", () => {
-    expect(parseJson<number[]>("not json", [])).toEqual([]);
-  });
-
-  it("returns fallback on empty string", () => {
-    expect(parseJson<string>("", "default")).toBe("default");
-  });
-
-  it("parses JSON null as null (not fallback)", () => {
-    expect(parseJson<null>("null", null)).toBeNull();
   });
 });

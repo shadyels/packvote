@@ -434,22 +434,22 @@ class TestParticipantsEndpointVoteStatus:
             iteration_number=1,
             destination_name="A",
             destination_description="Desc A",
-            daily_itinerary_json="[]",
+            daily_itinerary=[],
             total_estimated_budget=1000.0,
             currency="USD",
             match_reasoning="r",
-            highlights='["h"]',
+            highlights=["h"],
         )
         itin2 = Itinerary(
             trip_id=trip_id,
             iteration_number=1,
             destination_name="B",
             destination_description="Desc B",
-            daily_itinerary_json="[]",
+            daily_itinerary=[],
             total_estimated_budget=1200.0,
             currency="USD",
             match_reasoning="r",
-            highlights='["h"]',
+            highlights=["h"],
         )
         db.add(itin1)
         db.add(itin2)
@@ -470,7 +470,7 @@ class TestParticipantsEndpointVoteStatus:
                 participant_id=creator_participant.id,
                 trip_id=trip_id,
                 iteration_number=1,
-                rankings_json=f"[{itin1.id},{itin2.id}]",
+                rankings=[itin1.id, itin2.id],
             )
         )
         await db.commit()

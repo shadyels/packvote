@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import secrets
 
 import pytest
@@ -79,11 +78,11 @@ def _make_itinerary(
         iteration_number=iteration,
         destination_name="Test Destination",
         destination_description="A lovely place.",
-        daily_itinerary_json=json.dumps([]),
+        daily_itinerary=[],
         total_estimated_budget=1000.0,
         currency="USD",
         match_reasoning="Great match.",
-        highlights=json.dumps(["highlight1"]),
+        highlights=["highlight1"],
     )
     defaults.update(kwargs)
     itin = Itinerary(**defaults)
@@ -148,7 +147,7 @@ class TestSubmitParticipantVote:
         assert vote.participant_id == s["participant"].id
         assert vote.trip_id == s["trip"].id
         assert vote.iteration_number == 1
-        assert json.loads(vote.rankings_json) == itin_ids
+        assert vote.rankings == itin_ids
 
     async def test_invalid_token(self, db: AsyncSession, voting_setup) -> None:
         from fastapi import HTTPException
@@ -225,7 +224,7 @@ class TestSubmitParticipantVote:
         vote2 = await submit_participant_vote(
             s["participant"].token, s["trip"].id, reversed_ids, db
         )
-        assert json.loads(vote2.rankings_json) == reversed_ids
+        assert vote2.rankings == reversed_ids
 
         from sqlalchemy import func, select
 
@@ -331,7 +330,7 @@ class TestGetOrComputeResults:
                 participant_id=s["participant"].id,
                 trip_id=s["trip"].id,
                 iteration_number=1,
-                rankings_json=json.dumps(itin_ids),
+                rankings=itin_ids,
             )
         )
         db.add(
@@ -339,7 +338,7 @@ class TestGetOrComputeResults:
                 participant_id=s["creator_participant"].id,
                 trip_id=s["trip"].id,
                 iteration_number=1,
-                rankings_json=json.dumps(itin_ids),
+                rankings=itin_ids,
             )
         )
         await db.flush()
@@ -360,7 +359,7 @@ class TestGetOrComputeResults:
             trip_id=s["trip"].id,
             iteration_number=1,
             round_number=1,
-            results_json=json.dumps({str(itin_ids[0]): 2, str(itin_ids[1]): 1}),
+            results={str(itin_ids[0]): 2, str(itin_ids[1]): 1},
             winner_id=itin_ids[0],
             eliminated_option_id=None,
         )

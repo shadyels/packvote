@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -24,7 +24,7 @@ class Preference(Base):
     budget_max: Mapped[float | None] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     interests: Mapped[str | None] = mapped_column(Text)  # free text
-    activity_tags: Mapped[str | None] = mapped_column(Text)  # JSON array of tags
+    activity_tags: Mapped[list[str] | None] = mapped_column(JSON)
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

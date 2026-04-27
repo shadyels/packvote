@@ -43,11 +43,11 @@ class ItineraryResponse(BaseModel):
     option_title: str | None
     destination_name: str
     destination_description: str
-    daily_itinerary_json: str
+    daily_itinerary: list[DayItinerary]
     total_estimated_budget: float
     currency: str
     match_reasoning: str
-    highlights: str
+    highlights: list[str]
     model_used: str | None
     provider: str | None
     created_at: datetime
