@@ -15,11 +15,13 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 ## Key Features
 
 - **AI itinerary generation** — Qwen-3-235B (Cerebras) generates complete day-by-day itineraries tailored to group preferences
-- **Ranked-choice voting** — full instant-runoff algorithm; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
+- **Ranked-choice voting** — full instant-runoff algorithm with drag-and-drop ranking UI; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
 - **Zero-friction participant flow** — no account required; join via a tokenized email link or trip code + 4-digit PIN
 - **Real-time status tracking** — 7 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → GENERATION\_FAILED → VOTING → ITERATING → FINALIZED) with polling and live UI updates
 - **Destination photography** — Unsplash API integration with in-memory caching, graceful gradient fallback, and proper attribution
-- **Transactional email** — Brevo-powered invitations containing the direct link and trip code + PIN
+- **Transactional email** — Brevo-powered invitations and password-reset emails containing direct links and trip code + PIN
+- **Password reset** — email-token flow for trip creators; forgot-password dialog + dedicated reset page
+- **Invited trips dashboard** — authenticated users see trips they were invited to as participants in a separate dashboard tab
 - **Multi-iteration support** — if no winner emerges, the creator triggers a new AI generation round (up to 10 iterations)
 - **AI observability** — every generation is logged with provider, model, latency, token counts, and raw response on failure
 
@@ -61,6 +63,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 | React Router v6 | Client-side routing |
 | Lucide React | Icons |
 | date-fns + react-day-picker v9 | Date utilities + custom drill-down calendar |
+| @dnd-kit/core + @dnd-kit/sortable | Drag-and-drop ranked-choice voting UI |
 | Sonner | Toast notifications |
 | Vitest + React Testing Library | Testing |
 
@@ -105,9 +108,14 @@ packvote/
 │   └── tests/              # Unit + integration tests (SQLite in-memory)
 └── frontend/
     └── src/
-        ├── components/     # Reusable UI (shadcn/ui + custom)
-        ├── pages/          # Route pages
-        ├── hooks/          # Custom React hooks (useTripDetail, useTripView, useAuth)
+        ├── components/
+        │   ├── auth/       # ForgotPasswordDialog
+        │   ├── dashboard/  # Trip overview, itineraries, participants, voting sections
+        │   ├── shared/     # ItineraryCard, DayDetailDrawer
+        │   ├── trip/       # Participant-facing screens (preferences, voting, winner)
+        │   └── ui/         # shadcn/ui primitives
+        ├── pages/          # Route pages (Landing, Login, Dashboard, Trip, ResetPassword, Join)
+        ├── hooks/          # Custom React hooks (useAuth, useTrip, useTripDetail, useTripView, useTrips, useInvitedTrips)
         ├── lib/            # API client, utilities, Unsplash integration
         └── types/          # TypeScript type definitions
 ```
