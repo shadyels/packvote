@@ -114,7 +114,7 @@ Read the relevant `docs/` file before working in any of these areas:
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
 
 ### Authentication
-- Trip creators: email + password
+- Trip creators: email + password + password reset via emailed token (`POST /auth/password-reset/request` → `POST /auth/password-reset/confirm`, 1-hour expiry, Brevo delivery)
 - Participants: token link OR trip code (8-char alphanumeric) + PIN (4 digits, per-participant)
 - No account required for participants
 
