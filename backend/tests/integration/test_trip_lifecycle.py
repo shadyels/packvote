@@ -328,7 +328,6 @@ class TestVotingLifecycle:
         )
         trip_id = s["trip"].id
         itin_ids = [i.id for i in s["itineraries"]]
-        creator_token = s["creator_participant"].token
         invitee_token = s["invitee_participant"].token
 
         # Login creator (user seeded with hashed password) for JWT

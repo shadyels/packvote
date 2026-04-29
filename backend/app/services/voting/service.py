@@ -294,21 +294,30 @@ async def _maybe_auto_tally(
     )
     vote_count = vote_count_result.scalar_one()
 
-    if vote_count >= eligible:
-        results = await _compute_and_persist_results(trip_id, iteration_number, db)
-        if results.winner_id is not None:
-            trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-            trip = trip_result.scalar_one_or_none()
-            if (
-                trip is not None
-                and trip.status == "VOTING"
-                and trip.winner_itinerary_id is None
-            ):
-                trip.winner_itinerary_id = results.winner_id
-                trip.status = "FINALIZED"
-                await db.commit()
-                await db.refresh(trip)
-                await _send_finalized_emails(trip, results.winner_id, db)
+    if vote_count < eligible:
+        return
+
+    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
+    trip = trip_result.scalar_one_or_none()
+    should_finalize = (
+        trip is not None
+        and trip.status == "VOTING"
+        and trip.winner_itinerary_id is None
+    )
+
+    results = await _compute_and_persist_results(
+        trip_id, iteration_number, db, commit=not should_finalize
+    )
+
+    if should_finalize and results.winner_id is not None:
+        trip.winner_itinerary_id = results.winner_id
+        trip.status = "FINALIZED"
+        await db.commit()
+        await db.refresh(trip)
+        await _send_finalized_emails(trip, results.winner_id, db)
+    elif should_finalize:
+        # Tie — rounds were flushed but not committed; commit now without finalizing
+        await db.commit()
 
 
 async def _load_stored_rounds(
@@ -356,6 +365,7 @@ async def _compute_and_persist_results(
     trip_id: int,
     iteration_number: int,
     db: AsyncSession,
+    commit: bool = True,
 ) -> VotingResults:
     votes_result = await db.execute(
         select(Vote).where(
@@ -396,7 +406,10 @@ async def _compute_and_persist_results(
                     winner_id=r.winner_id,
                 )
             )
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
 
     return results
 

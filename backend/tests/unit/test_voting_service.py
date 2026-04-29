@@ -324,8 +324,6 @@ class TestAutoTally:
         )
         await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
 
-        from sqlalchemy import select
-
         await db.refresh(s["trip"])
         assert s["trip"].status == "FINALIZED"
         assert s["trip"].winner_itinerary_id is not None
