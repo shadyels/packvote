@@ -7,8 +7,16 @@ broad coverage checks — unit tests cover edge cases.
 
 import asyncio
 import re
+import secrets
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import hash_password
+from app.models.itinerary import Itinerary
+from app.models.participant import Participant
+from app.models.trip import Trip
+from app.models.user import User
 
 REGISTER_URL = "/auth/register"
 LOGIN_URL = "/auth/login"
@@ -211,3 +219,197 @@ class TestInvitedTripsFlow:
         resp = await client.get(TRIPS_URL, headers=headers_b)
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+VOTE_URL = "/votes/trips/{trip_id}/vote/{token}"
+ADMIN_VOTE_URL = "/votes/trips/{trip_id}/admin-vote"
+TRIP_DETAIL_URL = "/trips/{trip_id}"
+
+
+async def _seed_voting_trip(
+    db: AsyncSession,
+    creator_email: str,
+    invitee_email: str,
+) -> dict:
+    """Seed a VOTING trip with 2 itineraries directly in the DB."""
+    creator = User(
+        email=creator_email,
+        hashed_password=hash_password("password123"),
+        full_name=None,
+    )
+    db.add(creator)
+    await db.flush()
+
+    trip = Trip(
+        trip_code=secrets.token_hex(4).upper()[:8],
+        creator_id=creator.id,
+        title="Voting Trip",
+        destination=None,
+        num_options=2,
+        status="VOTING",
+        max_iterations=10,
+        current_iteration=1,
+        winner_itinerary_id=None,
+    )
+    db.add(trip)
+    await db.flush()
+
+    creator_participant = Participant(
+        trip_id=trip.id,
+        email=creator_email,
+        user_id=creator.id,
+        token=secrets.token_urlsafe(32),
+        pin=secrets.token_hex(2)[:4],
+        preferences_submitted=True,
+    )
+    db.add(creator_participant)
+
+    invitee_participant = Participant(
+        trip_id=trip.id,
+        email=invitee_email,
+        token=secrets.token_urlsafe(32),
+        pin=secrets.token_hex(2)[:4],
+        preferences_submitted=True,
+    )
+    db.add(invitee_participant)
+    await db.flush()
+
+    itin1 = Itinerary(
+        trip_id=trip.id,
+        iteration_number=1,
+        destination_name="Destination A",
+        destination_description="Great place.",
+        daily_itinerary=[],
+        total_estimated_budget=1000.0,
+        currency="USD",
+        match_reasoning="Good fit.",
+        highlights=["highlight1"],
+    )
+    itin2 = Itinerary(
+        trip_id=trip.id,
+        iteration_number=1,
+        destination_name="Destination B",
+        destination_description="Also great.",
+        daily_itinerary=[],
+        total_estimated_budget=1200.0,
+        currency="USD",
+        match_reasoning="Also good.",
+        highlights=["highlight2"],
+    )
+    db.add(itin1)
+    db.add(itin2)
+    await db.flush()
+    await db.commit()
+
+    return {
+        "creator": creator,
+        "trip": trip,
+        "creator_participant": creator_participant,
+        "invitee_participant": invitee_participant,
+        "itineraries": [itin1, itin2],
+    }
+
+
+class TestVotingLifecycle:
+    async def test_all_votes_auto_finalize_trip(
+        self, client: AsyncClient, db: AsyncSession, mock_email, monkeypatch
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_svc = MagicMock()
+        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "app.services.email.brevo.EmailService.from_settings",
+            lambda: mock_svc,
+        )
+
+        s = await _seed_voting_trip(
+            db, "vote_creator@test.com", "vote_invitee@test.com"
+        )
+        trip_id = s["trip"].id
+        itin_ids = [i.id for i in s["itineraries"]]
+        invitee_token = s["invitee_participant"].token
+
+        # Login creator (user seeded with hashed password) for JWT
+        login = await client.post(
+            LOGIN_URL,
+            json={"email": "vote_creator@test.com", "password": "password123"},
+        )
+        assert login.status_code == 200, login.text
+        jwt = login.json()["access_token"]
+
+        # Invitee votes
+        resp = await client.post(
+            VOTE_URL.format(trip_id=trip_id, token=invitee_token),
+            json={"rankings": itin_ids},
+        )
+        assert resp.status_code == 201, resp.text
+
+        # Verify trip still VOTING (not yet finalized)
+        resp = await client.get(
+            TRIP_DETAIL_URL.format(trip_id=trip_id),
+            headers={"Authorization": f"Bearer {jwt}"},
+        )
+        assert resp.json()["status"] == "VOTING"
+
+        # Creator (admin) votes — triggers auto-finalize
+        resp = await client.post(
+            ADMIN_VOTE_URL.format(trip_id=trip_id),
+            json={"rankings": itin_ids},
+            headers={"Authorization": f"Bearer {jwt}"},
+        )
+        assert resp.status_code == 201, resp.text
+
+        # Trip must now be FINALIZED
+        resp = await client.get(
+            TRIP_DETAIL_URL.format(trip_id=trip_id),
+            headers={"Authorization": f"Bearer {jwt}"},
+        )
+        data = resp.json()
+        assert data["status"] == "FINALIZED"
+        assert data["winner_itinerary_id"] is not None
+
+    async def test_tie_does_not_auto_finalize(
+        self, client: AsyncClient, db: AsyncSession, mock_email, monkeypatch
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_svc = MagicMock()
+        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "app.services.email.brevo.EmailService.from_settings",
+            lambda: mock_svc,
+        )
+
+        s = await _seed_voting_trip(
+            db, "tie_creator@test.com", "tie_invitee@test.com"
+        )
+        trip_id = s["trip"].id
+        itin_ids = [i.id for i in s["itineraries"]]
+        invitee_token = s["invitee_participant"].token
+
+        login = await client.post(
+            LOGIN_URL,
+            json={"email": "tie_creator@test.com", "password": "password123"},
+        )
+        jwt = login.json()["access_token"]
+
+        # Opposing rankings → tie
+        await client.post(
+            VOTE_URL.format(trip_id=trip_id, token=invitee_token),
+            json={"rankings": itin_ids},
+        )
+        await client.post(
+            ADMIN_VOTE_URL.format(trip_id=trip_id),
+            json={"rankings": list(reversed(itin_ids))},
+            headers={"Authorization": f"Bearer {jwt}"},
+        )
+
+        resp = await client.get(
+            TRIP_DETAIL_URL.format(trip_id=trip_id),
+            headers={"Authorization": f"Bearer {jwt}"},
+        )
+        data = resp.json()
+        assert data["status"] == "VOTING"
+        assert data["winner_itinerary_id"] is None
+        mock_svc.send_finalized_notification.assert_not_called()
