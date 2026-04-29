@@ -313,6 +313,73 @@ class TestAutoTally:
         )
         assert len(rounds.scalars().all()) == 0
 
+    async def test_auto_finalize_when_all_voted_with_winner(
+        self, db: AsyncSession, voting_setup
+    ) -> None:
+        s = voting_setup
+        itin_ids = [i.id for i in s["itineraries"]]
+
+        await submit_participant_vote(
+            s["participant"].token, s["trip"].id, itin_ids, db
+        )
+        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+
+        from sqlalchemy import select
+
+        await db.refresh(s["trip"])
+        assert s["trip"].status == "FINALIZED"
+        assert s["trip"].winner_itinerary_id is not None
+
+    async def test_auto_tally_does_not_finalize_on_tie(
+        self, db: AsyncSession, voting_setup
+    ) -> None:
+        s = voting_setup
+        itin_ids = [i.id for i in s["itineraries"]]
+        reversed_ids = list(reversed(itin_ids))
+
+        # Each voter picks opposite order → perfect tie
+        await submit_participant_vote(
+            s["participant"].token, s["trip"].id, itin_ids, db
+        )
+        await submit_admin_vote(s["user"], s["trip"].id, reversed_ids, db)
+
+        from sqlalchemy import select
+
+        await db.refresh(s["trip"])
+        assert s["trip"].status == "VOTING"
+        assert s["trip"].winner_itinerary_id is None
+
+        rounds = await db.execute(
+            select(VoteRound).where(
+                VoteRound.trip_id == s["trip"].id,
+                VoteRound.iteration_number == 1,
+            )
+        )
+        assert len(rounds.scalars().all()) > 0
+
+    async def test_auto_finalize_sends_emails(
+        self, db: AsyncSession, voting_setup, monkeypatch
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        s = voting_setup
+        itin_ids = [i.id for i in s["itineraries"]]
+
+        mock_svc = MagicMock()
+        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "app.services.email.brevo.EmailService.from_settings",
+            lambda: mock_svc,
+        )
+
+        await submit_participant_vote(
+            s["participant"].token, s["trip"].id, itin_ids, db
+        )
+        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+
+        # 2 participants (invitee + creator) → 2 finalized emails
+        assert mock_svc.send_finalized_notification.call_count == 2
+
 
 # ---------------------------------------------------------------------------
 # get_or_compute_results
@@ -414,6 +481,24 @@ class TestPickWinner:
         with pytest.raises(HTTPException) as exc:
             await pick_winner(s["user"], s["trip"].id, 99999, db)
         assert exc.value.status_code == 404
+
+    async def test_pick_winner_rejected_after_auto_finalize(
+        self, db: AsyncSession, voting_setup
+    ) -> None:
+        from fastapi import HTTPException
+
+        s = voting_setup
+        itin_ids = [i.id for i in s["itineraries"]]
+
+        await submit_participant_vote(
+            s["participant"].token, s["trip"].id, itin_ids, db
+        )
+        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+
+        # Trip is now FINALIZED — pick_winner must reject with 409
+        with pytest.raises(HTTPException) as exc:
+            await pick_winner(s["user"], s["trip"].id, itin_ids[0], db)
+        assert exc.value.status_code == 409
 
 
 # ---------------------------------------------------------------------------
