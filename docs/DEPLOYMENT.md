@@ -11,6 +11,8 @@ Two Railway services, both using **Railpack** builder:
 
 Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected automatically.
 
+**Live domain:** `packvote.shadyels.com` (custom domain configured in Railway dashboard on the frontend service).
+
 ## Start Commands
 
 **Backend:** `uv run alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`

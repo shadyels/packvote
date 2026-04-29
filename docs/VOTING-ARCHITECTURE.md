@@ -19,8 +19,8 @@
 **Pure algorithm separation:**
 `services/voting/ranked_choice.py` is a pure stateless function (no DB, no I/O). `services/voting/service.py` handles all DB operations and calls the algorithm. This keeps the algorithm trivially unit-testable without DB setup.
 
-**Auto-tally on last vote:**
-When all `Participant` rows for the trip have submitted votes for the current iteration, the tally runs automatically and persists `VoteRound` rows. `eligible = participant_count` — no `+1` fudge because the creator is already a participant. Results also available on-demand via `GET /votes/trips/{id}/results` (computes if not stored, uses stored rows if present).
+**Auto-tally and auto-finalize on last vote:**
+When all `Participant` rows for the trip have submitted votes for the current iteration, `_maybe_auto_tally` runs automatically. It persists `VoteRound` rows and, if the IRV algorithm produces a clear winner, commits `trip.status = "FINALIZED"` + `trip.winner_itinerary_id` atomically and fires finalized-itinerary emails — no admin action required. Ties leave the trip in `VOTING` for the admin to resolve via `pick_winner`. `eligible = participant_count` — no `+1` fudge because the creator is already a participant. Results also available on-demand via `GET /votes/trips/{id}/results` (computes if not stored, uses stored rows if present).
 
 **Participant vote auth uses token-in-path:**
 `POST /votes/trips/{trip_id}/vote/{token}` — same pattern as `POST /participants/{token}/preferences`.

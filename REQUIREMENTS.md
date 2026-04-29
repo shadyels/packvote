@@ -30,8 +30,9 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 
 ## Core Features (Phase 1)
 
-### F1: Trip Creator Authentication
+### F1: Trip Creator Authentication ✅
 - Email + password registration and login
+- Password reset via email token (Brevo-delivered link, 1-hour expiry)
 - Secure session/token management
 - Architecture must support adding OAuth (Google, etc.) later without rewrite
 - Authenticated dashboard showing all trips with status
@@ -348,7 +349,7 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 - **Database:** Railway managed PostgreSQL add-on (injects `DATABASE_URL` automatically)
 - **Config files:** `backend/railway.toml` and `frontend/railway.toml` committed to repo
 - **Environment variables:** Managed via Railway dashboard (never committed to repo)
-- **Domain:** Default Railway subdomain initially; custom domain can be added later
+- **Domain:** Custom domain live at `packvote.shadyels.com` (configured in Railway dashboard)
 
 ### Environment Variables Needed
 
@@ -381,7 +382,7 @@ Build in this order:
 8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls ✅
 9. **Frontend polish** — Design system (black/cream/orange), Unsplash images, responsive refinement ✅
 10. **Testing** — Full test suite, CI integration
-11. **Deployment** — Railway setup, environment config, live demo ✅ *(config files committed; Railway services need to be created and env vars set)*
+11. **Deployment** — Railway setup, environment config, live demo ✅ *(live at `packvote.shadyels.com`)*
 
 **Phase 2 (later):** Price monitoring agent
 

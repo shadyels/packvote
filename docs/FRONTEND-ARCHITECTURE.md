@@ -30,6 +30,7 @@ onSubmit={(e) => { void handleSubmit(e); }}
 - `/trip/:token/vote` → same `TripPage` (voting notification emails link here)
 - `/join/:token` → `JoinRedirect` — redirects to `/trip/:token` (invitation email links)
 - `/join` → `JoinPage` (trip code + PIN form, no email required)
+- `/reset-password` → `ResetPasswordPage` — consumes `?token=` query param from Brevo email link; calls `POST /auth/password-reset/confirm`
 
 ## Dashboard (F8)
 
