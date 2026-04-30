@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   MapPin,
   Users,
@@ -243,6 +244,13 @@ function FeatureBlock({
 }
 
 export default function LandingPage() {
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* ─── Standalone nav (transparent over hero) ─── */}
@@ -250,18 +258,37 @@ export default function LandingPage() {
         <nav className="mx-auto flex max-w-6xl items-center justify-between">
           <span className="text-xl font-bold text-white drop-shadow-sm">PackVote</span>
           <div className="flex items-center gap-3">
-            <Link
-              to="/join"
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-white/90 transition-colors hover:text-white"
-            >
-              Join a Trip
-            </Link>
-            <Link
-              to="/login"
-              className="rounded-md border border-white/30 bg-white/15 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/25"
-            >
-              Sign In
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-white/90 transition-colors hover:text-white"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="rounded-md border border-white/30 bg-white/15 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/join"
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-white/90 transition-colors hover:text-white"
+                >
+                  Join a Trip
+                </Link>
+                <Link
+                  to="/login"
+                  className="rounded-md border border-white/30 bg-white/15 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+                >
+                  Sign In
+                </Link>
+              </>
+            )}
           </div>
         </nav>
       </header>
@@ -305,18 +332,20 @@ export default function LandingPage() {
             style={{ animationDelay: "400ms", opacity: 0, animationFillMode: "forwards" }}
           >
             <Link
-              to="/login"
+              to={isAuthenticated ? "/dashboard" : "/login"}
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-150 hover:-translate-y-0.5 hover:bg-brand-hover hover:shadow-xl"
             >
               Create a Trip
               <ChevronRight className="h-4 w-4" />
             </Link>
-            <Link
-              to="/join"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-all duration-150 hover:bg-white/20"
-            >
-              Join a Trip
-            </Link>
+            {!isAuthenticated && (
+              <Link
+                to="/join"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-all duration-150 hover:bg-white/20"
+              >
+                Join a Trip
+              </Link>
+            )}
           </div>
         </div>
 
@@ -412,7 +441,7 @@ export default function LandingPage() {
             Start a trip in under a minute. Your group handles the rest.
           </p>
           <Link
-            to="/login"
+            to={isAuthenticated ? "/dashboard" : "/login"}
             className="inline-flex items-center gap-2 rounded-lg bg-brand px-8 py-3.5 text-sm font-semibold text-white shadow-lg transition-all duration-150 hover:-translate-y-0.5 hover:bg-brand-hover hover:shadow-xl"
           >
             Create a Trip
