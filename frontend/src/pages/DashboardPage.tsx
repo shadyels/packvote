@@ -1,4 +1,5 @@
 import { MapPin, RefreshCw } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { useTrips } from "@/hooks/useTrips";
 import { useInvitedTrips } from "@/hooks/useInvitedTrips";
 import TripCard from "@/components/TripCard";
@@ -26,6 +27,7 @@ function TripGrid({
   emptyTitle,
   emptyBody,
   hrefFn,
+  navStateFn,
 }: {
   trips: Parameters<typeof TripCard>[0]["trip"][];
   isLoading: boolean;
@@ -34,6 +36,7 @@ function TripGrid({
   emptyTitle: string;
   emptyBody: string;
   hrefFn?: (trip: Parameters<typeof TripCard>[0]["trip"]) => string;
+  navStateFn?: (trip: Parameters<typeof TripCard>[0]["trip"]) => Record<string, string>;
 }) {
   return (
     <>
@@ -79,6 +82,7 @@ function TripGrid({
               key={trip.id}
               trip={trip}
               href={hrefFn ? hrefFn(trip) : undefined}
+              navState={navStateFn ? navStateFn(trip) : undefined}
             />
           ))}
         </div>
@@ -96,6 +100,12 @@ export default function DashboardPage() {
     refetch: refetchInvited,
   } = useInvitedTrips();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const VALID_TABS = ["created", "invited"] as const;
+  type TabValue = typeof VALID_TABS[number];
+  const rawTab = searchParams.get("tab");
+  const activeTab: TabValue = (VALID_TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as TabValue) : "created";
+
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="max-w-6xl mx-auto">
@@ -110,7 +120,10 @@ export default function DashboardPage() {
           <CreateTripDialog onCreated={() => { refetch(); refetchInvited(); }} />
         </div>
 
-        <Tabs defaultValue="created">
+        <Tabs
+          value={activeTab}
+          onValueChange={(tab: string) => { setSearchParams({ tab }, { replace: true }); }}
+        >
           <TabsList variant="line" className="w-full justify-start border-b border-border rounded-none gap-4 mb-6 bg-transparent px-0">
             <TabsTrigger value="created">
               Created
@@ -145,6 +158,7 @@ export default function DashboardPage() {
                 const t = trip as typeof invitedTrips[number];
                 return `/trip/${t.participant_token}`;
               }}
+              navStateFn={() => ({ from: "dashboard-invited" })}
             />
           </TabsContent>
         </Tabs>
