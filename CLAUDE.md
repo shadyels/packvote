@@ -6,6 +6,21 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 
 ---
 
+## Commands
+
+**Backend** (from `backend/`):
+- `uv run fastapi dev app/main.py` — dev server (port 8000)
+- `uv run pytest` — all tests | `-m "not live"` skips AI live tests
+- `uv run ruff check . && uv run ruff format .` — lint + format
+
+**Frontend** (from `frontend/`):
+- `pnpm dev` — dev server
+- `pnpm test` — vitest watch
+- `pnpm lint` — eslint zero-warnings
+- `pnpm build` — tsc + vite build
+
+---
+
 ## Tech Stack
 
 ### Backend
@@ -52,6 +67,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 - All API response types in `types/`
 - No `any` types — strict TypeScript
 - Async handlers: `onClick={() => { void handleAsync(); }}` (enforced by `no-misused-promises`)
+- Auth state: `contexts/AuthContext.tsx` + `hooks/useAuth.ts` — do not replicate elsewhere
 
 ### Git
 - **Branching:** `main` + feature branches (`feat/`, `fix/`, `refactor/`, etc.)
@@ -84,6 +100,10 @@ Read the relevant `docs/` file before working in any of these areas:
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
 | **Testing** | Unit in `tests/unit/`, integration uses SQLite+MockEmail, AI tests need `@pytest.mark.live`. | `docs/TESTING.md` |
+
+### AI service split
+`services/generation.py` — orchestration entry point (`run_generation(trip_id, session_factory)`). Edit here for pipeline changes.
+`services/ai/` — provider layer (Cerebras client, JSON utils, base class). Edit here for provider changes.
 
 ### Participant ↔ User linking
 `Participant.user_id` is set in two places — keep both in sync if the logic ever changes:
