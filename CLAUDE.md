@@ -29,7 +29,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 
 ### Infrastructure
 - **Deployment:** Railway — builder is **Railpack** (do NOT use `builder = "nixpacks"`)
-- **CI/CD:** GitHub Actions (do NOT modify `.github/workflows/`)
+- **CI/CD:** GitHub Actions
 
 ---
 
@@ -56,7 +56,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 ### Git
 - **Branching:** `main` + feature branches (`feat/`, `fix/`, `refactor/`, etc.)
 - **Commits:** Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`, `style:`)
-- **PRs:** All changes go through PRs to `main`. Never push directly to `main`.
+- **PRs:** All changes go through PRs to `main`.
 
 ---
 
