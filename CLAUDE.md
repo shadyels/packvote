@@ -33,35 +33,6 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 
 ---
 
-## Commands
-
-### Backend
-```bash
-cd backend
-uv sync                          # Install dependencies
-uv run alembic upgrade head      # Run database migrations
-uv run uvicorn app.main:app --reload  # Start dev server
-uv run pytest                    # Run all tests
-uv run pytest tests/unit         # Run unit tests only
-uv run pytest tests/integration  # Run integration tests (HTTP + in-memory SQLite)
-uv run pytest tests/ai -m live   # Run live AI tests (uses real API credits)
-uv run ruff check .              # Lint
-uv run ruff format .             # Format
-```
-
-### Frontend
-```bash
-cd frontend
-pnpm install                     # Install dependencies
-pnpm dev                         # Start dev server
-pnpm build                       # Production build
-pnpm test                        # Run tests (Vitest)
-pnpm lint                        # ESLint
-pnpm format                      # Prettier
-```
-
----
-
 ## Code Conventions
 
 ### Python (Backend)
@@ -112,11 +83,7 @@ Read the relevant `docs/` file before working in any of these areas:
 | **Voting** | Pure algorithm in `ranked_choice.py`, DB ops in `service.py`. | `docs/VOTING-ARCHITECTURE.md` |
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
-
-### Authentication
-- Trip creators: email + password + password reset via emailed token (`POST /auth/password-reset/request` → `POST /auth/password-reset/confirm`, 1-hour expiry, Brevo delivery)
-- Participants: token link OR trip code (8-char alphanumeric) + PIN (4 digits, per-participant)
-- No account required for participants
+| **Testing** | Unit in `tests/unit/`, integration uses SQLite+MockEmail, AI tests need `@pytest.mark.live`. | `docs/TESTING.md` |
 
 ### Participant ↔ User linking
 `Participant.user_id` is set in two places — keep both in sync if the logic ever changes:
@@ -131,35 +98,13 @@ Price monitoring agent for finalized trips.
 
 ---
 
-## Testing Strategy
-
-### Backend
-- Unit tests for all `services/` logic in `tests/unit/`
-- Integration tests in `tests/integration/` — smoke E2E coverage for auth, trip creation, and participant access, using in-memory SQLite + `MockEmailService`. CI gates on these collecting + passing (exit 5 if empty).
-- AI tests: mocked by default; `@pytest.mark.live` for real API calls (manual only)
-
-### Frontend
-- Vitest + React Testing Library
-- Component rendering, user flows, mocked API
-
-### CI/CD
-- Every push/PR: lint → type check → unit → integration tests (mocked AI)
-- Live AI tests: manual trigger only
-
----
-
 ## Hard Constraints
 
 1. **NEVER read `.env` files directly.** All env var access via `app/core/config.py`.
 2. **NEVER push to `main`.** Always use feature branches.
 3. **NEVER modify `.github/workflows/` files.**
 4. **NEVER approve or merge PRs.** You may open PRs only.
-
----
-
-## Workflow
-
-- Use **Plan Mode** as default for all non-trivial changes.
-- Read relevant code first, create a plan, get approval, then implement.
-- For trivial fixes (typos, single-line changes), normal mode is fine.
-- Always explain what you intend to do and wait for confirmation before making changes.
+5. **NEVER create git branches directly** — a git hook blocks it. Propose the branch name and wait for the user to create it.
+6. **NEVER create PRs directly** — prepare the PR title and description for the user to submit manually.
+7. **One phase per branch.** Complete the current phase → open PR → wait for merge → pull `main` → new branch → only then start next phase.
+8. **Before opening a PR:** remove all dead/unused code.
