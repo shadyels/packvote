@@ -5,6 +5,7 @@
 The shadcn components in this project use `@base-ui/react` primitives (not `@radix-ui`). Key API differences:
 - `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
 - `Select.Root` `onValueChange` callback is `(value: string | null, eventDetails) => void` — guard against null before calling setState
+- `Select.Value` renders the raw value string, not the `ItemText` label. Pass explicit children to display a label: `<SelectValue>{label ?? rawValue}</SelectValue>`. See `TripOverviewSection` for the pattern.
 - `Tabs` uses `data-[active]:` for active tab styling (Tailwind v3 arbitrary data-attribute variant — NOT `data-active:` which is invalid syntax and generates nothing)
 - `TabsList` `line` variant includes `overflow-x-auto scrollbar-hide` for horizontal scroll on mobile. `.scrollbar-hide` is defined in `globals.css`.
 
@@ -39,7 +40,10 @@ onSubmit={(e) => { void handleSubmit(e); }}
 
 `useInvitedTrips` hook (`frontend/src/hooks/useInvitedTrips.ts`) fetches `GET /trips/invited` and returns `{ trips: InvitedTripSummary[], isLoading, error, refetch }`. `InvitedTripSummary` extends `TripSummary` with a `participant_token` field used to build the link `href=/trip/:token`.
 
-`TripGrid` component (local to `DashboardPage`) is a shared render helper for both tabs — accepts `{ trips, isLoading, error, refetch, emptyTitle, emptyBody, hrefFn? }`. The Invited tab passes `hrefFn={(trip) => /trip/${trip.participant_token}}`.
+`TripGrid` component (local to `DashboardPage`) is a shared render helper for both tabs — accepts `{ trips, isLoading, error, refetch, emptyTitle, emptyBody, hrefFn?, navStateFn? }`. The Invited tab passes `hrefFn={(trip) => /trip/${trip.participant_token}}`.
+
+**URL-driven tab state:**
+`DashboardPage` controls the active tab via `?tab=` query param (`useSearchParams`). `/dashboard?tab=invited` is a stable, bookmarkable URL. Tab changes call `setSearchParams({ tab }, { replace: true })` — do NOT store active tab in `useState`. The Invited tab passes `navStateFn={() => ({ from: "dashboard-invited" })}` to `TripGrid`; this is forwarded as `location.state` when navigating to an invited trip via `TripCard`.
 
 **`useTripDetail` hook:**
 `frontend/src/hooks/useTripDetail.ts` orchestrates parallel fetches (trip, participants, itineraries, voting results, AI logs) via `Promise.allSettled`. Polls every 5s when `trip.status === "GENERATING"`, stops on status change or unmount.
@@ -81,6 +85,9 @@ Payload: `{ trip_code, pin }`. PIN is per-participant, so `trip_code + pin` uniq
 
 **`useTripView` hook:**
 `frontend/src/hooks/useTripView.ts` polls every 5s while `trip.status === "GENERATING"`, stops on status change or unmount.
+
+**Conditional back navigation (location.state pattern):**
+`TripPage` reads `location.state` via `useLocation()`. When `state.from === "dashboard-invited"`, a "← My Trips" button is rendered linking to `/dashboard?tab=invited`. When no state is present (user arrived via email link), the button is hidden. Use `location.state` for UI-only context that must not survive a page reload; encode navigation-critical state in URL params instead.
 
 **Participant trip component structure:**
 `frontend/src/components/trip/` — `TripHeader`, `TripDetails`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`, `SortableRankItem`. `TripPage.tsx` is the state machine rendering the correct one based on status and `has_voted`.
@@ -145,5 +152,8 @@ Radix's `asChild` clones `onClick`/`aria-*` onto the child; Base UI's `ButtonPri
 ## Landing Page
 
 Standalone layout outside `LayoutWrapper` — own nav header and `<Footer />`. Route declared at top level before `LayoutWrapper`.
+
+**Auth-aware navigation:**
+`LandingPage` imports `useAuth()` to conditionally render nav links and CTAs. Authenticated users: "Dashboard" + "Logout" in header, "Create a Trip" CTA → `/dashboard`. Unauthenticated: "Join a Trip" + "Sign In" in header, "Create a Trip" CTA → `/login`. "Join a Trip" is hidden when authenticated. Always check `isAuthenticated` in standalone layouts (outside `LayoutWrapper`) — they don't get auth guarding via `ProtectedRoute`.
 
 Hero uses radial vignette overlay. Bottom CTA section: `bg-[#192840]` with top fade dissolving from offwhite. Feature Highlights section uses `rounded-3xl bg-card border border-border` floating card container.

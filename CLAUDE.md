@@ -97,7 +97,7 @@ Read the relevant `docs/` file before working in any of these areas:
 |------|---------------|-------------|
 | **AI service** | Use `extract_json()`, never `json.loads()`. Pass `session_factory` (not `session`) to background tasks. | `docs/AI-ARCHITECTURE.md` |
 | **Voting** | Pure algorithm in `ranked_choice.py`, DB ops in `service.py`. | `docs/VOTING-ARCHITECTURE.md` |
-| **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. | `docs/FRONTEND-ARCHITECTURE.md` |
+| **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
 | **Testing** | Unit in `tests/unit/`, integration uses SQLite+MockEmail, AI tests need `@pytest.mark.live`. | `docs/TESTING.md` |
 
