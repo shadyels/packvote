@@ -40,13 +40,17 @@ def upgrade() -> None:
 
     op.alter_column("votes", "rankings_json", new_column_name="rankings")
     op.alter_column("vote_rounds", "results_json", new_column_name="results")
-    op.alter_column("itineraries", "daily_itinerary_json", new_column_name="daily_itinerary")
+    op.alter_column(
+        "itineraries", "daily_itinerary_json", new_column_name="daily_itinerary"
+    )
 
 
 def downgrade() -> None:
     op.alter_column("votes", "rankings", new_column_name="rankings_json")
     op.alter_column("vote_rounds", "results", new_column_name="results_json")
-    op.alter_column("itineraries", "daily_itinerary", new_column_name="daily_itinerary_json")
+    op.alter_column(
+        "itineraries", "daily_itinerary", new_column_name="daily_itinerary_json"
+    )
 
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":

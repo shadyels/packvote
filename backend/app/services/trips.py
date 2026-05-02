@@ -230,7 +230,12 @@ async def list_invited_trips_for_user(
     )
     result = await db.execute(stmt)
     summaries = []
-    for trip, participant_count, preferences_submitted_count, participant_token in result.all():
+    for (
+        trip,
+        participant_count,
+        preferences_submitted_count,
+        participant_token,
+    ) in result.all():
         summaries.append(
             InvitedTripSummary.model_validate(
                 {

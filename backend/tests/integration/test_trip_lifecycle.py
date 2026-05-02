@@ -381,9 +381,7 @@ class TestVotingLifecycle:
             lambda: mock_svc,
         )
 
-        s = await _seed_voting_trip(
-            db, "tie_creator@test.com", "tie_invitee@test.com"
-        )
+        s = await _seed_voting_trip(db, "tie_creator@test.com", "tie_invitee@test.com")
         trip_id = s["trip"].id
         itin_ids = [i.id for i in s["itineraries"]]
         invitee_token = s["invitee_participant"].token
