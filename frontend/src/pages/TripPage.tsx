@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { useTripView } from "@/hooks/useTripView";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { TripDetails } from "@/components/trip/TripDetails";
@@ -13,6 +14,7 @@ import { WinnerDisplay } from "@/components/trip/WinnerDisplay";
 export default function TripPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   if (!token) {
     return (
@@ -22,15 +24,20 @@ export default function TripPage() {
     );
   }
 
-  return <TripPageInner token={token} navigate={navigate} />;
+  const navState = location.state as { from?: string } | null;
+  const backTo = navState?.from === "dashboard-invited" ? "/dashboard?tab=invited" : null;
+
+  return <TripPageInner token={token} navigate={navigate} backTo={backTo} />;
 }
 
 function TripPageInner({
   token,
   navigate,
+  backTo,
 }: {
   token: string;
   navigate: ReturnType<typeof useNavigate>;
+  backTo: string | null;
 }) {
   const { data, isLoading, error, refetch } = useTripView(token);
 
@@ -72,6 +79,16 @@ function TripPageInner({
   return (
     <main className="min-h-screen bg-background px-4 py-8">
       <div className="max-w-2xl mx-auto space-y-6">
+        {backTo && (
+          <button
+            onClick={() => { navigate(backTo); }}
+            className="flex items-center gap-1.5 text-sm text-black/50 hover:text-black transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            My Trips
+          </button>
+        )}
+
         {/* Header */}
         <TripHeader trip={trip} />
 
