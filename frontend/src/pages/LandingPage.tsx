@@ -294,7 +294,7 @@ export default function LandingPage() {
       </header>
 
       {/* ─── Hero ─── */}
-      <section className="relative flex min-h-[85vh] items-center justify-center overflow-hidden">
+      <section className="relative flex min-h-screen min-h-[100svh] items-center justify-center overflow-hidden md:min-h-[85vh]">
         {/* Background photo */}
         <img src={heroImage.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
         {/* Vignette overlay — lighter at edges, denser in the middle */}
@@ -434,7 +434,7 @@ export default function LandingPage() {
         />
 
         {/* Content — centered in the dark area */}
-        <div className="relative z-10 mx-auto max-w-2xl px-4 pt-36 text-center">
+        <div className="relative z-10 mx-auto max-w-2xl px-4 pt-12 text-center md:pt-36">
           <MapPin className="mx-auto mb-5 h-10 w-10 text-brand" />
           <h2 className="mb-4 text-4xl font-bold text-white md:text-5xl">Ready to plan?</h2>
           <p className="mb-8 text-lg text-white/65">
