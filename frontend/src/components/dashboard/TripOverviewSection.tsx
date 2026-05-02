@@ -324,7 +324,16 @@ export function TripOverviewSection({
                 }}
               >
                 <SelectTrigger className="bg-card border-border text-black w-64">
-                  <SelectValue placeholder="Choose itinerary…" />
+                  <SelectValue placeholder="Choose itinerary…">
+                    {pickWinnerId
+                      ? (() => {
+                          const it = currentIterationItineraries.find(
+                            (i) => String(i.id) === pickWinnerId
+                          );
+                          return it?.option_title ?? it?.destination_name ?? pickWinnerId;
+                        })()
+                      : null}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border text-black">
                   {currentIterationItineraries.map((it) => (
