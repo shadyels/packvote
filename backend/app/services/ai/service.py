@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from cerebras.cloud.sdk import RateLimitError as CerebrasRateLimitError
+
 from app.core.config import get_settings
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
@@ -9,7 +11,8 @@ from app.services.ai.json_utils import AIInputError
 
 logger = logging.getLogger(__name__)
 
-RETRY_DELAYS = [1.0, 2.0, 4.0]  # seconds between attempts
+RETRY_DELAYS = [1.0, 2.0, 4.0]  # seconds between attempts — transient errors
+RATE_LIMIT_DELAYS = [30.0, 60.0, 90.0]  # seconds between attempts — 429 queue_exceeded
 
 
 class AIService:
@@ -41,7 +44,8 @@ class AIService:
         resolved_model = model or settings.DEFAULT_AI_MODEL
         last_exc: Exception | None = None
 
-        for attempt, delay in enumerate(RETRY_DELAYS):
+        max_attempts = len(RETRY_DELAYS)
+        for attempt in range(max_attempts):
             try:
                 return await self.provider.generate_itineraries(
                     prompt, num_options, resolved_model
@@ -57,8 +61,13 @@ class AIService:
                     type(exc).__name__,
                     exc,
                 )
-                if attempt < len(RETRY_DELAYS) - 1:
-                    await asyncio.sleep(delay)
+                if attempt < max_attempts - 1:
+                    delays = (
+                        RATE_LIMIT_DELAYS
+                        if isinstance(exc, CerebrasRateLimitError)
+                        else RETRY_DELAYS
+                    )
+                    await asyncio.sleep(delays[attempt])
 
         raise last_exc  # type: ignore[misc]
 
