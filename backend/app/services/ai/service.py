@@ -62,7 +62,11 @@ class AIService:
                     exc,
                 )
                 if attempt < max_attempts - 1:
-                    delays = RATE_LIMIT_DELAYS if isinstance(exc, CerebrasRateLimitError) else RETRY_DELAYS
+                    delays = (
+                        RATE_LIMIT_DELAYS
+                        if isinstance(exc, CerebrasRateLimitError)
+                        else RETRY_DELAYS
+                    )
                     await asyncio.sleep(delays[attempt])
 
         raise last_exc  # type: ignore[misc]
