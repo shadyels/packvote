@@ -1,4 +1,5 @@
 """Integration tests for admin email resend endpoints."""
+
 import pytest
 from httpx import AsyncClient
 
