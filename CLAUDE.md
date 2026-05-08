@@ -105,6 +105,13 @@ Read the relevant `docs/` file before working in any of these areas:
 `services/generation.py` — orchestration entry point (`run_generation(trip_id, session_factory)`). Edit here for pipeline changes.
 `services/ai/` — provider layer (Cerebras client, JSON utils, base class). Edit here for provider changes.
 
+### Admin API (`app/api/admin.py`)
+Prefix `/admin`, requires `get_current_user`. Currently hosts email resend endpoints:
+- `POST /admin/trips/{trip_id}/resend-emails` — resend status-appropriate email to all participants
+- `POST /admin/trips/{trip_id}/participants/{participant_id}/resend-email` — resend to one participant
+
+Email type is derived from `trip.status` + `trip.current_iteration` in `services/email_resend.py`. Both endpoints enforce creator-only ownership (403 if `trip.creator_id != current_user.id`). Returns `{sent: int, failed: int}`.
+
 ### Participant ↔ User linking
 `Participant.user_id` is set in two places — keep both in sync if the logic ever changes:
 1. **`create_trip` (`services/trips.py`)** — batch-looks up users by lowercased email at trip creation time and sets `user_id` immediately if the invitee already has an account.

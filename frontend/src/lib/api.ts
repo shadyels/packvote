@@ -195,4 +195,19 @@ export const itineraries = {
     request<Itinerary[]>(`/trips/${tripId.toString()}/itineraries`),
 };
 
+// Admin
+export const admin = {
+  resendAll: (tripId: number) =>
+    request<{ sent: number; failed: number }>(
+      `/admin/trips/${tripId.toString()}/resend-emails`,
+      { method: "POST" }
+    ),
+
+  resendOne: (tripId: number, participantId: number) =>
+    request<{ sent: number; failed: number }>(
+      `/admin/trips/${tripId.toString()}/participants/${participantId.toString()}/resend-email`,
+      { method: "POST" }
+    ),
+};
+
 export { ApiError };

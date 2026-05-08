@@ -18,7 +18,13 @@
 `AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `"cerebras"`. Required so the generation service can log which provider answered in `AICallLog.provider` and `Itinerary.provider`.
 
 **Retry strategy:**
-`AIService.generate_itineraries()` retries the Cerebras provider up to 3 times with exponential backoff (1s, 2s, 4s). On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries.
+`AIService.generate_itineraries()` retries the Cerebras provider up to 3 times. On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries.
+
+Two delay schedules in `services/ai/service.py`:
+- `RETRY_DELAYS = [1.0, 2.0, 4.0]` — transient errors (parse failures, timeouts, 5xx)
+- `RATE_LIMIT_DELAYS = [30.0, 60.0, 90.0]` — `CerebrasRateLimitError` (HTTP 429 / `queue_exceeded`)
+
+The long backoff for 429s is intentional: short delays (1/2/4s) were exhausted before Cerebras traffic spikes resolved, causing live generation to fail after retrying too quickly.
 
 **`AIInputError` fast-fail (no retry):**
 When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), providers raise `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
