@@ -1,4 +1,5 @@
-import { CheckCircle, XCircle } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle, Mail, XCircle } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -8,7 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { admin } from "@/lib/api";
 import type { Participant, Trip } from "@/types";
 
 interface ParticipantsSectionProps {
@@ -18,6 +21,8 @@ interface ParticipantsSectionProps {
 
 export function ParticipantsSection({ participants, trip }: ParticipantsSectionProps) {
   const { user } = useAuth();
+  const [resendingAll, setResendingAll] = useState(false);
+  const [resendingId, setResendingId] = useState<number | null>(null);
 
   const inVotingPhase = trip.status === "VOTING" || trip.status === "ITERATING";
 
@@ -32,13 +37,45 @@ export function ParticipantsSection({ participants, trip }: ParticipantsSectionP
 
   const columnHeader = inVotingPhase ? "Voted" : "Preferences";
 
+  const handleResendAll = async () => {
+    setResendingAll(true);
+    try {
+      await admin.resendAll(trip.id);
+    } finally {
+      setResendingAll(false);
+    }
+  };
+
+  const handleResendOne = async (participantId: number) => {
+    setResendingId(participantId);
+    try {
+      await admin.resendOne(trip.id, participantId);
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-black/70">{counterLabel}</h3>
-        <span className="text-xs text-black/40">
-          {participants.length} participant{participants.length !== 1 ? "s" : ""}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-black/40">
+            {participants.length} participant{participants.length !== 1 ? "s" : ""}
+          </span>
+          {participants.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { void handleResendAll(); }}
+              disabled={resendingAll}
+              className="text-xs h-7"
+            >
+              <Mail className="w-3 h-3 mr-1" />
+              {resendingAll ? "Sending..." : "Resend all"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Progress bar */}
@@ -68,12 +105,14 @@ export function ParticipantsSection({ participants, trip }: ParticipantsSectionP
                 {columnHeader}
               </TableHead>
               <TableHead className="text-black/50">Joined</TableHead>
+              <TableHead className="text-black/50" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {participants.map((p) => {
               const isOrganizer = user != null && p.email === user.email;
               const done = statusFlag(p);
+              const isResending = resendingId === p.id;
               return (
                 <TableRow key={p.id} className="border-border hover:bg-muted/20">
                   <TableCell className="text-black text-sm">{p.email}</TableCell>
@@ -94,6 +133,18 @@ export function ParticipantsSection({ participants, trip }: ParticipantsSectionP
                   </TableCell>
                   <TableCell className="text-black/40 text-xs">
                     {new Date(p.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { void handleResendOne(p.id); }}
+                      disabled={isResending || resendingAll}
+                      className="text-xs h-7 text-black/40 hover:text-black"
+                    >
+                      <Mail className="w-3 h-3 mr-1" />
+                      {isResending ? "Sending..." : "Resend"}
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
