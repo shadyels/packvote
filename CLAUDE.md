@@ -40,7 +40,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 - **Framework:** React 18+ with Vite
 - **UI Library:** shadcn/ui (uses `@base-ui/react` primitives, NOT `@radix-ui`) + Tailwind CSS
 - **Node Version:** 22 LTS
-- **Package Manager:** pnpm
+- **Package Manager:** pnpm — build script allowlist via `pnpm.allowBuilds` in `package.json` (v11 API). Do NOT use deprecated `onlyBuiltDependencies`.
 
 ### Infrastructure
 - **Deployment:** Railway — builder is **Railpack** (do NOT use `builder = "nixpacks"`)
