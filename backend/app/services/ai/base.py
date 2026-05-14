@@ -16,6 +16,7 @@ class AIProvider(ABC):
         prompt: str,
         num_options: int,
         model: str,
+        reasoning_effort: str = "low",
     ) -> tuple[AIGenerationResponse, str]:
         """Generate N itinerary options from the rendered prompt.
 

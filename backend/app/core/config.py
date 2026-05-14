@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,7 +32,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # AI model defaults
-    DEFAULT_AI_MODEL: str = "qwen-3-235b-a22b-instruct-2507"
+    DEFAULT_AI_MODEL: str = "gpt-oss-120b"
+    # Reasoning effort for gpt-oss models. Escalate to "medium"/"high" via env
+    # if prompt-adherence regressions are observed.
+    DEFAULT_REASONING_EFFORT: Literal["low", "medium", "high"] = "low"
 
 
 @lru_cache

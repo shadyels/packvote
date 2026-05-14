@@ -35,6 +35,7 @@ class AIService:
         prompt: str,
         num_options: int,
         model: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> tuple[AIGenerationResponse, str]:
         """Generate itineraries with retry on failure.
 
@@ -42,13 +43,16 @@ class AIService:
         """
         settings = get_settings()
         resolved_model = model or settings.DEFAULT_AI_MODEL
+        resolved_reasoning_effort = (
+            reasoning_effort or settings.DEFAULT_REASONING_EFFORT
+        )
         last_exc: Exception | None = None
 
         max_attempts = len(RETRY_DELAYS)
         for attempt in range(max_attempts):
             try:
                 return await self.provider.generate_itineraries(
-                    prompt, num_options, resolved_model
+                    prompt, num_options, resolved_model, resolved_reasoning_effort
                 )
             except AIInputError:
                 # AI diagnosed the input as invalid — retrying won't help

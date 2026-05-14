@@ -158,10 +158,10 @@ AIServiceLayer (abstract interface)
 - All providers implement the same interface: `generate_itineraries()`, `generate_followup_survey()`, `organize_preferences()`
 - Retry: 3 attempts with exponential backoff; no fallback provider
 
-### Default Model: Qwen-3-235B-A22B-Instruct
+### Default Model: gpt-oss-120b (OpenAI gpt-oss)
 Chosen for:
 - High-quality structured JSON output
-- Instruct checkpoint (non-thinking) — no thinking-mode token overhead
+- Reasoning suppressed via `reasoning_format="hidden"` + `reasoning_effort="low"` — clean single-channel JSON output, matching the prompt contract
 - Available on Cerebras Inference with fast inference speeds
 - Apache 2.0 licensed, commercially usable
 
