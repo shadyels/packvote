@@ -100,7 +100,7 @@ Read the relevant `docs/` file before working in any of these areas:
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
 | **Testing** | Unit in `tests/unit/`, integration uses SQLite+MockEmail, AI tests need `@pytest.mark.live`. | `docs/TESTING.md` |
-| **Email service** | Brevo free tier: 300 emails/day. Global in-process sliding-window rate limiter enforces the cap. When limit exhausted, `_send()` returns `False` with warning log; callers handle gracefully (no retry). All `try_consume()` calls async-safe via `asyncio.Lock`. | `backend/app/services/email/rate_limiter.py` |
+| **Email service** | Brevo free tier: 300 emails/day. Global in-process sliding-window rate limiter enforces the cap. When limit exhausted, `_send()` returns `False` with warning log; callers handle gracefully (no retry). All `try_consume()` calls async-safe via `asyncio.Lock`. | `docs/EMAIL-ARCHITECTURE.md` |
 | **Unsplash proxy** | `GET /unsplash/photo` (no auth). Key lives in backend `UNSPLASH_ACCESS_KEY` only — never in frontend env. In-process 45 req/hr limiter + 1hr cache in `services/unsplash.py`. Over-limit returns `{images:[]}`, frontend renders gradient. | `backend/app/services/unsplash.py` |
 
 ### AI service split
