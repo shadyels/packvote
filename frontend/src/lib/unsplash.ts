@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
-const UNSPLASH_BASE = "https://api.unsplash.com";
+const BASE_URL: string =
+  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 interface CachedEntry {
@@ -8,23 +9,18 @@ interface CachedEntry {
   expiresAt: number;
 }
 
-interface UnsplashPhoto {
-  urls: { regular: string };
-  user: { name: string; links: { html: string } };
-}
-
-interface UnsplashSearchResponse {
-  results: UnsplashPhoto[];
+interface BackendUnsplashResponse {
+  images: string[];
 }
 
 const cache = new Map<string, CachedEntry[]>();
 
-function isSearchResponse(data: unknown): data is UnsplashSearchResponse {
+function isBackendResponse(data: unknown): data is BackendUnsplashResponse {
   return (
     typeof data === "object" &&
     data !== null &&
-    "results" in data &&
-    Array.isArray((data as Record<string, unknown>).results)
+    "images" in data &&
+    Array.isArray((data as Record<string, unknown>).images)
   );
 }
 
@@ -63,9 +59,6 @@ async function fetchUnsplashPhotos(
   destination: string,
   count: number
 ): Promise<CachedEntry[] | null> {
-  const apiKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY as string | undefined;
-  if (!apiKey) return null;
-
   const cacheKey = destination.toLowerCase().trim();
   const cached = cache.get(cacheKey);
   const now = Date.now();
@@ -76,20 +69,18 @@ async function fetchUnsplashPhotos(
   }
 
   try {
-    const query = encodeURIComponent(`${destination} travel landscape`);
-    const url = `${UNSPLASH_BASE}/search/photos?query=${query}&orientation=landscape&per_page=${String(count)}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Client-ID ${apiKey}` },
-    });
+    const enc = encodeURIComponent(destination);
+    const url = `${BASE_URL}/unsplash/photo?destination=${enc}&count=${String(count)}`;
+    const res = await fetch(url);
     if (!res.ok) return null;
 
     const raw: unknown = await res.json();
-    if (!isSearchResponse(raw)) return null;
-    if (raw.results.length === 0) return null;
+    if (!isBackendResponse(raw)) return null;
+    if (raw.images.length === 0) return null;
 
     const expiresAt = now + CACHE_TTL_MS;
-    const entries: CachedEntry[] = raw.results.map((photo: UnsplashPhoto) => ({
-      imageUrl: photo.urls.regular,
+    const entries: CachedEntry[] = raw.images.map((imageUrl: string) => ({
+      imageUrl,
       expiresAt,
     }));
 
@@ -139,9 +130,8 @@ export function useDestinationImage(
     };
   }, [destination, totalCount]);
 
-  const entry = entries && entries.length > 0
-    ? entries[imageIndex % entries.length]
-    : null;
+  const entry =
+    entries && entries.length > 0 ? entries[imageIndex % entries.length] : null;
 
   return {
     imageUrl: entry?.imageUrl ?? null,
