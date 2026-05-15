@@ -1,18 +1,18 @@
 """Unit tests for BrevoRateLimiter."""
+
 import asyncio
-from unittest.mock import patch
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import app.services.email.rate_limiter as _rl_module
+from app.services.email.brevo import EmailService
 from app.services.email.rate_limiter import (
     MAX_EPD,
     WINDOW_SECONDS,
     BrevoRateLimiter,
 )
-
-
-# Deferred imports for integration tests (to allow unit-only runs)
-import app.services.email.rate_limiter as _rl_module
 
 
 @pytest.mark.asyncio
@@ -82,7 +82,6 @@ async def test_concurrent_consumes_exactly_300_succeed() -> None:
 # ---------------------------------------------------------------------------
 # Integration: _send() honours the rate limiter
 # ---------------------------------------------------------------------------
-from app.services.email.brevo import EmailService
 
 
 @pytest.fixture
@@ -121,8 +120,6 @@ async def test_send_logs_warning_when_rate_limited(
     email_svc: EmailService,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    import logging
-
     exhausted = BrevoRateLimiter()
     for _ in range(MAX_EPD):
         await exhausted.try_consume()
@@ -140,8 +137,6 @@ async def test_send_logs_warning_when_rate_limited(
 
 @pytest.mark.asyncio
 async def test_send_succeeds_when_limiter_allows(email_svc: EmailService) -> None:
-    from unittest.mock import AsyncMock, MagicMock, patch as _patch
-
     mock_resp = MagicMock()
     mock_resp.status_code = 201
     mock_client = AsyncMock()
@@ -153,7 +148,7 @@ async def test_send_succeeds_when_limiter_allows(email_svc: EmailService) -> Non
     original = _rl_module._limiter
     _rl_module._limiter = fresh_limiter
     try:
-        with _patch(
+        with patch(
             "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
         ):
             result = await email_svc._send("ok@example.com", "Hello", "World")

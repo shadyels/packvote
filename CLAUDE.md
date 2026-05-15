@@ -100,6 +100,7 @@ Read the relevant `docs/` file before working in any of these areas:
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
 | **Testing** | Unit in `tests/unit/`, integration uses SQLite+MockEmail, AI tests need `@pytest.mark.live`. | `docs/TESTING.md` |
+| **Unsplash proxy** | `GET /unsplash/photo` (no auth). Key lives in backend `UNSPLASH_ACCESS_KEY` only — never in frontend env. In-process 45 req/hr limiter + 1hr cache in `services/unsplash.py`. Over-limit returns `{images:[]}`, frontend renders gradient. | `backend/app/services/unsplash.py` |
 
 ### AI service split
 `services/generation.py` — orchestration entry point (`run_generation(trip_id, session_factory)`). Edit here for pipeline changes.

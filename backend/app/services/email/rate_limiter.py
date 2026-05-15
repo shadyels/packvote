@@ -3,7 +3,7 @@ import time
 from collections import deque
 
 WINDOW_SECONDS = 86400.0  # 24-hour sliding window
-MAX_EPD = 300             # Brevo free tier: emails per day
+MAX_EPD = 300  # Brevo free tier: emails per day
 
 
 class BrevoRateLimiter:
