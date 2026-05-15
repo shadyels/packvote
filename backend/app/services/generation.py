@@ -37,6 +37,7 @@ from app.models.preference import Preference
 from app.models.prompt_template import PromptTemplate
 from app.models.trip import Trip
 from app.services.ai.json_utils import AIInputError, AIParseError
+from app.services.ai.rate_limiter import LocalRateLimitError
 from app.services.ai.service import AIService
 
 logger = logging.getLogger(__name__)
@@ -193,6 +194,14 @@ def _humanize_error(exc: Exception) -> str:
             "The AI generated the wrong number of itinerary options. "
             "Try again or reduce the number of options in the trip settings."
         )
+    if isinstance(exc, LocalRateLimitError):
+        if exc.kind == "context_length":
+            return (
+                "The trip preferences are too long to process. "
+                "Try reducing the number of participants or shortening preference details."
+            )
+        retry = int(exc.retry_after_seconds) + 1
+        return f"The AI service is busy. Please try again in {retry} seconds."
     if isinstance(exc, CerebrasRateLimitError):
         return (
             "The AI service is currently busy (rate limit reached). "
