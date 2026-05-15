@@ -86,6 +86,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 - **Pure ranked-choice algorithm** — `services/voting/ranked_choice.py` is a stateless function with zero DB dependencies, making it trivially unit-testable and reusable
 - **Robust AI JSON extraction** — open-source models sometimes wrap responses in markdown fences; `extract_json()` tries direct parse → strip fences → brace-extraction before raising `AIParseError` with the raw text attached for logging
 - **Versioned prompt templates** — stored in the DB, seeded at runtime (idempotent); designed to support A/B testing across prompt versions with per-version metrics
+- **In-process rate limiting with sliding windows** — AI (Cerebras: 1000 RPM / 1M TPM), email (Brevo: 300/day), and Unsplash (45 req/hr) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls; distributed rate limiting can be added in Phase 2 via shared store (Redis, PostgreSQL)
 - **Dual auth model** — JWT for trip creators; tokenized links + trip code/PIN for participants (no account creation)
 
 ---
