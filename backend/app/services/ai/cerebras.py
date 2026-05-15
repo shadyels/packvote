@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
 from app.services.ai.json_utils import AIInputError, AIParseError, extract_json
+from app.services.ai.rate_limiter import get_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +42,32 @@ class CerebrasProvider(AIProvider):
         reasoning_effort: str = "low",
     ) -> tuple[AIGenerationResponse, str]:
         system_msg, user_msg = _split_prompt(prompt)
+        estimated_tokens = (len(system_msg) + len(user_msg)) // 4 + 16384
+        limiter = get_limiter()
+        reservation = await limiter.reserve(estimated_tokens)
         client = self._make_client()
-        completion = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_msg},
-            ],
-            response_format={"type": "json_object"},
-            reasoning_format="hidden",
-            reasoning_effort=reasoning_effort,
-            temperature=0.7,
-            max_tokens=16384,
+        try:
+            completion = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg},
+                ],
+                response_format={"type": "json_object"},
+                reasoning_format="hidden",
+                reasoning_effort=reasoning_effort,
+                temperature=0.7,
+                max_tokens=16384,
+            )
+        except Exception:
+            await limiter.commit(reservation, estimated_tokens)
+            raise
+        actual_tokens = (
+            completion.usage.total_tokens
+            if completion.usage is not None
+            else estimated_tokens
         )
+        await limiter.commit(reservation, actual_tokens)
         choice = completion.choices[0]
         if choice.finish_reason == "length":
             logger.warning(

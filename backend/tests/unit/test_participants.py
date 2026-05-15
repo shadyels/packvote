@@ -199,7 +199,6 @@ class TestAutoTriggerGeneration:
         db: AsyncSession,
         mock_session_factory,
     ):
-
         trip, tokens = two_participant_trip
         trip_id = trip["id"]
 

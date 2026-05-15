@@ -3,6 +3,7 @@ import logging
 import httpx
 
 from app.core.config import get_settings
+from app.services.email.rate_limiter import get_brevo_limiter
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
@@ -33,6 +34,12 @@ class EmailService:
     async def _send(self, to_email: str, subject: str, body: str) -> bool:
         if not self._api_key:
             logger.error("BREVO_API_KEY is not set — email to %s not sent", to_email)
+            return False
+        if not await get_brevo_limiter().try_consume():
+            logger.warning(
+                "Brevo daily rate limit reached (300/day) — email to %s dropped",
+                to_email,
+            )
             return False
         payload = {
             "sender": {"email": self._from_email, "name": "PackVote"},

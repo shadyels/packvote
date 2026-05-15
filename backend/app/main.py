@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, participants, trips, votes
+from app.api import admin, auth, participants, trips, unsplash, votes
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -25,6 +25,7 @@ app.include_router(trips.router)
 app.include_router(participants.router)
 app.include_router(votes.router)
 app.include_router(admin.router)
+app.include_router(unsplash.router)
 
 
 @app.get("/health")

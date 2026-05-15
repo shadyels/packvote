@@ -8,6 +8,7 @@ from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
 from app.services.ai.cerebras import CerebrasProvider
 from app.services.ai.json_utils import AIInputError
+from app.services.ai.rate_limiter import LocalRateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,9 @@ class AIService:
                 return await self.provider.generate_itineraries(
                     prompt, num_options, resolved_model, resolved_reasoning_effort
                 )
-            except AIInputError:
-                # AI diagnosed the input as invalid — retrying won't help
+            except (AIInputError, LocalRateLimitError):
+                # AIInputError: AI diagnosed input as invalid — retrying won't help
+                # LocalRateLimitError: our own gate said no — same window, same result
                 raise
             except Exception as exc:
                 last_exc = exc

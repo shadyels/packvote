@@ -118,11 +118,11 @@ Radix's `asChild` clones `onClick`/`aria-*` onto the child; Base UI's `ButtonPri
 ## Unsplash Image Utility
 
 `frontend/src/lib/unsplash.ts` provides `useDestinationImage(destination, imageIndex = 0, totalCount = 1)` → `{ imageUrl, gradient, isLoading }`.
-- `totalCount` → `per_page` in API call; `imageIndex` selects `results[imageIndex % results.length]`
+- `totalCount` → `count` query param; `imageIndex` selects `images[imageIndex % images.length]`
 - Consumers pass `imageIndex={index}` and `totalImages={items.length}` from `.map()` callbacks
-- API key from `VITE_UNSPLASH_ACCESS_KEY`
-- In-memory cache keyed by destination, 1-hour TTL; refetches if cached array is smaller than `totalCount`
-- **Fallback:** deterministic gradient from destination name hash mixed with `imageIndex` when no API key or fetch fails
+- Calls backend proxy `GET /unsplash/photo?destination=&count=` — no Unsplash key in the frontend bundle
+- In-memory `Map` cache (L1) keyed by destination, 1-hour TTL; refetches if cached array is smaller than `totalCount`
+- **Fallback:** deterministic gradient from destination name hash mixed with `imageIndex` when backend returns empty or fetch fails
 - No Unsplash attribution rendered anywhere
 - Use index access, not `Array.prototype.at()` — unavailable under `lib: ["ES2020"]`
 

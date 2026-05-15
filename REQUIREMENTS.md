@@ -132,7 +132,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 - **Edit trip:** Creator can edit trip details (title, destination, dates, number of options, notes) when the trip is in `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` status. Useful for fixing inputs before retrying a failed generation. Editing is blocked in `GENERATING`, `VOTING`, `ITERATING`, and `FINALIZED` states.
 - **Delete trip:** Creator can permanently delete a trip and all associated data (participants, preferences, itineraries, votes). Deletion is blocked while AI generation is in progress (`GENERATING` status). Requires confirmation before executing.
 
-### F9: Email Notifications (Brevo)
+### F9: Email Notifications (Brevo) ✅
 - Triggered at each stage:
   - Trip created → invitation to submit preferences
   - AI generated options → invitation to vote
@@ -142,7 +142,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Direct tokenized link
   - Trip code and PIN
   - Relevant context (what action is needed)
-- Brevo free tier: 300 emails/day
+- **Rate limit:** Brevo free tier: 300 emails/day. Global in-process sliding-window rate limiter (`BrevoRateLimiter`) enforces the cap. When exhausted, emails are silently dropped with a warning log; callers handle gracefully (no retry)
 
 ---
 

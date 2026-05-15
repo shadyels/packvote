@@ -26,8 +26,36 @@ Two delay schedules in `services/ai/service.py`:
 
 The long backoff for 429s is intentional: short delays (1/2/4s) were exhausted before Cerebras traffic spikes resolved, causing live generation to fail after retrying too quickly.
 
-**`AIInputError` fast-fail (no retry):**
+**`AIInputError` and `LocalRateLimitError` fast-fail (no retry):**
 When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), providers raise `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
+
+`LocalRateLimitError` (from `services/ai/rate_limiter.py`) is also re-raised without retry — the in-process gate rejected the request, so retrying within the same 60s window would hit the same gate.
+
+## In-Process Rate Limiter
+
+`services/ai/rate_limiter.py` provides a process-level guard that rejects requests **before** the Cerebras network call. Single shared API key means all users share free-tier ceilings; this prevents wasting time on requests that would 429.
+
+**`GlobalRateLimiter` (singleton via `get_limiter()`):**
+- **RPM gate:** sliding 60s window, rejects at the 1001st request
+- **TPM gate:** sliding 60s window, rejects if `current_tokens + estimated > 1_000_000`
+- **Context length gate:** immediate reject if `estimated_tokens > 131_000` (Cerebras context cap)
+
+**Estimate → commit pattern:**
+Token cost is unknown before the call, so `reserve(estimated_tokens)` places an optimistic entry in the deque. After the call, `commit(reservation, actual_tokens)` replaces the estimate with actual `completion.usage.total_tokens`. On exception, `commit` is called with the estimate to avoid a leaked slot.
+
+```python
+reservation = await limiter.reserve(estimated_tokens)
+try:
+    completion = await client.chat.completions.create(...)
+except Exception:
+    await limiter.commit(reservation, estimated_tokens)
+    raise
+await limiter.commit(reservation, actual_tokens)
+```
+
+**`LocalRateLimitError`** carries `kind` (`"rpm"` | `"tpm"` | `"context_length"`) and `retry_after_seconds`. `_humanize_error()` surfaces it as:
+- `context_length` → "The trip preferences are too long to process. Try reducing the number of participants or shortening preference details."
+- `rpm` / `tpm` → "The AI service is busy. Please try again in N seconds."
 
 ## JSON Extraction
 
@@ -118,6 +146,8 @@ User-facing messages from `_humanize_error(exc)` in `services/generation.py`:
 - `AIInputError` → AI's own `ai_message` verbatim, with `suggestion` appended as "Tip: …" if present. Always checked first (before the `AIParseError` branch, since `AIInputError` is a subclass).
 - `AIParseError` → "The AI returned an invalid response. This is usually temporary — try again."
 - `ValueError` (wrong option count) → "The AI generated the wrong number of itinerary options..."
+- `LocalRateLimitError` (`context_length`) → preferences too long message
+- `LocalRateLimitError` (`rpm`/`tpm`) → "The AI service is busy. Please try again in N seconds."
 - `CerebrasRateLimitError` → rate limit message
 - `CerebrasAPIStatusError` (5xx) → service unavailable message
 - `CerebrasConnectionError` / `TimeoutError` → connection error message
