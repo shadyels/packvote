@@ -7,7 +7,7 @@ import httpx
 from app.core.config import get_settings
 
 WINDOW_SECONDS = 3600.0
-MAX_RPH = 45
+MAX_RPH = 50
 _CACHE_TTL = 3600.0
 
 _cache: dict[str, tuple[float, list[str]]] = {}

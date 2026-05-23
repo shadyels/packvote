@@ -3,9 +3,9 @@ import time
 from collections import deque
 from dataclasses import dataclass
 
-MAX_CONTEXT_TOKENS = 131_000
-MAX_RPM = 1_000
-MAX_TPM = 1_000_000
+MAX_CONTEXT_TOKENS = 65_536
+MAX_RPM = 5
+MAX_TPM = 30_000
 WINDOW_SECONDS = 60.0
 
 

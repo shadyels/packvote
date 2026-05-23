@@ -35,9 +35,9 @@ async def test_rpm_gate_1000th_accepted_1001st_rejected() -> None:
 @pytest.mark.asyncio
 async def test_tpm_gate_rejects_when_exceeded() -> None:
     limiter = GlobalRateLimiter()
-    # Fill TPM bucket using 10 × 100_000 = MAX_TPM (each ≤ MAX_CONTEXT_TOKENS)
-    for _ in range(10):
-        await limiter.reserve(100_000)
+    # Fill TPM bucket using 3 × 10_000 = 30_000 = MAX_TPM (each < MAX_CONTEXT_TOKENS)
+    for _ in range(3):
+        await limiter.reserve(10_000)
     with pytest.raises(LocalRateLimitError) as exc_info:
         await limiter.reserve(1)
     assert exc_info.value.kind == "tpm"
@@ -67,19 +67,19 @@ async def test_context_length_rejected_before_lock() -> None:
 @pytest.mark.asyncio
 async def test_commit_lowers_estimate_frees_token_room() -> None:
     limiter = GlobalRateLimiter()
-    # Fill bucket: 9 × 100_000 = 900_000 tokens reserved
-    first = await limiter.reserve(100_000)
-    for _ in range(8):
-        await limiter.reserve(100_000)
-    # 110_000 would exceed TPM (900_000 + 110_000 = 1_010_000 > 1_000_000)
+    # Fill bucket: 3 × 9_000 = 27_000 tokens reserved (< MAX_TPM=30_000)
+    first = await limiter.reserve(9_000)
+    for _ in range(2):
+        await limiter.reserve(9_000)
+    # 4_000 would exceed TPM (27_000 + 4_000 = 31_000 > 30_000)
     with pytest.raises(LocalRateLimitError) as exc_info:
-        await limiter.reserve(110_000)
+        await limiter.reserve(4_000)
     assert exc_info.value.kind == "tpm"
-    # Commit first reservation with low actual — frees 99_000 tokens
+    # Commit first reservation with low actual — frees 8_000 tokens
     await limiter.commit(first, 1_000)
-    # Now 110_000 fits: (900_000 - 99_000) + 110_000 = 911_000 < 1_000_000
-    r2 = await limiter.reserve(110_000)
-    assert r2.estimated_tokens == 110_000
+    # Now 4_000 fits: (27_000 - 8_000) + 4_000 = 23_000 < 30_000
+    r2 = await limiter.reserve(4_000)
+    assert r2.estimated_tokens == 4_000
 
 
 @pytest.mark.asyncio

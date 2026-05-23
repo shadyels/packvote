@@ -14,14 +14,14 @@ from app.services.unsplash import (
 
 
 @pytest.mark.asyncio
-async def test_rate_limiter_45_succeed() -> None:
+async def test_rate_limiter_50_succeed() -> None:
     limiter = UnsplashRateLimiter()
     results = [await limiter.try_consume() for _ in range(MAX_RPH)]
     assert all(results)
 
 
 @pytest.mark.asyncio
-async def test_rate_limiter_46th_fails() -> None:
+async def test_rate_limiter_51st_fails() -> None:
     limiter = UnsplashRateLimiter()
     for _ in range(MAX_RPH):
         await limiter.try_consume()
@@ -47,7 +47,7 @@ async def test_rate_limiter_evicts_old_entries() -> None:
 
 
 @pytest.mark.asyncio
-async def test_concurrent_consumes_exactly_45_succeed() -> None:
+async def test_concurrent_consumes_exactly_50_succeed() -> None:
     limiter = UnsplashRateLimiter()
     results = await asyncio.gather(
         *[limiter.try_consume() for _ in range(MAX_RPH + 10)]
