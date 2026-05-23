@@ -95,7 +95,7 @@ Read the relevant `docs/` file before working in any of these areas:
 
 | Area | Key constraint | Full details |
 |------|---------------|-------------|
-| **AI service** | Use `extract_json()`, never `json.loads()`. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd); `LocalRateLimitError` skips retry. | `docs/AI-ARCHITECTURE.md` |
+| **AI service** | Use `extract_json()`, never `json.loads()`. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd); `LocalRateLimitError` skips retry. User-controlled fields injected into prompts must be wrapped in `<<<USER DATA>>>…<<<END USER DATA>>>` delimiters and passed through `sanitize_text()`. Trip duration is clamped to `max_trip_days(num_options)` in `_compute_trip_duration` — never let user-supplied dates exceed this cap. | `docs/AI-ARCHITECTURE.md` |
 | **Voting** | Pure algorithm in `ranked_choice.py`, DB ops in `service.py`. | `docs/VOTING-ARCHITECTURE.md` |
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
