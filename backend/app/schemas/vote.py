@@ -6,7 +6,9 @@ from app.schemas._limits import RANKINGS_MAX
 
 
 class VoteSubmit(BaseModel):
-    rankings: list[int] = Field(max_length=RANKINGS_MAX)  # ordered list of itinerary IDs, most preferred first
+    rankings: list[int] = Field(
+        max_length=RANKINGS_MAX
+    )  # ordered list of itinerary IDs, most preferred first
 
     @field_validator("rankings", mode="after")
     @classmethod

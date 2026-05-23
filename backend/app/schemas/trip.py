@@ -19,7 +19,9 @@ class TripCreate(BaseModel):
     proposed_start_date: datetime | None = None
     proposed_end_date: datetime | None = None
     num_options: int = Field(default=3, ge=2, le=5)
-    participant_emails: list[EmailStr] = Field(min_length=1, max_length=PARTICIPANT_EMAILS_MAX)
+    participant_emails: list[EmailStr] = Field(
+        min_length=1, max_length=PARTICIPANT_EMAILS_MAX
+    )
     notes: str | None = Field(default=None, max_length=NOTES_MAX)
 
     @field_validator("title", mode="after")

@@ -4,9 +4,7 @@ import re
 import unicodedata
 
 # Zero-width and invisible Unicode characters to strip
-_ZERO_WIDTH = re.compile(
-    r"[​-‏‪-‮⁠-⁯﻿­]"
-)
+_ZERO_WIDTH = re.compile(r"[​-‏‪-‮⁠-⁯﻿­]")
 
 # Sequences of whitespace (excluding newlines) → single space
 _MULTI_SPACE = re.compile(r"[^\S\n]+")
@@ -21,9 +19,7 @@ def sanitize_text(s: str) -> str:
     """
     # Remove control characters (except tab, newline, carriage return)
     s = "".join(
-        ch for ch in s
-        if unicodedata.category(ch)[0] != "C"
-        or ch in ("\t", "\n", "\r")
+        ch for ch in s if unicodedata.category(ch)[0] != "C" or ch in ("\t", "\n", "\r")
     )
     # Strip zero-width / invisible Unicode
     s = _ZERO_WIDTH.sub("", s)

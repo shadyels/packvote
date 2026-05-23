@@ -81,7 +81,9 @@ def test_trip_create_empty_title_raises() -> None:
 
 def test_trip_create_notes_too_long_raises() -> None:
     with pytest.raises(ValidationError):
-        TripCreate(title="My Trip", notes="a" * 2001, participant_emails=_DEFAULT_EMAILS)
+        TripCreate(
+            title="My Trip", notes="a" * 2001, participant_emails=_DEFAULT_EMAILS
+        )
 
 
 def test_trip_create_too_many_participant_emails_raises() -> None:
@@ -236,7 +238,9 @@ def test_preference_create_invalid_currency_raises() -> None:
 
 
 def test_preference_create_valid_passes() -> None:
-    pref = PreferenceCreate(name="Alice", currency="USD", activity_tags=["hiking", "food"])
+    pref = PreferenceCreate(
+        name="Alice", currency="USD", activity_tags=["hiking", "food"]
+    )
     assert pref.name == "Alice"
     assert pref.currency == "USD"
     assert pref.activity_tags == ["hiking", "food"]

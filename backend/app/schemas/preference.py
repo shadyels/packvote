@@ -42,11 +42,15 @@ class PreferenceCreate(BaseModel):
         if v is None:
             return v
         if len(v) > ACTIVITY_TAGS_MAX_ITEMS:
-            raise ValueError(f"activity_tags may contain at most {ACTIVITY_TAGS_MAX_ITEMS} items")
+            raise ValueError(
+                f"activity_tags may contain at most {ACTIVITY_TAGS_MAX_ITEMS} items"
+            )
         result = []
         for tag in v:
             if len(tag) > ACTIVITY_TAG_MAX:
-                raise ValueError(f"each activity tag may be at most {ACTIVITY_TAG_MAX} characters")
+                raise ValueError(
+                    f"each activity tag may be at most {ACTIVITY_TAG_MAX} characters"
+                )
             sanitized = sanitize_text(tag)
             if sanitized:
                 result.append(sanitized)

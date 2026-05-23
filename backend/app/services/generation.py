@@ -437,7 +437,9 @@ def _render_prompt(
 
     if trip.destination:
         clean_dest = sanitize_text(trip.destination)
-        destination_constraint = f"DESTINATION: <<<USER DATA>>>{clean_dest}<<<END USER DATA>>>"
+        destination_constraint = (
+            f"DESTINATION: <<<USER DATA>>>{clean_dest}<<<END USER DATA>>>"
+        )
     else:
         destination_constraint = (
             "DESTINATION: Open — suggest the best fit for this group"
@@ -483,11 +485,15 @@ def _build_preferences_block(preferences: list[Preference]) -> str:
 
         if pref.interests:
             clean_interests = sanitize_text(pref.interests)
-            lines.append(f"  - Interests: <<<USER DATA>>>{clean_interests}<<<END USER DATA>>>")
+            lines.append(
+                f"  - Interests: <<<USER DATA>>>{clean_interests}<<<END USER DATA>>>"
+            )
 
         if pref.activity_tags:
             clean_tags = ", ".join(sanitize_text(t) for t in pref.activity_tags)
-            lines.append(f"  - Activity tags: <<<USER DATA>>>{clean_tags}<<<END USER DATA>>>")
+            lines.append(
+                f"  - Activity tags: <<<USER DATA>>>{clean_tags}<<<END USER DATA>>>"
+            )
 
         lines.append("")  # blank line between participants
 
