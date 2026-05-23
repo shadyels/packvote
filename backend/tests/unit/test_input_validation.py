@@ -13,7 +13,6 @@ from app.schemas.trip import TripCreate
 from app.schemas.user import PasswordResetConfirm, UserCreate
 from app.schemas.vote import VoteSubmit
 
-
 # ---------------------------------------------------------------------------
 # sanitize_text
 # ---------------------------------------------------------------------------
