@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, parseISO, startOfDay } from "date-fns";
 import { participants as participantsApi, ApiError } from "@/lib/api";
+import { NAME_MAX, INTERESTS_MAX, ACTIVITY_TAG_MAX, ACTIVITY_TAGS_MAX_ITEMS } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import type { TripPublicInfo } from "@/types";
 
@@ -31,12 +32,22 @@ export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsSubmitting(true);
-
     const tags = activityTags
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
+
+    if (tags.length > ACTIVITY_TAGS_MAX_ITEMS) {
+      setError(`Too many activity tags — max ${String(ACTIVITY_TAGS_MAX_ITEMS)}.`);
+      return;
+    }
+    const longTag = tags.find((t) => t.length > ACTIVITY_TAG_MAX);
+    if (longTag) {
+      setError(`Tag "${longTag.slice(0, 20)}…" is too long — max ${String(ACTIVITY_TAG_MAX)} characters.`);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       await participantsApi.submitPreferences(token, {
@@ -90,6 +101,7 @@ export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) 
               setName(e.target.value);
             }}
             placeholder="How should we call you?"
+            maxLength={NAME_MAX}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
           />
         </div>
@@ -191,6 +203,7 @@ export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) 
             }}
             placeholder="What do you love to do? (beaches, hiking, museums, food tours…)"
             rows={3}
+            maxLength={INTERESTS_MAX}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/50 resize-none"
           />
         </div>
@@ -210,6 +223,7 @@ export function PreferenceForm({ token, trip, onSuccess }: PreferenceFormProps) 
               setActivityTags(e.target.value);
             }}
             placeholder="outdoor, nightlife, family-friendly, budget"
+            maxLength={ACTIVITY_TAGS_MAX_ITEMS * (ACTIVITY_TAG_MAX + 2)}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
           />
         </div>

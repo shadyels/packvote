@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.itinerary import ItineraryResponse
 from app.schemas.vote import VotingResults
@@ -19,8 +19,8 @@ class ParticipantResponse(BaseModel):
 
 
 class TripAccessByCode(BaseModel):
-    trip_code: str
-    pin: str
+    trip_code: str = Field(pattern=r"^[A-Z0-9]{8}$")
+    pin: str = Field(pattern=r"^\d{4}$")
 
 
 class TripPublicInfo(BaseModel):

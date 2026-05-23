@@ -1,10 +1,19 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas._limits import RANKINGS_MAX
 
 
 class VoteSubmit(BaseModel):
-    rankings: list[int]  # ordered list of itinerary IDs, most preferred first
+    rankings: list[int] = Field(max_length=RANKINGS_MAX)  # ordered list of itinerary IDs, most preferred first
+
+    @field_validator("rankings", mode="after")
+    @classmethod
+    def check_unique_rankings(cls, v: list[int]) -> list[int]:
+        if len(v) != len(set(v)):
+            raise ValueError("rankings must contain unique itinerary IDs")
+        return v
 
 
 class VoteResponse(BaseModel):

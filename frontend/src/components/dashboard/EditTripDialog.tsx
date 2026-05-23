@@ -3,6 +3,7 @@ import { format, startOfDay } from "date-fns";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { trips as tripsApi, ApiError } from "@/lib/api";
+import { TITLE_MAX, DESTINATION_MAX, NOTES_MAX, maxTripDays } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -58,6 +59,17 @@ export function EditTripDialog({ trip, onUpdated }: EditTripDialogProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const n = parseInt(numOptions, 10);
+    if (startDate && endDate) {
+      const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const cap = maxTripDays(n);
+      if (days > cap) {
+        setError(`Date range too long — max ${String(cap)} days for ${String(n)} itinerary options.`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await tripsApi.update(trip.id, {
@@ -114,6 +126,7 @@ export function EditTripDialog({ trip, onUpdated }: EditTripDialogProps) {
               required
               value={title}
               onChange={(e) => { setTitle(e.target.value); }}
+              maxLength={TITLE_MAX}
               className="bg-card border-border text-black placeholder:text-black/30"
             />
           </div>
@@ -128,6 +141,7 @@ export function EditTripDialog({ trip, onUpdated }: EditTripDialogProps) {
               placeholder="e.g. Barcelona, Spain"
               value={destination}
               onChange={(e) => { setDestination(e.target.value); }}
+              maxLength={DESTINATION_MAX}
               className="bg-card border-border text-black placeholder:text-black/30"
             />
           </div>
@@ -180,6 +194,7 @@ export function EditTripDialog({ trip, onUpdated }: EditTripDialogProps) {
               value={notes}
               onChange={(e) => { setNotes(e.target.value); }}
               rows={3}
+              maxLength={NOTES_MAX}
               className="bg-white border-border text-black placeholder:text-black/30 resize-none"
             />
           </div>

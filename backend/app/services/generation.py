@@ -36,6 +36,8 @@ from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.prompt_template import PromptTemplate
 from app.models.trip import Trip
+from app.schemas._limits import max_trip_days
+from app.schemas._sanitize import sanitize_text
 from app.services.ai.json_utils import AIInputError, AIParseError
 from app.services.ai.rate_limiter import LocalRateLimitError
 from app.services.ai.service import AIService
@@ -434,7 +436,8 @@ def _render_prompt(
         proposed_dates = "flexible"
 
     if trip.destination:
-        destination_constraint = f"DESTINATION: {trip.destination}"
+        clean_dest = sanitize_text(trip.destination)
+        destination_constraint = f"DESTINATION: <<<USER DATA>>>{clean_dest}<<<END USER DATA>>>"
     else:
         destination_constraint = (
             "DESTINATION: Open — suggest the best fit for this group"
@@ -445,7 +448,7 @@ def _render_prompt(
     return template.template_text.format(
         num_options=trip.num_options,
         trip_duration_days=trip_duration_days,
-        trip_title=trip.title,
+        trip_title=f"<<<USER DATA>>>{sanitize_text(trip.title)}<<<END USER DATA>>>",
         proposed_dates=proposed_dates,
         destination_constraint=destination_constraint,
         group_size=group_size,
@@ -479,10 +482,12 @@ def _build_preferences_block(preferences: list[Preference]) -> str:
             lines.append(f"  - Budget: up to {pref.budget_max} {currency}")
 
         if pref.interests:
-            lines.append(f"  - Interests: {pref.interests}")
+            clean_interests = sanitize_text(pref.interests)
+            lines.append(f"  - Interests: <<<USER DATA>>>{clean_interests}<<<END USER DATA>>>")
 
         if pref.activity_tags:
-            lines.append(f"  - Activity tags: {', '.join(pref.activity_tags)}")
+            clean_tags = ", ".join(sanitize_text(t) for t in pref.activity_tags)
+            lines.append(f"  - Activity tags: <<<USER DATA>>>{clean_tags}<<<END USER DATA>>>")
 
         lines.append("")  # blank line between participants
 
@@ -496,23 +501,39 @@ def _compute_trip_duration(trip: Trip, preferences: list[Preference]) -> int:
     1. Trip-level proposed dates (most authoritative)
     2. Most common participant date range (naive: use median length)
     3. Fallback: 7 days
+
+    Final result is clamped to max_trip_days(num_options) to prevent
+    AI output truncation when the fixed max_tokens budget is exceeded.
     """
     if trip.proposed_start_date and trip.proposed_end_date:
         delta = trip.proposed_end_date - trip.proposed_start_date
-        return max(1, delta.days)
+        days = max(1, delta.days)
+    else:
+        durations: list[int] = []
+        for pref in preferences:
+            if pref.preferred_start_date and pref.preferred_end_date:
+                delta = pref.preferred_end_date - pref.preferred_start_date
+                if delta.days > 0:
+                    durations.append(delta.days)
 
-    durations: list[int] = []
-    for pref in preferences:
-        if pref.preferred_start_date and pref.preferred_end_date:
-            delta = pref.preferred_end_date - pref.preferred_start_date
-            if delta.days > 0:
-                durations.append(delta.days)
+        if durations:
+            durations.sort()
+            days = durations[len(durations) // 2]  # median
+        else:
+            days = 7  # default
 
-    if durations:
-        durations.sort()
-        return durations[len(durations) // 2]  # median
+    cap = max_trip_days(trip.num_options)
+    if days > cap:
+        logger.warning(
+            "Trip %s duration %d days exceeds cap %d for num_options=%d; clamping",
+            trip.id,
+            days,
+            cap,
+            trip.num_options,
+        )
+        days = cap
 
-    return 7  # default
+    return days
 
 
 # ---------------------------------------------------------------------------
