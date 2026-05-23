@@ -5,8 +5,9 @@ import pytest
 
 from app.services.ai.rate_limiter import (
     MAX_CONTEXT_TOKENS,
+    MAX_RPD,
     MAX_RPM,
-    WINDOW_SECONDS,
+    WINDOW_1M,
     GlobalRateLimiter,
     LocalRateLimitError,
 )
@@ -28,7 +29,7 @@ async def test_rpm_gate_1000th_accepted_1001st_rejected() -> None:
     with pytest.raises(LocalRateLimitError) as exc_info:
         await limiter.reserve(1)
     assert exc_info.value.kind == "rpm"
-    assert exc_info.value.retry_after_seconds <= WINDOW_SECONDS
+    assert exc_info.value.retry_after_seconds <= WINDOW_1M
     assert exc_info.value.retry_after_seconds >= 0.0
 
 
@@ -120,7 +121,7 @@ async def test_sliding_window_resets_after_60_seconds() -> None:
         assert exc_info.value.kind == "rpm"
 
     # Past window — all old entries evicted, 1000 new slots available
-    advanced_time = base_time + WINDOW_SECONDS + 1.0
+    advanced_time = base_time + WINDOW_1M + 1.0
     with patch(
         "app.services.ai.rate_limiter.time.monotonic", return_value=advanced_time
     ):
@@ -130,3 +131,36 @@ async def test_sliding_window_resets_after_60_seconds() -> None:
         with pytest.raises(LocalRateLimitError) as exc_info:
             await limiter.reserve(1)
         assert exc_info.value.kind == "rpm"
+
+
+@pytest.mark.asyncio
+async def test_daily_request_limit() -> None:
+    limiter = GlobalRateLimiter()
+    base = 1000.0
+    for i in range(MAX_RPD):
+        with patch(
+            "app.services.ai.rate_limiter.time.monotonic", return_value=base + i * 34
+        ):
+            await limiter.reserve(100)
+    last_ts = base + MAX_RPD * 34
+    with patch("app.services.ai.rate_limiter.time.monotonic", return_value=last_ts):
+        with pytest.raises(LocalRateLimitError) as exc_info:
+            await limiter.reserve(100)
+        assert exc_info.value.kind == "rpd"
+
+
+@pytest.mark.asyncio
+async def test_hourly_token_limit() -> None:
+    limiter = GlobalRateLimiter()
+    base = 1000.0
+    chunk = 30_000
+    for i in range(33):
+        with patch(
+            "app.services.ai.rate_limiter.time.monotonic", return_value=base + i * 61
+        ):
+            await limiter.reserve(chunk)
+    ts_34 = base + 33 * 61
+    with patch("app.services.ai.rate_limiter.time.monotonic", return_value=ts_34):
+        with pytest.raises(LocalRateLimitError) as exc_info:
+            await limiter.reserve(chunk)
+        assert exc_info.value.kind == "tph"

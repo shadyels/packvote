@@ -4,9 +4,11 @@ from collections import deque
 from dataclasses import dataclass
 
 MAX_CONTEXT_TOKENS = 65_536
-MAX_RPM = 5
-MAX_TPM = 30_000
-WINDOW_SECONDS = 60.0
+MAX_RPM, MAX_RPH, MAX_RPD = 5, 250, 2_400
+MAX_TPM, MAX_TPH, MAX_TPD = 30_000, 1_000_000, 1_000_000
+WINDOW_1M = 60.0
+WINDOW_1H = 3_600.0
+WINDOW_24H = 86_400.0
 
 
 class LocalRateLimitError(Exception):
@@ -31,7 +33,7 @@ class GlobalRateLimiter:
         self._lock = asyncio.Lock()
 
     def _evict(self, now: float) -> None:
-        cutoff = now - WINDOW_SECONDS
+        cutoff = now - WINDOW_24H
         while self._requests and self._requests[0] < cutoff:
             self._requests.popleft()
         while self._tokens and self._tokens[0][0] < cutoff:
@@ -43,13 +45,35 @@ class GlobalRateLimiter:
         async with self._lock:
             now = time.monotonic()
             self._evict(now)
-            if len(self._requests) >= MAX_RPM:
-                retry = WINDOW_SECONDS - (now - self._requests[0])
-                raise LocalRateLimitError("rpm", max(retry, 0.0))
-            current_tokens = sum(n for _, n in self._tokens)
-            if current_tokens + estimated_tokens > MAX_TPM:
-                retry = WINDOW_SECONDS - (now - self._tokens[0][0])
-                raise LocalRateLimitError("tpm", max(retry, 0.0))
+
+            rpm = sum(1 for t in self._requests if t >= now - WINDOW_1M)
+            rph = sum(1 for t in self._requests if t >= now - WINDOW_1H)
+            rpd = len(self._requests)
+
+            if rpm >= MAX_RPM:
+                oldest = next(t for t in self._requests if t >= now - WINDOW_1M)
+                raise LocalRateLimitError("rpm", WINDOW_1M - (now - oldest))
+            if rph >= MAX_RPH:
+                oldest = next(t for t in self._requests if t >= now - WINDOW_1H)
+                raise LocalRateLimitError("rph", WINDOW_1H - (now - oldest))
+            if rpd >= MAX_RPD:
+                raise LocalRateLimitError("rpd", WINDOW_24H - (now - self._requests[0]))
+
+            tpm = sum(n for ts, n in self._tokens if ts >= now - WINDOW_1M)
+            tph = sum(n for ts, n in self._tokens if ts >= now - WINDOW_1H)
+            tpd = sum(n for ts, n in self._tokens)
+
+            if tpm + estimated_tokens > MAX_TPM:
+                oldest = next(ts for ts, _ in self._tokens if ts >= now - WINDOW_1M)
+                raise LocalRateLimitError("tpm", WINDOW_1M - (now - oldest))
+            if tph + estimated_tokens > MAX_TPH:
+                oldest = next(ts for ts, _ in self._tokens if ts >= now - WINDOW_1H)
+                raise LocalRateLimitError("tph", WINDOW_1H - (now - oldest))
+            if tpd + estimated_tokens > MAX_TPD:
+                raise LocalRateLimitError(
+                    "tpd", WINDOW_24H - (now - self._tokens[0][0])
+                )
+
             self._requests.append(now)
             self._tokens.append((now, estimated_tokens))
             return Reservation(timestamp=now, estimated_tokens=estimated_tokens)
