@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { auth, ApiError } from "@/lib/api";
+import { PASSWORD_MAX } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,6 +117,7 @@ export default function ResetPasswordPage() {
                     placeholder="••••••••"
                     required
                     minLength={8}
+                    maxLength={PASSWORD_MAX}
                     value={newPassword}
                     onChange={(e) => { setNewPassword(e.target.value); }}
                     className="bg-card border-border text-black placeholder:text-black/40"
@@ -132,6 +134,7 @@ export default function ResetPasswordPage() {
                     placeholder="••••••••"
                     required
                     minLength={8}
+                    maxLength={PASSWORD_MAX}
                     value={confirmPassword}
                     onChange={(e) => { setConfirmPassword(e.target.value); }}
                     className="bg-card border-border text-black placeholder:text-black/40"

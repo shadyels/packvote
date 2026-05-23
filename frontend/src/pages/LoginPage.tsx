@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ApiError } from "@/lib/api";
+import { PASSWORD_MAX, NAME_MAX } from "@/lib/validation";
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 
 type Mode = "login" | "register";
@@ -84,6 +85,7 @@ export default function LoginPage() {
                     placeholder="Your name"
                     value={fullName}
                     onChange={(e) => { setFullName(e.target.value); }}
+                    maxLength={NAME_MAX}
                     className="bg-card border-border text-black placeholder:text-black/40"
                   />
                 </div>
@@ -125,6 +127,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   required
                   minLength={8}
+                  maxLength={PASSWORD_MAX}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); }}
                   className="bg-card border-border text-black placeholder:text-black/40"

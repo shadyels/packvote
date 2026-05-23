@@ -15,6 +15,7 @@ from app.schemas.itinerary import (
 )
 from app.services.ai.cerebras import CerebrasProvider, _split_prompt
 from app.services.ai.json_utils import AIInputError, AIParseError
+from app.services.ai.rate_limiter import GlobalRateLimiter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -49,8 +50,10 @@ def _make_valid_response_json(num_options: int = 1) -> str:
 def _make_mock_client(response_json: str) -> MagicMock:
     mock_choice = MagicMock()
     mock_choice.message.content = response_json
+    mock_choice.finish_reason = "stop"
     mock_completion = MagicMock()
     mock_completion.choices = [mock_choice]
+    mock_completion.usage.total_tokens = 500
     mock_client = MagicMock()
     mock_client.chat.completions.create = AsyncMock(return_value=mock_completion)
     return mock_client
@@ -93,6 +96,21 @@ class TestSplitPrompt:
 
 
 class TestCerebrasProviderGenerate:
+    """Tests for CerebrasProvider.generate_itineraries.
+
+    Each test patches get_limiter() with a fresh GlobalRateLimiter to
+    prevent the global singleton from leaking state between tests.
+    """
+
+    @pytest.fixture(autouse=True)
+    def fresh_limiter(self) -> None:  # type: ignore[return]
+        """Inject a fresh rate limiter so tests are isolated from the singleton."""
+        with patch(
+            "app.services.ai.cerebras.get_limiter",
+            return_value=GlobalRateLimiter(),
+        ):
+            yield
+
     async def test_success_returns_response_and_provider_name(self) -> None:
         provider = CerebrasProvider(api_key="test-key")
         response_json = _make_valid_response_json(num_options=1)

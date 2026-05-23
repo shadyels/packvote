@@ -36,9 +36,12 @@ When the AI returns a structured error envelope instead of itineraries (bad dest
 `services/ai/rate_limiter.py` provides a process-level guard that rejects requests **before** the Cerebras network call. Single shared API key means all users share free-tier ceilings; this prevents wasting time on requests that would 429.
 
 **`GlobalRateLimiter` (singleton via `get_limiter()`):**
-- **RPM gate:** sliding 60s window, rejects at the 1001st request
-- **TPM gate:** sliding 60s window, rejects if `current_tokens + estimated > 1_000_000`
-- **Context length gate:** immediate reject if `estimated_tokens > 131_000` (Cerebras context cap)
+Enforces Cerebras free-tier limits across three time windows via a single deque (entries evicted at 24h+):
+- **Request limits:** 5/min (rpm), 250/hour (rph), 2400/day (rpd)
+- **Token limits:** 30,000/min (tpm), 1,000,000/hour (tph), 1,000,000/day (tpd)
+- **Context length gate:** immediate reject if `estimated_tokens > 65_536` (Cerebras context cap)
+
+All six limits checked on every `reserve()` call. Single deque design: `commit()` patches one `(timestamp, tokens)` entry; all window sums computed by filtering that deque at query time. No separate per-window deques.
 
 **Estimate → commit pattern:**
 Token cost is unknown before the call, so `reserve(estimated_tokens)` places an optimistic entry in the deque. After the call, `commit(reservation, actual_tokens)` replaces the estimate with actual `completion.usage.total_tokens`. On exception, `commit` is called with the estimate to avoid a leaked slot.
@@ -53,9 +56,9 @@ except Exception:
 await limiter.commit(reservation, actual_tokens)
 ```
 
-**`LocalRateLimitError`** carries `kind` (`"rpm"` | `"tpm"` | `"context_length"`) and `retry_after_seconds`. `_humanize_error()` surfaces it as:
+**`LocalRateLimitError`** carries `kind` (`"rpm"` | `"rph"` | `"rpd"` | `"tpm"` | `"tph"` | `"tpd"` | `"context_length"`) and `retry_after_seconds`. `_humanize_error()` surfaces it as:
 - `context_length` → "The trip preferences are too long to process. Try reducing the number of participants or shortening preference details."
-- `rpm` / `tpm` → "The AI service is busy. Please try again in N seconds."
+- `rpm` / `rph` / `rpd` / `tpm` / `tph` / `tpd` → "The AI service is busy. Please try again in N seconds." (minute/hour/day windows all map to same user message)
 
 ## JSON Extraction
 
@@ -78,6 +81,34 @@ if "error" in data and isinstance(data["error"], dict):
 
 **Raw response logging:**
 `ai_call_logs.raw_response` (Text column, nullable) stores the raw AI response only when parsing/validation fails. Always `None` on success to avoid table bloat.
+
+## Input Sanitization and Prompt Isolation
+
+### Sanitization before injection
+All user-controlled text fields injected into AI prompts **must** be passed through `sanitize_text()` from `app.schemas._sanitize` before use. This strips control characters, zero-width Unicode, and normalises whitespace — preventing structural manipulation via invisible characters.
+
+```python
+from app.schemas._sanitize import sanitize_text
+clean = sanitize_text(user_value)
+```
+
+### Delimiter isolation
+Every user-controlled value injected into `ITINERARY_PROMPT_V3` must be wrapped in structural delimiters so the model treats it as data, not instructions:
+
+```
+<<<USER DATA>>>{value}<<<END USER DATA>>>
+```
+
+Applied in `_render_prompt` (trip title, destination) and `_build_preferences_block` (interests, activity_tags). This is not a security absolute — it reduces the attack surface without adding latency or cost.
+
+Do NOT add phrase-blacklisting (e.g. filtering "ignore previous instructions"). Structural isolation is the correct approach.
+
+### Duration backstop
+`_compute_trip_duration` (the single chokepoint for all three duration paths) clamps its result to `max_trip_days(trip.num_options)` from `app.schemas._limits`. This prevents AI output truncation caused by the fixed `max_tokens=16384` budget in `cerebras.py`.
+
+Formula: `floor((15000 - num_options×250) / (num_options×360))` — n=2→20d, n=3→13d, n=4→9d, n=5→7d. Constants in `_limits.py` are calibration estimates; lock them from real measured completion tokens.
+
+If a real generation is measured and constants change, update **both** `backend/app/schemas/_limits.py` and `frontend/src/lib/validation.ts` (the JS mirror used for frontend date-range validation).
 
 ## Prompt Style Contract
 

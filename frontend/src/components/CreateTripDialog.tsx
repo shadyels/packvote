@@ -2,6 +2,7 @@ import { useState } from "react";
 import { format, startOfDay } from "date-fns";
 import { Plus, X } from "lucide-react";
 import { trips as tripsApi, ApiError } from "@/lib/api";
+import { TITLE_MAX, NOTES_MAX, PARTICIPANT_EMAILS_MAX, maxTripDays } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -70,6 +71,16 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
       return;
     }
 
+    const n = parseInt(numOptions, 10);
+    if (startDate && endDate) {
+      const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const cap = maxTripDays(n);
+      if (days > cap) {
+        setError(`Date range too long — max ${String(cap)} days for ${String(n)} itinerary options.`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await tripsApi.create({
@@ -129,6 +140,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               placeholder="Summer adventure 2025"
               value={title}
               onChange={(e) => { setTitle(e.target.value); }}
+              maxLength={TITLE_MAX}
               className="bg-card border-border text-black placeholder:text-black/30"
             />
           </div>
@@ -230,6 +242,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               variant="ghost"
               size="sm"
               onClick={addEmail}
+              disabled={emails.length >= PARTICIPANT_EMAILS_MAX}
               className="text-brand hover:text-brand hover:bg-transparent px-0"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
@@ -248,6 +261,7 @@ export function CreateTripDialog({ onCreated }: CreateTripDialogProps) {
               value={notes}
               onChange={(e) => { setNotes(e.target.value); }}
               rows={3}
+              maxLength={NOTES_MAX}
               className="bg-white border-border text-black placeholder:text-black/30 resize-none"
             />
           </div>

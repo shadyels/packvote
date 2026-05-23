@@ -605,10 +605,12 @@ class TestCreateTripLinksUserIdToInvitee:
         assert resp.status_code == 201
         trip_id = resp.json()["id"]
 
+        from sqlalchemy import func as sqlfunc
+
         result = await db.execute(
             select(Participant).where(
                 Participant.trip_id == trip_id,
-                Participant.email == invitee_email.upper(),
+                sqlfunc.lower(Participant.email) == invitee_email.lower(),
             )
         )
         participant = result.scalar_one()
@@ -701,7 +703,7 @@ class TestListInvitedTrips:
     ):
         resp = await client.post(
             TRIPS_URL,
-            json={"title": "My Own Trip", "participant_emails": []},
+            json={"title": "My Own Trip", "participant_emails": ["other@example.com"]},
             headers=auth_headers,
         )
         assert resp.status_code == 201
