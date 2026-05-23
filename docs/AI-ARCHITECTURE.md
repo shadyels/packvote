@@ -36,9 +36,12 @@ When the AI returns a structured error envelope instead of itineraries (bad dest
 `services/ai/rate_limiter.py` provides a process-level guard that rejects requests **before** the Cerebras network call. Single shared API key means all users share free-tier ceilings; this prevents wasting time on requests that would 429.
 
 **`GlobalRateLimiter` (singleton via `get_limiter()`):**
-- **RPM gate:** sliding 60s window, rejects at the 1001st request
-- **TPM gate:** sliding 60s window, rejects if `current_tokens + estimated > 1_000_000`
-- **Context length gate:** immediate reject if `estimated_tokens > 131_000` (Cerebras context cap)
+Enforces Cerebras free-tier limits across three time windows via a single deque (entries evicted at 24h+):
+- **Request limits:** 5/min (rpm), 250/hour (rph), 2400/day (rpd)
+- **Token limits:** 30,000/min (tpm), 1,000,000/hour (tph), 1,000,000/day (tpd)
+- **Context length gate:** immediate reject if `estimated_tokens > 65_536` (Cerebras context cap)
+
+All six limits checked on every `reserve()` call. Single deque design: `commit()` patches one `(timestamp, tokens)` entry; all window sums computed by filtering that deque at query time. No separate per-window deques.
 
 **Estimate → commit pattern:**
 Token cost is unknown before the call, so `reserve(estimated_tokens)` places an optimistic entry in the deque. After the call, `commit(reservation, actual_tokens)` replaces the estimate with actual `completion.usage.total_tokens`. On exception, `commit` is called with the estimate to avoid a leaked slot.
@@ -53,9 +56,9 @@ except Exception:
 await limiter.commit(reservation, actual_tokens)
 ```
 
-**`LocalRateLimitError`** carries `kind` (`"rpm"` | `"tpm"` | `"context_length"`) and `retry_after_seconds`. `_humanize_error()` surfaces it as:
+**`LocalRateLimitError`** carries `kind` (`"rpm"` | `"rph"` | `"rpd"` | `"tpm"` | `"tph"` | `"tpd"` | `"context_length"`) and `retry_after_seconds`. `_humanize_error()` surfaces it as:
 - `context_length` → "The trip preferences are too long to process. Try reducing the number of participants or shortening preference details."
-- `rpm` / `tpm` → "The AI service is busy. Please try again in N seconds."
+- `rpm` / `rph` / `rpd` / `tpm` / `tph` / `tpd` → "The AI service is busy. Please try again in N seconds." (minute/hour/day windows all map to same user message)
 
 ## JSON Extraction
 

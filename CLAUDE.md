@@ -95,7 +95,7 @@ Read the relevant `docs/` file before working in any of these areas:
 
 | Area | Key constraint | Full details |
 |------|---------------|-------------|
-| **AI service** | Use `extract_json()`, never `json.loads()`. Pass `session_factory` (not `session`) to background tasks. `LocalRateLimitError` skips retry — do not add retry logic around it. | `docs/AI-ARCHITECTURE.md` |
+| **AI service** | Use `extract_json()`, never `json.loads()`. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd); `LocalRateLimitError` skips retry. | `docs/AI-ARCHITECTURE.md` |
 | **Voting** | Pure algorithm in `ranked_choice.py`, DB ops in `service.py`. | `docs/VOTING-ARCHITECTURE.md` |
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
@@ -106,7 +106,7 @@ Read the relevant `docs/` file before working in any of these areas:
 ### AI service split
 `services/generation.py` — orchestration entry point (`run_generation(trip_id, session_factory)`). Edit here for pipeline changes.
 `services/ai/` — provider layer (Cerebras client, JSON utils, base class, rate limiter). Edit here for provider changes.
-`services/ai/rate_limiter.py` — in-process gate (RPM/TPM/context-length). Singleton `get_limiter()`. `LocalRateLimitError` fast-fails without retry.
+`services/ai/rate_limiter.py` — in-process gate enforcing 6 limits (rpm/rph/rpd/tpm/tph/tpd) via single deque with 24h eviction. Singleton `get_limiter()`. `LocalRateLimitError` fast-fails without retry. Window constants: `WINDOW_1M` (60s), `WINDOW_1H` (3600s), `WINDOW_24H` (86400s).
 
 ### Admin API (`app/api/admin.py`)
 Prefix `/admin`, requires `get_current_user`. Currently hosts email resend endpoints:
