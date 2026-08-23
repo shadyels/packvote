@@ -159,11 +159,11 @@ AIServiceLayer (abstract interface)
 - Retry: 3 attempts with exponential backoff; no fallback provider
 - Switching inference vendors is a config change (`AI_BASE_URL` / `AI_API_KEY` / `DEFAULT_AI_MODEL` / `AI_EXTRA_BODY`), not a code change — Gemini, OpenRouter, Mistral, Groq and Cerebras all speak the same OpenAI chat-completions dialect
 
-### Default Model: gemini-2.5-flash (Google Gemini free tier)
-Chosen for:
+### Default Model: gemini-3.6-flash (Google Gemini free tier)
+`gemini-2.5-flash` was the original choice below but was retired for new API keys (404 "no longer available to new users") in 2026; `gemini-3.6-flash` is the current Flash model and keeps the same rationale:
 - Genuinely free tier — no credit card, no credits system
-- ~250K TPM ceiling, ~25× headroom over a single generation's ~18K tokens. Groq's free tier was rejected for this reason: its 8K TPM cap is smaller than one PackVote request.
-- 1M input context, 65K max output
+- Large TPM ceiling relative to a single generation's ~18K tokens. Groq's free tier was rejected for this reason: its 8K TPM cap is smaller than one PackVote request. (Re-check current TPM figures in AI Studio before re-tuning `services/ai/rate_limiter.py` — Gemini's published per-model limits change.)
+- 1M input context, 65K max output — unchanged from 2.5-flash
 - High-quality structured JSON output
 
 Trade-off accepted: Gemini's free tier is used to improve Google products. The rendered prompt carries no PII — `_build_preferences_block` emits `Participant 1/2/3` with dates, budget and interests, never names or emails.

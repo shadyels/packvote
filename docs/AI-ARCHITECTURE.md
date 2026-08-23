@@ -3,7 +3,7 @@
 ## AI Service Layer
 
 - Single provider: `OpenAICompatProvider` using the `openai` SDK against **any** OpenAI-compatible chat-completions endpoint. Interface is `AIProvider` (abstract).
-- Default: **Google Gemini free tier** — `gemini-2.5-flash` via `https://generativelanguage.googleapis.com/v1beta/openai/`
+- Default: **Google Gemini free tier** — `gemini-3.6-flash` via `https://generativelanguage.googleapis.com/v1beta/openai/` (`gemini-2.5-flash` was retired for new API keys — 404 "no longer available to new users")
 - All AI responses MUST return validated JSON (Pydantic validation).
 - Prompts are versioned in the database (`prompt_templates` table) with basic A/B testing (traffic split, metrics per version).
 
@@ -25,15 +25,15 @@ This replaced a history of provider-specific classes (HuggingFace → Groq → C
 **`AsyncOpenAI` from the `openai` SDK.** Do not use raw `httpx`, `huggingface_hub`, or a vendor SDK for AI inference. Client is initialized with `timeout=180` seconds to accommodate slow cold-starts.
 
 **Thinking/reasoning suppression is mandatory — and it is a token-budget issue, not a formatting one.**
-Gemini draws thinking tokens from the *same* `max_tokens` budget as the response. With `MAX_OUTPUT_TOKENS = 16_384` and `SAFE_OUTPUT_TOKENS = 15_000` of itinerary JSON, an enabled thinking pass silently truncates the JSON mid-array, surfacing as `finish_reason == "length"` rather than an error. `AI_EXTRA_BODY` defaults to:
+Gemini draws thinking tokens from the *same* `max_tokens` budget as the response. With `MAX_OUTPUT_TOKENS = 16_384` and `SAFE_OUTPUT_TOKENS = 15_000` of itinerary JSON, an enabled thinking pass risks silently truncating the JSON mid-array, surfacing as `finish_reason == "length"` rather than an error. `AI_EXTRA_BODY` defaults to:
 
 ```json
-{"extra_body": {"google": {"thinking_config": {"thinking_budget": 0}}}}
+{"extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}}
 ```
 
 Double-nested on purpose: the OpenAI SDK's `extra_body=` kwarg merges its keys into the *top level* of the outgoing request body, but Gemini's OpenAI-compat endpoint expects a literal `extra_body` field there. A single-level `{"google": ...}` produces `400 Unknown name "google"`.
 
-Gemini 3.x models use `{"extra_body": {"google": {"thinking_config": {"thinking_level": "low"}}}}` instead of `thinking_budget`. Set `AI_EXTRA_BODY={}` for providers that reject unknown request fields.
+Gemini 3.x models (including the default `gemini-3.6-flash`) replaced the old `thinking_budget` integer with the string enum `thinking_level` — `minimal`/`low`/`medium`/`high`, default `medium` on 3.6 Flash. Sending `thinking_budget` on a 3.x model 400s (they can't be combined, and 3.6 rejects `thinking_budget` outright). `minimal` is the lowest level Flash models support, but per Google's own docs it is **not a guarantee** thinking is off — unlike `thinking_budget=0` on Gemini 2.5, which was absolute. Watch `finish_reason=length` warnings (logged in `openai_compat.py`) as the signal that this non-guarantee is manifesting; if it starts happening regularly, the mitigation is a real token-budget increase in `MAX_OUTPUT_TOKENS`/`_limits.py`, not a smaller `thinking_level`. Set `AI_EXTRA_BODY={}` for providers that reject unknown request fields.
 
 `DEFAULT_REASONING_EFFORT` defaults to `"none"`, which **omits the `reasoning_effort` param entirely** — Gemini rejects `reasoning_effort` and `thinking_config` supplied together. Any other value is forwarded as the standard OpenAI `reasoning_effort`.
 

@@ -31,7 +31,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 - **Database:** PostgreSQL
 - **Email:** Brevo (free tier, 300 emails/day)
 - **AI Inference:** any OpenAI-compatible endpoint via `openai` SDK (`AsyncOpenAI`) — do NOT add vendor SDKs. Provider is config (`AI_API_KEY` / `AI_BASE_URL` / `AI_PROVIDER_NAME` / `AI_EXTRA_BODY`), not code.
-- **Default AI Model:** `gemini-2.5-flash` on Google Gemini's free tier. Thinking disabled via `AI_EXTRA_BODY` (`thinking_budget: 0`) because Gemini draws thinking tokens from the same `max_tokens` budget as the response — leaving it on truncates the itinerary JSON. `DEFAULT_REASONING_EFFORT="none"` omits `reasoning_effort` entirely (Gemini rejects it alongside `thinking_config`).
+- **Default AI Model:** `gemini-3.6-flash` on Google Gemini's free tier (`gemini-2.5-flash` was retired for new API keys — 404 "no longer available to new users"). Thinking suppressed via `AI_EXTRA_BODY` (`thinking_level: "minimal"` — Gemini 3.x replaced `thinking_budget` with this string enum; sending the old field 400s on 3.x models) because Gemini draws thinking tokens from the same `max_tokens` budget as the response — leaving it on risks truncating the itinerary JSON. Unlike `thinking_budget=0` on 2.5, `"minimal"` does not *guarantee* zero thinking tokens; watch for `finish_reason=length` warnings. `DEFAULT_REASONING_EFFORT="none"` omits `reasoning_effort` entirely (Gemini rejects it alongside `thinking_config`).
 - **Auth:** Email + password (trip creators), token-based links + trip code/PIN (participants)
 - **Password Hashing:** `bcrypt` directly — do NOT use `passlib` (incompatible with `bcrypt >= 4.0`)
 
