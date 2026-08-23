@@ -201,7 +201,7 @@ class TestOpenAICompatProviderGenerate:
 
     async def test_extra_body_is_forwarded(self) -> None:
         thinking_off = {
-            "extra_body": {"google": {"thinking_config": {"thinking_budget": 0}}}
+            "extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}
         }
         provider = _make_provider(extra_body=thinking_off)
         mock_client = _make_mock_client(_make_valid_response_json())
@@ -235,7 +235,7 @@ class TestOpenAICompatProviderGenerate:
 
         assert "google" not in captured
         assert captured["extra_body"] == {
-            "google": {"thinking_config": {"thinking_budget": 0}}
+            "google": {"thinking_config": {"thinking_level": "minimal"}}
         }
 
     async def test_empty_extra_body_is_omitted(self) -> None:
