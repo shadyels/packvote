@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+from openai import AsyncOpenAI
 
+from app.core.config import get_settings
 from app.schemas.itinerary import (
     AIGenerationResponse,
     DailyActivity,
@@ -45,6 +49,28 @@ def _make_valid_response_json(num_options: int = 1) -> str:
         highlights=["Eiffel Tower", "Louvre"],
     )
     return json.dumps({"options": [option.model_dump()] * num_options})
+
+
+def _fake_completion_payload(content: str) -> dict:
+    """Raw OpenAI chat-completion response body, as it comes over the wire."""
+    return {
+        "id": "chatcmpl-test",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": "test-model",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 10,
+            "total_tokens": 20,
+        },
+    }
 
 
 def _make_provider(extra_body: dict | None = None) -> OpenAICompatProvider:
@@ -174,7 +200,9 @@ class TestOpenAICompatProviderGenerate:
         )
 
     async def test_extra_body_is_forwarded(self) -> None:
-        thinking_off = {"google": {"thinking_config": {"thinking_budget": 0}}}
+        thinking_off = {
+            "extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}
+        }
         provider = _make_provider(extra_body=thinking_off)
         mock_client = _make_mock_client(_make_valid_response_json())
 
@@ -183,6 +211,32 @@ class TestOpenAICompatProviderGenerate:
 
         kwargs = mock_client.chat.completions.create.call_args.kwargs
         assert kwargs["extra_body"] == thinking_off
+
+    async def test_extra_body_serializes_to_top_level_extra_body_field(self) -> None:
+        """Regression: the OpenAI SDK flattens extra_body into the top level of the
+        request body. Gemini expects a literal `extra_body` field there, so a
+        single-level {"google": ...} yields 400 Unknown name "google"."""
+        captured: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.update(json.loads(request.content))
+            return httpx.Response(
+                200, json=_fake_completion_payload(_make_valid_response_json())
+            )
+
+        provider = _make_provider(extra_body=get_settings().AI_EXTRA_BODY)
+        client = AsyncOpenAI(
+            api_key="k",
+            base_url="https://example.invalid/v1/",
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        )
+        with patch.object(provider, "_make_client", return_value=client):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
+
+        assert "google" not in captured
+        assert captured["extra_body"] == {
+            "google": {"thinking_config": {"thinking_level": "minimal"}}
+        }
 
     async def test_empty_extra_body_is_omitted(self) -> None:
         """Providers that reject unknown request fields must not receive an

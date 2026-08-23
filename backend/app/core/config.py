@@ -38,7 +38,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # AI model defaults
-    DEFAULT_AI_MODEL: str = "gemini-2.5-flash"
+    # gemini-2.5-flash was retired for new API keys (404 "no longer available
+    # to new users") — confirmed against both a fresh key and production's
+    # Railway key. gemini-3.6-flash is the current Flash model.
+    DEFAULT_AI_MODEL: str = "gemini-3.6-flash"
     # "none" omits reasoning_effort entirely and lets AI_EXTRA_BODY govern the
     # thinking pass — required for Gemini, which rejects reasoning_effort and
     # thinking_config together. Escalate via env if prompt adherence regresses.
@@ -47,12 +50,23 @@ class Settings(BaseSettings):
     # into the request as `extra_body`. Set from env as JSON.
     #
     # Gemini draws thinking tokens from the SAME max_tokens budget as the
-    # response, so an enabled thinking pass silently truncates the itinerary
-    # JSON. thinking_budget=0 disables it on Gemini 2.5. Gemini 3.x uses
-    # {"thinking_level": "low"} instead. Set to {} for providers that reject
-    # unknown fields.
+    # response, so an enabled thinking pass risks silently truncating the
+    # itinerary JSON. Gemini 3.x replaced thinking_budget with the string enum
+    # thinking_level (minimal/low/medium/high, default "medium" on 3.6 Flash);
+    # sending thinking_budget on a 3.x model 400s. "minimal" is the lowest
+    # level Flash models support — per Google's docs it approximates but does
+    # NOT guarantee zero thinking tokens, unlike thinking_budget=0 on 2.5. If
+    # `finish_reason=length` warnings start appearing (see openai_compat.py),
+    # that is this non-guarantee manifesting. Set to {} for providers that
+    # reject unknown request fields.
+    #
+    # Double-nested on purpose: the OpenAI SDK's extra_body= kwarg merges its
+    # keys into the TOP LEVEL of the outgoing request body, but Gemini's
+    # OpenAI-compat endpoint expects a literal `extra_body` field there (it's
+    # a real field in their request proto). A single-level {"google": ...}
+    # produces `400 Unknown name "google"`.
     AI_EXTRA_BODY: dict[str, Any] = {
-        "google": {"thinking_config": {"thinking_budget": 0}}
+        "extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}
     }
 
 
