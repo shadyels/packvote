@@ -108,7 +108,7 @@ def _mock_ai_response(num_options: int = 3) -> tuple[AIGenerationResponse, str]:
     options = [
         _make_itinerary_option(f"Destination {i + 1}") for i in range(num_options)
     ]
-    return AIGenerationResponse(options=options), "cerebras"
+    return AIGenerationResponse(options=options), "gemini"
 
 
 # ---------------------------------------------------------------------------
@@ -263,24 +263,27 @@ class TestHumanizeError:
         assert "Bad destination" in result
         assert "temporary" not in result
 
-    def test_cerebras_rate_limit_returns_rate_limit_message(self) -> None:
-        import cerebras.cloud.sdk
+    def test_provider_rate_limit_returns_rate_limit_message(self) -> None:
+        import openai
 
-        err = cerebras.cloud.sdk.RateLimitError.__new__(
-            cerebras.cloud.sdk.RateLimitError
-        )
+        err = openai.RateLimitError.__new__(openai.RateLimitError)
         result = _humanize_error(err)
         assert "rate limit" in result.lower()
 
-    def test_cerebras_500_returns_unavailable_message(self) -> None:
-        import cerebras.cloud.sdk
+    def test_provider_500_returns_unavailable_message(self) -> None:
+        import openai
 
-        err = cerebras.cloud.sdk.APIStatusError.__new__(
-            cerebras.cloud.sdk.APIStatusError
-        )
+        err = openai.APIStatusError.__new__(openai.APIStatusError)
         err.status_code = 503
         result = _humanize_error(err)
         assert "unavailable" in result.lower()
+
+    def test_provider_connection_error_returns_connection_message(self) -> None:
+        import openai
+
+        err = openai.APIConnectionError.__new__(openai.APIConnectionError)
+        result = _humanize_error(err)
+        assert "connect" in result.lower()
 
 
 class TestUpsertPromptTemplateIdempotency:

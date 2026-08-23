@@ -77,7 +77,7 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - Why this matches the group's preferences (`match_reasoning`)
   - Highlights list
 - All AI output is structured JSON, validated by Pydantic schemas
-- Failed/invalid AI responses are retried with exponential backoff (3 attempts with Cerebras)
+- Failed/invalid AI responses are retried with exponential backoff (3 attempts)
 - **`AIInputError` fast-fail:** when the AI returns a structured error envelope (bad destination, contradictory constraints), retries are skipped entirely — the AI's own user-friendly message and suggestion are surfaced directly via `trip.generation_error`
 - If all providers fail, trip status is set to `GENERATION_FAILED` and a **user-friendly** error message is stored on the trip (raw technical errors go to logs only); the dashboard shows the error, an "Edit Trip" button, and a "Retry Generation" button; the admin can re-trigger from `GENERATION_FAILED` status
 - Each generation is logged with: prompt version, model used, provider used, latency, response validity
@@ -151,19 +151,22 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 ### Provider-Agnostic Service Layer
 ```
 AIServiceLayer (abstract interface)
-└── CerebrasProvider (default)
-    └── Routes via Cerebras Inference API (AsyncCerebras)
+└── OpenAICompatProvider (only provider)
+    └── AsyncOpenAI → AI_BASE_URL (default: Gemini's OpenAI-compatible endpoint)
 ```
 
 - All providers implement the same interface: `generate_itineraries()`, `generate_followup_survey()`, `organize_preferences()`
 - Retry: 3 attempts with exponential backoff; no fallback provider
+- Switching inference vendors is a config change (`AI_BASE_URL` / `AI_API_KEY` / `DEFAULT_AI_MODEL` / `AI_EXTRA_BODY`), not a code change — Gemini, OpenRouter, Mistral, Groq and Cerebras all speak the same OpenAI chat-completions dialect
 
-### Default Model: gpt-oss-120b (OpenAI gpt-oss)
+### Default Model: gemini-2.5-flash (Google Gemini free tier)
 Chosen for:
+- Genuinely free tier — no credit card, no credits system
+- ~250K TPM ceiling, ~25× headroom over a single generation's ~18K tokens. Groq's free tier was rejected for this reason: its 8K TPM cap is smaller than one PackVote request.
+- 1M input context, 65K max output
 - High-quality structured JSON output
-- Reasoning suppressed via `reasoning_format="hidden"` + `reasoning_effort="low"` — clean single-channel JSON output, matching the prompt contract
-- Available on Cerebras Inference with fast inference speeds
-- Apache 2.0 licensed, commercially usable
+
+Trade-off accepted: Gemini's free tier is used to improve Google products. The rendered prompt carries no PII — `_build_preferences_block` emits `Participant 1/2/3` with dates, budget and interests, never names or emails.
 
 ### Prompt Management
 - Prompts stored in database table: `prompt_templates`
@@ -262,9 +265,10 @@ PackVote uses a REST API. GraphQL was considered and rejected because:
 - REST endpoints map naturally to the app's operations (`GET /trips/{id}`, `POST /trips/{id}/vote`, etc.)
 - GraphQL would add schema definition and resolver boilerplate without meaningful benefit
 
-### Cerebras Inference
-The project uses Cerebras Inference for AI generation:
-- Fast inference speeds — significantly faster than most hosted inference providers
+### Google Gemini (free tier)
+The project uses Google Gemini for AI generation, reached through its OpenAI-compatible endpoint:
+- Genuinely free — no credit card, no credits system
+- Ample per-request token headroom (~250K TPM) for a ~18K-token generation
 - Rate limits apply; exponential backoff (3 attempts × [1s, 2s, 4s]) handles transient errors
 - AI calls should be minimized: generate only when needed, cache results, avoid redundant calls
 - Failed requests should use exponential backoff, not immediate retries
@@ -358,7 +362,7 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 - `SECRET_KEY` — JWT/session signing key
 - `BREVO_API_KEY` — Brevo transactional email API key
 - `BREVO_FROM_EMAIL` — verified sender address in Brevo (must be added and verified under Settings → Senders before emails will send)
-- `CEREBRAS_API_KEY` — Cerebras inference API key
+- `AI_API_KEY` — inference API key (Google Gemini by default)
 - `FRONTEND_URL` — Frontend base URL (for CORS and email links)
 - `ENVIRONMENT` — development / staging / production
 

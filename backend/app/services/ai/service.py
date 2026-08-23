@@ -1,25 +1,25 @@
 import asyncio
 import logging
 
-from cerebras.cloud.sdk import RateLimitError as CerebrasRateLimitError
+from openai import RateLimitError
 
 from app.core.config import get_settings
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
-from app.services.ai.cerebras import CerebrasProvider
 from app.services.ai.json_utils import AIInputError
+from app.services.ai.openai_compat import OpenAICompatProvider
 from app.services.ai.rate_limiter import LocalRateLimitError
 
 logger = logging.getLogger(__name__)
 
 RETRY_DELAYS = [1.0, 2.0, 4.0]  # seconds between attempts — transient errors
-RATE_LIMIT_DELAYS = [30.0, 60.0, 90.0]  # seconds between attempts — 429 queue_exceeded
+RATE_LIMIT_DELAYS = [30.0, 60.0, 90.0]  # seconds between attempts — HTTP 429
 
 
 class AIService:
     """Orchestrates AI provider selection and retry logic.
 
-    Retries the Cerebras provider up to 3 times with exponential backoff.
+    Retries the configured provider up to 3 times with exponential backoff.
     On total exhaustion re-raises the last exception.
     """
 
@@ -29,7 +29,14 @@ class AIService:
     @classmethod
     def from_settings(cls) -> "AIService":
         settings = get_settings()
-        return cls(provider=CerebrasProvider(api_key=settings.CEREBRAS_API_KEY))
+        return cls(
+            provider=OpenAICompatProvider(
+                api_key=settings.AI_API_KEY,
+                base_url=settings.AI_BASE_URL,
+                provider_name=settings.AI_PROVIDER_NAME,
+                extra_body=settings.AI_EXTRA_BODY,
+            )
+        )
 
     async def generate_itineraries(
         self,
@@ -62,7 +69,7 @@ class AIService:
             except Exception as exc:
                 last_exc = exc
                 logger.warning(
-                    "Cerebras attempt %d failed (%s): %s",
+                    "AI provider attempt %d failed (%s): %s",
                     attempt + 1,
                     type(exc).__name__,
                     exc,
@@ -70,7 +77,7 @@ class AIService:
                 if attempt < max_attempts - 1:
                     delays = (
                         RATE_LIMIT_DELAYS
-                        if isinstance(exc, CerebrasRateLimitError)
+                        if isinstance(exc, RateLimitError)
                         else RETRY_DELAYS
                     )
                     await asyncio.sleep(delays[attempt])

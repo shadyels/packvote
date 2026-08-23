@@ -3,9 +3,17 @@ import time
 from collections import deque
 from dataclasses import dataclass
 
-MAX_CONTEXT_TOKENS = 65_536
-MAX_RPM, MAX_RPH, MAX_RPD = 5, 250, 2_400
-MAX_TPM, MAX_TPH, MAX_TPD = 30_000, 1_000_000, 1_000_000
+# Calibrated against Google Gemini's free tier (~10 RPM / 250K TPM / ~1.5K RPD),
+# deliberately set under the published ceilings so this gate trips before the
+# provider's does. Gemini publishes no hourly or daily token cap, so TPH/TPD are
+# derived from RPD × a generous per-call budget. Re-tune these when changing
+# AI_BASE_URL — confirm the real numbers in the provider's console.
+#
+# MAX_CONTEXT_TOKENS is NOT the model's context window (Gemini accepts 1M); it is
+# a runaway-input guard that rejects absurd prompts before the network call.
+MAX_CONTEXT_TOKENS = 128_000
+MAX_RPM, MAX_RPH, MAX_RPD = 8, 400, 1_200
+MAX_TPM, MAX_TPH, MAX_TPD = 200_000, 2_000_000, 4_000_000
 WINDOW_1M = 60.0
 WINDOW_1H = 3_600.0
 WINDOW_24H = 86_400.0

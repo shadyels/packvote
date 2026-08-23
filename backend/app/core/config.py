@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,8 +21,14 @@ class Settings(BaseSettings):
     BREVO_API_KEY: str = ""
     BREVO_FROM_EMAIL: str = "noreply@packvote.app"
 
-    # AI providers
-    CEREBRAS_API_KEY: str = ""
+    # AI provider — any OpenAI-compatible chat-completions endpoint.
+    # Defaults target Google Gemini's free tier. Switching provider means changing
+    # these three plus DEFAULT_AI_MODEL and AI_EXTRA_BODY below; no code change,
+    # but re-tune the ceilings in services/ai/rate_limiter.py to match.
+    AI_API_KEY: str = ""
+    AI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    # Recorded in ai_call_logs.provider and itineraries.provider.
+    AI_PROVIDER_NAME: str = "gemini"
 
     # Unsplash
     UNSPLASH_ACCESS_KEY: str = ""
@@ -32,10 +38,22 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # AI model defaults
-    DEFAULT_AI_MODEL: str = "gpt-oss-120b"
-    # Reasoning effort for gpt-oss models. Escalate to "medium"/"high" via env
-    # if prompt-adherence regressions are observed.
-    DEFAULT_REASONING_EFFORT: Literal["low", "medium", "high"] = "low"
+    DEFAULT_AI_MODEL: str = "gemini-2.5-flash"
+    # "none" omits reasoning_effort entirely and lets AI_EXTRA_BODY govern the
+    # thinking pass — required for Gemini, which rejects reasoning_effort and
+    # thinking_config together. Escalate via env if prompt adherence regresses.
+    DEFAULT_REASONING_EFFORT: Literal["none", "low", "medium", "high"] = "none"
+    # Vendor-specific request knobs the OpenAI schema has no field for, merged
+    # into the request as `extra_body`. Set from env as JSON.
+    #
+    # Gemini draws thinking tokens from the SAME max_tokens budget as the
+    # response, so an enabled thinking pass silently truncates the itinerary
+    # JSON. thinking_budget=0 disables it on Gemini 2.5. Gemini 3.x uses
+    # {"thinking_level": "low"} instead. Set to {} for providers that reject
+    # unknown fields.
+    AI_EXTRA_BODY: dict[str, Any] = {
+        "google": {"thinking_config": {"thinking_budget": 0}}
+    }
 
 
 @lru_cache

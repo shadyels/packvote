@@ -2,29 +2,50 @@
 
 ## AI Service Layer
 
-- Single provider: `CerebrasProvider` using `cerebras-cloud-sdk`. Interface is `AIProvider` (abstract); provider is swappable.
-- Default model: `gpt-oss-120b` (OpenAI gpt-oss, Apache 2.0)
+- Single provider: `OpenAICompatProvider` using the `openai` SDK against **any** OpenAI-compatible chat-completions endpoint. Interface is `AIProvider` (abstract).
+- Default: **Google Gemini free tier** — `gemini-2.5-flash` via `https://generativelanguage.googleapis.com/v1beta/openai/`
 - All AI responses MUST return validated JSON (Pydantic validation).
 - Prompts are versioned in the database (`prompt_templates` table) with basic A/B testing (traffic split, metrics per version).
 
 ## Provider Implementation
 
-**`AsyncCerebras` from `cerebras-cloud-sdk`:**
-`CerebrasProvider` uses `AsyncCerebras` from `cerebras-cloud-sdk`. Do not use raw `httpx` or `huggingface_hub` for AI inference.
-- Client is initialized with `timeout=180` seconds to accommodate slow model cold-starts.
-- `gpt-oss-120b` has reasoning enabled by default. We pass `reasoning_format="hidden"` to suppress the reasoning channel so `message.content` is JSON-only, matching the `ITINERARY_PROMPT_V3` contract. `reasoning_effort` (default `"low"`) minimises internally-generated tokens; escalate via `DEFAULT_REASONING_EFFORT` env var if prompt-adherence regressions are observed. `disable_reasoning` is GLM-family-specific and must not be used here.
+**The provider is configuration, not code.**
+Gemini, OpenRouter, Mistral, Groq and Cerebras all expose the same OpenAI chat-completions shape. Switching providers means changing four settings in `app/core/config.py` (all env-overridable) — never writing a new provider class:
+
+| Setting | Purpose |
+|---|---|
+| `AI_API_KEY` | Provider API key |
+| `AI_BASE_URL` | Endpoint root |
+| `AI_PROVIDER_NAME` | Recorded in `AICallLog.provider` / `Itinerary.provider` |
+| `DEFAULT_AI_MODEL` | Model id |
+| `AI_EXTRA_BODY` | Vendor-specific knobs (see below) |
+
+This replaced a history of provider-specific classes (HuggingFace → Groq → Cerebras), each of which required a full rewrite when a free tier disappeared.
+
+**`AsyncOpenAI` from the `openai` SDK.** Do not use raw `httpx`, `huggingface_hub`, or a vendor SDK for AI inference. Client is initialized with `timeout=180` seconds to accommodate slow cold-starts.
+
+**Thinking/reasoning suppression is mandatory — and it is a token-budget issue, not a formatting one.**
+Gemini draws thinking tokens from the *same* `max_tokens` budget as the response. With `MAX_OUTPUT_TOKENS = 16_384` and `SAFE_OUTPUT_TOKENS = 15_000` of itinerary JSON, an enabled thinking pass silently truncates the JSON mid-array, surfacing as `finish_reason == "length"` rather than an error. `AI_EXTRA_BODY` defaults to:
+
+```json
+{"google": {"thinking_config": {"thinking_budget": 0}}}
+```
+
+Gemini 3.x models use `{"thinking_level": "low"}` instead of `thinking_budget`. Set `AI_EXTRA_BODY={}` for providers that reject unknown request fields.
+
+`DEFAULT_REASONING_EFFORT` defaults to `"none"`, which **omits the `reasoning_effort` param entirely** — Gemini rejects `reasoning_effort` and `thinking_config` supplied together. Any other value is forwarded as the standard OpenAI `reasoning_effort`.
 
 **Provider return type includes provider name:**
-`AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `"cerebras"`. Required so the generation service can log which provider answered in `AICallLog.provider` and `Itinerary.provider`.
+`AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `AI_PROVIDER_NAME` (default `"gemini"`). Required so the generation service can log which provider answered.
 
 **Retry strategy:**
-`AIService.generate_itineraries()` retries the Cerebras provider up to 3 times. On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries.
+`AIService.generate_itineraries()` retries up to 3 times. On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries.
 
 Two delay schedules in `services/ai/service.py`:
 - `RETRY_DELAYS = [1.0, 2.0, 4.0]` — transient errors (parse failures, timeouts, 5xx)
-- `RATE_LIMIT_DELAYS = [30.0, 60.0, 90.0]` — `CerebrasRateLimitError` (HTTP 429 / `queue_exceeded`)
+- `RATE_LIMIT_DELAYS = [30.0, 60.0, 90.0]` — `openai.RateLimitError` (HTTP 429)
 
-The long backoff for 429s is intentional: short delays (1/2/4s) were exhausted before Cerebras traffic spikes resolved, causing live generation to fail after retrying too quickly.
+The long backoff for 429s is intentional: short delays (1/2/4s) were exhausted before upstream traffic spikes resolved, causing live generation to fail after retrying too quickly.
 
 **`AIInputError` and `LocalRateLimitError` fast-fail (no retry):**
 When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), providers raise `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
@@ -33,13 +54,17 @@ When the AI returns a structured error envelope instead of itineraries (bad dest
 
 ## In-Process Rate Limiter
 
-`services/ai/rate_limiter.py` provides a process-level guard that rejects requests **before** the Cerebras network call. Single shared API key means all users share free-tier ceilings; this prevents wasting time on requests that would 429.
+`services/ai/rate_limiter.py` provides a process-level guard that rejects requests **before** the network call. Single shared API key means all users share free-tier ceilings; this prevents wasting time on requests that would 429.
 
 **`GlobalRateLimiter` (singleton via `get_limiter()`):**
-Enforces Cerebras free-tier limits across three time windows via a single deque (entries evicted at 24h+):
-- **Request limits:** 5/min (rpm), 250/hour (rph), 2400/day (rpd)
-- **Token limits:** 30,000/min (tpm), 1,000,000/hour (tph), 1,000,000/day (tpd)
-- **Context length gate:** immediate reject if `estimated_tokens > 65_536` (Cerebras context cap)
+Enforces limits across three time windows via a single deque (entries evicted at 24h+). Constants are calibrated against **Gemini's free tier** (~10 RPM / 250K TPM / ~1.5K RPD) and set deliberately *under* the published ceilings so this gate trips before Google's:
+- **Request limits:** 8/min (rpm), 400/hour (rph), 1,200/day (rpd)
+- **Token limits:** 200,000/min (tpm), 2,000,000/hour (tph), 4,000,000/day (tpd)
+- **Context length gate:** immediate reject if `estimated_tokens > 128_000`
+
+Gemini publishes no hourly/daily *token* cap, so `MAX_TPH`/`MAX_TPD` are derived from RPD × a generous per-call budget. `MAX_CONTEXT_TOKENS` is **not** the model's context window (Gemini accepts 1M) — it is a runaway-input guard.
+
+**Re-tune these whenever `AI_BASE_URL` changes**, and confirm real numbers in the provider's console — Gemini's public docs defer to AI Studio. `tests/unit/test_rate_limiter.py` derives its fixtures arithmetically from these constants, so re-tuning does not require editing tests.
 
 All six limits checked on every `reserve()` call. Single deque design: `commit()` patches one `(timestamp, tokens)` entry; all window sums computed by filtering that deque at query time. No separate per-window deques.
 
@@ -64,7 +89,10 @@ await limiter.commit(reservation, actual_tokens)
 
 **Always use `extract_json()` from `services/ai/json_utils.py` — never bare `json.loads()`.**
 
-Open-source models wrap JSON in markdown fences or add preamble even with `response_format={"type": "json_object"}`. `extract_json(raw)` tries three strategies:
+**Keep `response_format={"type": "json_object"}` — do NOT upgrade to `json_schema`.**
+Gemini supports strict schema-enforced output, and it is tempting to enforce `AIGenerationResponse` and delete the extraction fallbacks. Don't: a strict schema makes the `{"error": {...}}` envelope below unrepresentable, and `AIInputError` / `_humanize_error` are built on it.
+
+Models wrap JSON in markdown fences or add preamble even with `response_format={"type": "json_object"}`. `extract_json(raw)` tries three strategies:
 1. Direct parse
 2. Strip markdown fences
 3. Brace-extraction: `raw[raw.find("{"):raw.rfind("}")+1]`
@@ -72,7 +100,7 @@ Open-source models wrap JSON in markdown fences or add preamble even with `respo
 On total failure raises `AIParseError` with the raw text attached. A `pydantic.ValidationError` is wrapped in `AIParseError` so raw text always propagates to the caller.
 
 **Error envelope detection (check before schema validation):**
-After `extract_json()` returns a dict, both providers check for `"error"` key before attempting `AIGenerationResponse.model_validate()`. If present, they raise `AIInputError` immediately:
+After `extract_json()` returns a dict, the provider checks for an `"error"` key before attempting `AIGenerationResponse.model_validate()`. If present, it raises `AIInputError` immediately:
 ```python
 if "error" in data and isinstance(data["error"], dict):
     err = data["error"]
@@ -104,7 +132,7 @@ Applied in `_render_prompt` (trip title, destination) and `_build_preferences_bl
 Do NOT add phrase-blacklisting (e.g. filtering "ignore previous instructions"). Structural isolation is the correct approach.
 
 ### Duration backstop
-`_compute_trip_duration` (the single chokepoint for all three duration paths) clamps its result to `max_trip_days(trip.num_options)` from `app.schemas._limits`. This prevents AI output truncation caused by the fixed `max_tokens=16384` budget in `cerebras.py`.
+`_compute_trip_duration` (the single chokepoint for all three duration paths) clamps its result to `max_trip_days(trip.num_options)` from `app.schemas._limits`. This prevents AI output truncation caused by the fixed `MAX_OUTPUT_TOKENS = 16_384` budget in `services/ai/openai_compat.py`.
 
 Formula: `floor((15000 - num_options×250) / (num_options×360))` — n=2→20d, n=3→13d, n=4→9d, n=5→7d. Constants in `_limits.py` are calibration estimates; lock them from real measured completion tokens.
 
@@ -179,9 +207,11 @@ User-facing messages from `_humanize_error(exc)` in `services/generation.py`:
 - `ValueError` (wrong option count) → "The AI generated the wrong number of itinerary options..."
 - `LocalRateLimitError` (`context_length`) → preferences too long message
 - `LocalRateLimitError` (`rpm`/`tpm`) → "The AI service is busy. Please try again in N seconds."
-- `CerebrasRateLimitError` → rate limit message
-- `CerebrasAPIStatusError` (5xx) → service unavailable message
-- `CerebrasConnectionError` / `TimeoutError` → connection error message
+- `openai.RateLimitError` → rate limit message
+- `openai.APIStatusError` (5xx) → service unavailable message
+- `openai.APIConnectionError` / `TimeoutError` → connection error message
+
+`openai.RateLimitError` subclasses `APIStatusError`, so the 429 branch must stay **above** the 5xx branch.
 - Anything else → generic "Something went wrong" message
 
 On next successful `POST /trips/{id}/generate`, both `status` and `generation_error` are cleared before setting `GENERATING`. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`).
