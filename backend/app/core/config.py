@@ -51,8 +51,14 @@ class Settings(BaseSettings):
     # JSON. thinking_budget=0 disables it on Gemini 2.5. Gemini 3.x uses
     # {"thinking_level": "low"} instead. Set to {} for providers that reject
     # unknown fields.
+    #
+    # Double-nested on purpose: the OpenAI SDK's extra_body= kwarg merges its
+    # keys into the TOP LEVEL of the outgoing request body, but Gemini's
+    # OpenAI-compat endpoint expects a literal `extra_body` field there (it's
+    # a real field in their request proto). A single-level {"google": ...}
+    # produces `400 Unknown name "google"`.
     AI_EXTRA_BODY: dict[str, Any] = {
-        "google": {"thinking_config": {"thinking_budget": 0}}
+        "extra_body": {"google": {"thinking_config": {"thinking_budget": 0}}}
     }
 
 

@@ -28,10 +28,12 @@ This replaced a history of provider-specific classes (HuggingFace → Groq → C
 Gemini draws thinking tokens from the *same* `max_tokens` budget as the response. With `MAX_OUTPUT_TOKENS = 16_384` and `SAFE_OUTPUT_TOKENS = 15_000` of itinerary JSON, an enabled thinking pass silently truncates the JSON mid-array, surfacing as `finish_reason == "length"` rather than an error. `AI_EXTRA_BODY` defaults to:
 
 ```json
-{"google": {"thinking_config": {"thinking_budget": 0}}}
+{"extra_body": {"google": {"thinking_config": {"thinking_budget": 0}}}}
 ```
 
-Gemini 3.x models use `{"thinking_level": "low"}` instead of `thinking_budget`. Set `AI_EXTRA_BODY={}` for providers that reject unknown request fields.
+Double-nested on purpose: the OpenAI SDK's `extra_body=` kwarg merges its keys into the *top level* of the outgoing request body, but Gemini's OpenAI-compat endpoint expects a literal `extra_body` field there. A single-level `{"google": ...}` produces `400 Unknown name "google"`.
+
+Gemini 3.x models use `{"extra_body": {"google": {"thinking_config": {"thinking_level": "low"}}}}` instead of `thinking_budget`. Set `AI_EXTRA_BODY={}` for providers that reject unknown request fields.
 
 `DEFAULT_REASONING_EFFORT` defaults to `"none"`, which **omits the `reasoning_effort` param entirely** — Gemini rejects `reasoning_effort` and `thinking_config` supplied together. Any other value is forwarded as the standard OpenAI `reasoning_effort`.
 
