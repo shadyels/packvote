@@ -30,8 +30,8 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 - **Package Manager:** uv
 - **Database:** PostgreSQL
 - **Email:** Brevo (free tier, 300 emails/day)
-- **AI Inference:** Cerebras (`cerebras-cloud-sdk`, `AsyncCerebras`)
-- **Default AI Model:** gpt-oss-120b (`gpt-oss-120b`, Apache 2.0). Reasoning suppressed via `reasoning_format="hidden"` + `reasoning_effort="low"` (escalate via `DEFAULT_REASONING_EFFORT` env var).
+- **AI Inference:** any OpenAI-compatible endpoint via `openai` SDK (`AsyncOpenAI`) — do NOT add vendor SDKs. Provider is config (`AI_API_KEY` / `AI_BASE_URL` / `AI_PROVIDER_NAME` / `AI_EXTRA_BODY`), not code.
+- **Default AI Model:** `gemini-2.5-flash` on Google Gemini's free tier. Thinking disabled via `AI_EXTRA_BODY` (`thinking_budget: 0`) because Gemini draws thinking tokens from the same `max_tokens` budget as the response — leaving it on truncates the itinerary JSON. `DEFAULT_REASONING_EFFORT="none"` omits `reasoning_effort` entirely (Gemini rejects it alongside `thinking_config`).
 - **Auth:** Email + password (trip creators), token-based links + trip code/PIN (participants)
 - **Password Hashing:** `bcrypt` directly — do NOT use `passlib` (incompatible with `bcrypt >= 4.0`)
 
@@ -95,7 +95,7 @@ Read the relevant `docs/` file before working in any of these areas:
 
 | Area | Key constraint | Full details |
 |------|---------------|-------------|
-| **AI service** | Use `extract_json()`, never `json.loads()`. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd); `LocalRateLimitError` skips retry. User-controlled fields injected into prompts must be wrapped in `<<<USER DATA>>>…<<<END USER DATA>>>` delimiters and passed through `sanitize_text()`. Trip duration is clamped to `max_trip_days(num_options)` in `_compute_trip_duration` — never let user-supplied dates exceed this cap. | `docs/AI-ARCHITECTURE.md` |
+| **AI service** | Use `extract_json()`, never `json.loads()`. Keep `response_format` as `json_object` — `json_schema` would make the `{"error": {...}}` envelope unrepresentable. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd) calibrated to Gemini's free tier; `LocalRateLimitError` skips retry. User-controlled fields injected into prompts must be wrapped in `<<<USER DATA>>>…<<<END USER DATA>>>` delimiters and passed through `sanitize_text()`. Trip duration is clamped to `max_trip_days(num_options)` in `_compute_trip_duration` — never let user-supplied dates exceed this cap. | `docs/AI-ARCHITECTURE.md` |
 | **Voting** | Pure algorithm in `ranked_choice.py`, DB ops in `service.py`. | `docs/VOTING-ARCHITECTURE.md` |
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
@@ -105,7 +105,7 @@ Read the relevant `docs/` file before working in any of these areas:
 
 ### AI service split
 `services/generation.py` — orchestration entry point (`run_generation(trip_id, session_factory)`). Edit here for pipeline changes.
-`services/ai/` — provider layer (Cerebras client, JSON utils, base class, rate limiter). Edit here for provider changes.
+`services/ai/` — provider layer (`openai_compat.py`, JSON utils, base class, rate limiter). Edit here for provider changes. Switching providers should mean editing config, not this directory.
 `services/ai/rate_limiter.py` — in-process gate enforcing 6 limits (rpm/rph/rpd/tpm/tph/tpd) via single deque with 24h eviction. Singleton `get_limiter()`. `LocalRateLimitError` fast-fails without retry. Window constants: `WINDOW_1M` (60s), `WINDOW_1H` (3600s), `WINDOW_24H` (86400s).
 
 ### Admin API (`app/api/admin.py`)

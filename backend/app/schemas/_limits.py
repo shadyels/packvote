@@ -25,7 +25,7 @@ PER_DAY_TOKENS = 360
 def max_trip_days(num_options: int) -> int:
     """Return the maximum safe trip duration for a given num_options.
 
-    Derived from the fixed max_tokens=16384 output budget in cerebras.py.
+    Derived from MAX_OUTPUT_TOKENS in services/ai/openai_compat.py.
     Ensures AI output cannot be truncated due to oversized date ranges.
     """
     if num_options < 1:

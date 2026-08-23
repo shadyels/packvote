@@ -14,7 +14,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 
 ## Key Features
 
-- **AI itinerary generation** — gpt-oss-120b (Cerebras) generates complete day-by-day itineraries tailored to group preferences
+- **AI itinerary generation** — Gemini 2.5 Flash generates complete day-by-day itineraries tailored to group preferences
 - **Ranked-choice voting** — full instant-runoff algorithm; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
 - **Zero-friction participant flow** — no account required; join via a tokenized email link or trip code + 4-digit PIN
 - **Real-time status tracking** — 7 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → GENERATION\_FAILED → VOTING → ITERATING → FINALIZED) with polling and live UI updates
@@ -48,7 +48,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 | Alembic | Database migrations |
 | Pydantic v2 + pydantic-settings | Schema validation + config |
 | python-jose + bcrypt | JWT auth + password hashing |
-| cerebras-cloud-sdk `AsyncCerebras` | AI inference (Cerebras) |
+| openai `AsyncOpenAI` | AI inference (any OpenAI-compatible endpoint) |
 | Brevo API | Transactional email |
 | Ruff | Linting + formatting |
 | pytest + pytest-asyncio | Testing |
@@ -74,19 +74,19 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 | Railway (Railpack) | Deployment — 2 services (backend + frontend) |
 | PostgreSQL | Production database (Railway add-on) |
 | GitHub Actions | CI/CD — lint → type-check → unit tests → integration tests |
-| Cerebras | AI inference provider |
+| Google Gemini | AI inference provider (free tier) |
 | Unsplash API | Destination photography |
 
 ---
 
 ## Architecture Highlights
 
-- **Provider-agnostic AI service** — `CerebrasProvider` implements the `AIProvider` interface; the service retries up to 3× with exponential backoff on transient failures
+- **Provider-agnostic AI service** — `OpenAICompatProvider` targets any OpenAI-compatible endpoint, so switching inference vendors is a config change (`AI_BASE_URL` / `AI_API_KEY` / `DEFAULT_AI_MODEL`) rather than a rewrite; the service retries up to 3× with exponential backoff on transient failures
 - **Background task session isolation** — FastAPI closes request-scoped DB sessions before background tasks run; generation tasks open their own `async with session_factory()` session to avoid stale-connection errors
 - **Pure ranked-choice algorithm** — `services/voting/ranked_choice.py` is a stateless function with zero DB dependencies, making it trivially unit-testable and reusable
 - **Robust AI JSON extraction** — open-source models sometimes wrap responses in markdown fences; `extract_json()` tries direct parse → strip fences → brace-extraction before raising `AIParseError` with the raw text attached for logging
 - **Versioned prompt templates** — stored in the DB, seeded at runtime (idempotent); designed to support A/B testing across prompt versions with per-version metrics
-- **In-process rate limiting with sliding windows** — AI (Cerebras: 1000 RPM / 1M TPM), email (Brevo: 300/day), and Unsplash (45 req/hr) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls; distributed rate limiting can be added in Phase 2 via shared store (Redis, PostgreSQL)
+- **In-process rate limiting with sliding windows** — AI (Gemini free tier: 8 RPM / 200K TPM), email (Brevo: 300/day), and Unsplash (45 req/hr) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls; distributed rate limiting can be added in Phase 2 via shared store (Redis, PostgreSQL)
 - **Dual auth model** — JWT for trip creators; tokenized links + trip code/PIN for participants (no account creation)
 
 ---
@@ -140,7 +140,7 @@ docker run -d --name packvote-db \
   -p 5432:5432 postgres:16
 
 cd backend
-cp .env.example .env          # fill in DATABASE_URL, SECRET_KEY, CEREBRAS_API_KEY, etc.
+cp .env.example .env          # fill in DATABASE_URL, SECRET_KEY, AI_API_KEY, etc.
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload

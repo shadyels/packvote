@@ -7,6 +7,8 @@ from app.services.ai.rate_limiter import (
     MAX_CONTEXT_TOKENS,
     MAX_RPD,
     MAX_RPM,
+    MAX_TPH,
+    MAX_TPM,
     WINDOW_1M,
     GlobalRateLimiter,
     LocalRateLimitError,
@@ -36,11 +38,15 @@ async def test_rpm_gate_1000th_accepted_1001st_rejected() -> None:
 @pytest.mark.asyncio
 async def test_tpm_gate_rejects_when_exceeded() -> None:
     limiter = GlobalRateLimiter()
-    # Fill TPM bucket using 3 × 10_000 = 30_000 = MAX_TPM (each < MAX_CONTEXT_TOKENS)
-    for _ in range(3):
-        await limiter.reserve(10_000)
+    # Fill the TPM bucket in MAX_RPM-1 chunks so the RPM gate never fires first.
+    # Sized from the constants so re-tuning for a new provider can't stale this.
+    chunk = MAX_TPM // (MAX_RPM - 1)
+    assert chunk <= MAX_CONTEXT_TOKENS
+    for _ in range(MAX_RPM - 1):
+        await limiter.reserve(chunk)
+    used = chunk * (MAX_RPM - 1)
     with pytest.raises(LocalRateLimitError) as exc_info:
-        await limiter.reserve(1)
+        await limiter.reserve(MAX_TPM - used + 1)
     assert exc_info.value.kind == "tpm"
     assert exc_info.value.retry_after_seconds >= 0.0
 
@@ -68,19 +74,21 @@ async def test_context_length_rejected_before_lock() -> None:
 @pytest.mark.asyncio
 async def test_commit_lowers_estimate_frees_token_room() -> None:
     limiter = GlobalRateLimiter()
-    # Fill bucket: 3 × 9_000 = 27_000 tokens reserved (< MAX_TPM=30_000)
-    first = await limiter.reserve(9_000)
+    # Reserve 3/4 of the TPM budget across three optimistic estimates.
+    chunk = MAX_TPM // 4
+    first = await limiter.reserve(chunk)
     for _ in range(2):
-        await limiter.reserve(9_000)
-    # 4_000 would exceed TPM (27_000 + 4_000 = 31_000 > 30_000)
+        await limiter.reserve(chunk)
+    # One more token past the remaining quarter must be refused.
+    overflow = MAX_TPM - 3 * chunk + 1
+    assert overflow <= MAX_CONTEXT_TOKENS
     with pytest.raises(LocalRateLimitError) as exc_info:
-        await limiter.reserve(4_000)
+        await limiter.reserve(overflow)
     assert exc_info.value.kind == "tpm"
-    # Commit first reservation with low actual — frees 8_000 tokens
+    # Commit the first reservation with a much lower actual — frees its room.
     await limiter.commit(first, 1_000)
-    # Now 4_000 fits: (27_000 - 8_000) + 4_000 = 23_000 < 30_000
-    r2 = await limiter.reserve(4_000)
-    assert r2.estimated_tokens == 4_000
+    r2 = await limiter.reserve(overflow)
+    assert r2.estimated_tokens == overflow
 
 
 @pytest.mark.asyncio
@@ -153,14 +161,20 @@ async def test_daily_request_limit() -> None:
 async def test_hourly_token_limit() -> None:
     limiter = GlobalRateLimiter()
     base = 1000.0
-    chunk = 30_000
-    for i in range(33):
+    # Space reservations 61s apart so each falls out of the 1-minute window and
+    # only the hourly total accumulates.
+    chunk = min(MAX_CONTEXT_TOKENS, MAX_TPM)
+    n = MAX_TPH // chunk
+    assert n * 61 < 3_600, "fill must complete inside the 1-hour window"
+    for i in range(n):
         with patch(
             "app.services.ai.rate_limiter.time.monotonic", return_value=base + i * 61
         ):
             await limiter.reserve(chunk)
-    ts_34 = base + 33 * 61
-    with patch("app.services.ai.rate_limiter.time.monotonic", return_value=ts_34):
+    overflow = MAX_TPH - n * chunk + 1
+    with patch(
+        "app.services.ai.rate_limiter.time.monotonic", return_value=base + n * 61
+    ):
         with pytest.raises(LocalRateLimitError) as exc_info:
-            await limiter.reserve(chunk)
+            await limiter.reserve(overflow)
         assert exc_info.value.kind == "tph"

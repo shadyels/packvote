@@ -42,7 +42,7 @@ def _make_response(destination: str = "Paris") -> AIGenerationResponse:
 
 class TestAIServiceRetry:
     async def test_primary_succeeds_first_attempt(self) -> None:
-        mock_result = (_make_response(), "cerebras")
+        mock_result = (_make_response(), "gemini")
         provider = AsyncMock()
         provider.generate_itineraries.return_value = mock_result
         service = AIService(provider=provider)
@@ -55,7 +55,7 @@ class TestAIServiceRetry:
         mock_sleep.assert_not_called()
 
     async def test_primary_fails_once_then_succeeds(self) -> None:
-        mock_result = (_make_response(), "cerebras")
+        mock_result = (_make_response(), "gemini")
         provider = AsyncMock()
         provider.generate_itineraries.side_effect = [
             RuntimeError("transient error"),
@@ -81,7 +81,7 @@ class TestAIServiceRetry:
         assert provider.generate_itineraries.call_count == 3
 
     async def test_explicit_model_passed_to_provider(self) -> None:
-        mock_result = (_make_response(), "cerebras")
+        mock_result = (_make_response(), "gemini")
         provider = AsyncMock()
         provider.generate_itineraries.return_value = mock_result
         service = AIService(provider=provider)
@@ -93,7 +93,7 @@ class TestAIServiceRetry:
         assert call_args[0][2] == "my-custom-model"
 
     async def test_default_model_resolved_from_settings(self) -> None:
-        mock_result = (_make_response(), "cerebras")
+        mock_result = (_make_response(), "gemini")
         provider = AsyncMock()
         provider.generate_itineraries.return_value = mock_result
         service = AIService(provider=provider)
@@ -102,15 +102,15 @@ class TestAIServiceRetry:
             patch("asyncio.sleep"),
             patch("app.services.ai.service.get_settings") as mock_settings,
         ):
-            mock_settings.return_value.DEFAULT_AI_MODEL = "gpt-oss-120b"
+            mock_settings.return_value.DEFAULT_AI_MODEL = "gemini-2.5-flash"
             mock_settings.return_value.DEFAULT_REASONING_EFFORT = "low"
             await service.generate_itineraries("prompt", 1, model=None)
 
         call_args = provider.generate_itineraries.call_args
-        assert call_args[0][2] == "gpt-oss-120b"
+        assert call_args[0][2] == "gemini-2.5-flash"
 
     async def test_default_reasoning_effort_resolved_from_settings(self) -> None:
-        mock_result = (_make_response(), "cerebras")
+        mock_result = (_make_response(), "gemini")
         provider = AsyncMock()
         provider.generate_itineraries.return_value = mock_result
         service = AIService(provider=provider)
@@ -119,7 +119,7 @@ class TestAIServiceRetry:
             patch("asyncio.sleep"),
             patch("app.services.ai.service.get_settings") as mock_settings,
         ):
-            mock_settings.return_value.DEFAULT_AI_MODEL = "gpt-oss-120b"
+            mock_settings.return_value.DEFAULT_AI_MODEL = "gemini-2.5-flash"
             mock_settings.return_value.DEFAULT_REASONING_EFFORT = "medium"
             await service.generate_itineraries("prompt", 1, model=None)
 

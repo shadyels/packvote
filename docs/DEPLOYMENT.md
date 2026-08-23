@@ -29,7 +29,9 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 - `SECRET_KEY` — JWT signing key
 - `BREVO_API_KEY` — Brevo transactional email API key
 - `BREVO_FROM_EMAIL` — verified sender address (must be verified in Brevo → Settings → Senders)
-- `CEREBRAS_API_KEY` — Cerebras inference API key
+- `AI_API_KEY` — inference API key (Google Gemini by default: https://aistudio.google.com/apikey)
+- `AI_BASE_URL` — *optional*, defaults to Gemini's OpenAI-compatible endpoint
+- `DEFAULT_AI_MODEL` — *optional*, defaults to `gemini-2.5-flash`
 - `FRONTEND_URL` — Frontend public domain, no port (e.g. `https://xxx.up.railway.app`). Used for CORS — must be the public URL, NOT `.railway.internal`
 - `ENVIRONMENT` — `production`
 

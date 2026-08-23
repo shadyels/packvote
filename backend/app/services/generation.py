@@ -17,15 +17,7 @@ import time
 from datetime import UTC, datetime
 
 import httpx
-from cerebras.cloud.sdk import (
-    APIConnectionError as CerebrasConnectionError,
-)
-from cerebras.cloud.sdk import (
-    APIStatusError as CerebrasAPIStatusError,
-)
-from cerebras.cloud.sdk import (
-    RateLimitError as CerebrasRateLimitError,
-)
+from openai import APIConnectionError, APIStatusError, RateLimitError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -204,17 +196,17 @@ def _humanize_error(exc: Exception) -> str:
             )
         retry = int(exc.retry_after_seconds) + 1
         return f"The AI service is busy. Please try again in {retry} seconds."
-    if isinstance(exc, CerebrasRateLimitError):
+    if isinstance(exc, RateLimitError):
         return (
             "The AI service is currently busy (rate limit reached). "
             "Please wait a few minutes and try again."
         )
-    if isinstance(exc, CerebrasAPIStatusError) and exc.status_code >= 500:
+    if isinstance(exc, APIStatusError) and exc.status_code >= 500:
         return (
             "The AI service is temporarily unavailable. "
             "Please try again in a few minutes."
         )
-    if isinstance(exc, CerebrasConnectionError | TimeoutError | httpx.TimeoutException):
+    if isinstance(exc, APIConnectionError | TimeoutError | httpx.TimeoutException):
         return (
             "Could not connect to the AI service. "
             "Please check your internet connection and try again."
@@ -405,7 +397,9 @@ async def _upsert_prompt_template(db: AsyncSession) -> PromptTemplate:
         name="itinerary_generation",
         version="v3",
         template_text=ITINERARY_PROMPT_V3,
-        model_target="openai/gpt-oss-120b",
+        # Records which model this version was seeded against, for A/B metrics.
+        # Only applies on first seed — existing rows are never rewritten.
+        model_target=get_settings().DEFAULT_AI_MODEL,
         is_active=True,
         traffic_weight=1.0,
     )
