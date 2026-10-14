@@ -5,6 +5,7 @@ All tests use mocked AI — no real API calls.
 
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
@@ -435,28 +436,51 @@ class TestRunGeneration:
         trip = result.scalar_one()
         assert trip.current_iteration == 1
 
-    async def test_success_logs_ai_call_valid(
-        self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
+    async def test_success_logs_one_row_per_attempt(
+        self,
+        db: AsyncSession,
+        trip_with_preferences: Trip,
+        session_factory_fixture,
+        caplog: pytest.LogCaptureFixture,
     ):
         from sqlalchemy import select
 
         from app.models.ai_call_log import AICallLog
 
+        async def fake_generate(*args, **kwargs):
+            kwargs["calls"].append(
+                AICallLog(provider="gemini", model_used="m", error_message="bad json")
+            )
+            kwargs["calls"].append(
+                AICallLog(provider="gemini", model_used="m", response_valid=True)
+            )
+            return _mock_ai_response(num_options=2)
+
         trip_id = trip_with_preferences.id
-        with patch.object(
-            AIService,
-            "generate_itineraries",
-            new_callable=AsyncMock,
-            return_value=_mock_ai_response(num_options=2),
+        with (
+            patch.object(
+                AIService,
+                "generate_itineraries",
+                new_callable=AsyncMock,
+                side_effect=fake_generate,
+            ),
+            caplog.at_level(logging.INFO, logger="app.services.generation"),
         ):
             await run_generation(trip_id, session_factory_fixture)
 
         db.expire_all()
-        result = await db.execute(select(AICallLog).where(AICallLog.trip_id == trip_id))
-        log = result.scalar_one_or_none()
-        assert log is not None
-        assert log.response_valid is True
-        assert log.error_message is None
+        result = await db.execute(
+            select(AICallLog).where(AICallLog.trip_id == trip_id).order_by(AICallLog.id)
+        )
+        logs = result.scalars().all()
+        assert [log.attempt for log in logs] == [1, 2]
+        assert [log.response_valid for log in logs] == [False, True]
+        assert all(log.iteration_number == 1 for log in logs)
+        assert all(log.prompt_version_id is not None for log in logs)
+        ai_call_lines = [
+            r for r in caplog.records if r.getMessage().startswith("ai_call ")
+        ]
+        assert len(ai_call_lines) == 2
 
     async def test_failure_resets_status_to_collecting(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
@@ -483,28 +507,41 @@ class TestRunGeneration:
             == "Something went wrong while generating itineraries. Please try again."
         )
 
-    async def test_failure_logs_ai_call_invalid(
+    async def test_failure_logs_every_attempt(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
     ):
         from sqlalchemy import select
 
         from app.models.ai_call_log import AICallLog
 
+        async def fake_generate(*args, **kwargs):
+            for _ in range(3):
+                kwargs["calls"].append(
+                    AICallLog(
+                        provider="gemini",
+                        model_used="m",
+                        error_message="Provider unavailable",
+                    )
+                )
+            raise RuntimeError("Provider unavailable")
+
         trip_id = trip_with_preferences.id
         with patch.object(
             AIService,
             "generate_itineraries",
             new_callable=AsyncMock,
-            side_effect=RuntimeError("Provider unavailable"),
+            side_effect=fake_generate,
         ):
             await run_generation(trip_id, session_factory_fixture)
 
         db.expire_all()
-        result = await db.execute(select(AICallLog).where(AICallLog.trip_id == trip_id))
-        log = result.scalar_one_or_none()
-        assert log is not None
-        assert log.response_valid is False
-        assert "Provider unavailable" in log.error_message
+        result = await db.execute(
+            select(AICallLog).where(AICallLog.trip_id == trip_id).order_by(AICallLog.id)
+        )
+        logs = result.scalars().all()
+        assert [log.attempt for log in logs] == [1, 2, 3]
+        assert all(log.response_valid is False for log in logs)
+        assert all(log.iteration_number == 1 for log in logs)
 
     async def test_ai_input_error_sets_generation_failed_with_ai_message(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture

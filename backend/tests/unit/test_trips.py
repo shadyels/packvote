@@ -293,6 +293,31 @@ class TestDeleteTrip:
         resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
         assert resp.status_code == 409
 
+    async def test_delete_keeps_ai_call_logs_with_null_trip_id(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        """ai_call_logs is an evaluation dataset — it must outlive the trip.
+        SQLite doesn't enforce FKs, so assert the nulling explicitly."""
+        from sqlalchemy import select
+
+        from app.models.ai_call_log import AICallLog
+
+        create_resp = await client.post(
+            TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers
+        )
+        trip_id = create_resp.json()["id"]
+        log = AICallLog(trip_id=trip_id, provider="gemini", model_used="m")
+        db.add(log)
+        await db.commit()
+        log_id = log.id
+
+        resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        assert resp.status_code == 204
+
+        db.expire_all()
+        result = await db.execute(select(AICallLog).where(AICallLog.id == log_id))
+        assert result.scalar_one().trip_id is None
+
     async def test_delete_with_participants(
         self, client: AsyncClient, auth_headers, mock_email
     ):

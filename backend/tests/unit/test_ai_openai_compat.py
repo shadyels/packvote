@@ -11,6 +11,7 @@ import pytest
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
+from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import (
     AIGenerationResponse,
     DailyActivity,
@@ -19,7 +20,7 @@ from app.schemas.itinerary import (
 )
 from app.services.ai.json_utils import AIInputError, AIParseError
 from app.services.ai.openai_compat import OpenAICompatProvider, _split_prompt
-from app.services.ai.rate_limiter import GlobalRateLimiter
+from app.services.ai.rate_limiter import GlobalRateLimiter, LocalRateLimitError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -92,6 +93,18 @@ def _make_mock_client(response_json: str) -> MagicMock:
     mock_client = MagicMock()
     mock_client.chat.completions.create = AsyncMock(return_value=mock_completion)
     return mock_client
+
+
+def _make_http_client(content: str) -> AsyncOpenAI:
+    """Real SDK client over a mock transport — yields a genuine ChatCompletion."""
+    transport = httpx.MockTransport(
+        lambda _: httpx.Response(200, json=_fake_completion_payload(content))
+    )
+    return AsyncOpenAI(
+        api_key="k",
+        base_url="https://example.invalid/v1/",
+        http_client=httpx.AsyncClient(transport=transport),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -363,3 +376,99 @@ class TestOpenAICompatProviderGenerate:
             await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
 
         assert exc_info.value.field == "general"
+
+    async def test_sdk_retries_disabled(self) -> None:
+        """AIService owns retries; SDK retries would hide attempts from the log."""
+        assert _make_provider()._make_client().max_retries == 0
+
+    async def test_records_usage_model_finish_reason_and_raw(self) -> None:
+        provider = _make_provider()
+        content = _make_valid_response_json()
+        prompt = "[SYSTEM]\nS\n[USER]\nU"
+        calls: list[AICallLog] = []
+
+        with patch.object(
+            provider, "_make_client", return_value=_make_http_client(content)
+        ):
+            await provider.generate_itineraries(
+                prompt, 1, "configured-model", calls=calls
+            )
+
+        [log] = calls
+        assert log.model_used == "test-model"  # as reported by the API
+        assert log.provider == "test-provider"
+        assert log.token_count_input == 10
+        assert log.token_count_output == 10
+        assert log.token_count_total == 20
+        assert log.finish_reason == "stop"
+        assert log.raw_response == content
+        assert log.prompt == prompt
+        assert log.latency_ms >= 0
+        assert log.response_valid is True
+        assert log.error_message is None
+
+    @pytest.mark.parametrize(
+        ("content", "num_options", "exc_type"),
+        [
+            ("not valid json at all", 1, AIParseError),
+            (json.dumps({"error": {"message": "No such place"}}), 1, AIInputError),
+            (_make_valid_response_json(num_options=1), 3, ValueError),
+        ],
+        ids=["invalid-json", "error-envelope", "wrong-option-count"],
+    )
+    async def test_failed_attempt_records_error_and_raw(
+        self, content: str, num_options: int, exc_type: type[Exception]
+    ) -> None:
+        provider = _make_provider()
+        calls: list[AICallLog] = []
+
+        with (
+            patch.object(
+                provider, "_make_client", return_value=_make_http_client(content)
+            ),
+            pytest.raises(exc_type),
+        ):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", num_options, "model", calls=calls
+            )
+
+        [log] = calls
+        assert log.error_message
+        assert log.raw_response == content
+        assert log.response_valid is False
+
+    async def test_records_error_when_request_fails(self) -> None:
+        provider = _make_provider()
+        mock_client = _make_mock_client("")
+        mock_client.chat.completions.create.side_effect = RuntimeError("conn reset")
+        calls: list[AICallLog] = []
+
+        with (
+            patch.object(provider, "_make_client", return_value=mock_client),
+            pytest.raises(RuntimeError),
+        ):
+            await provider.generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model", calls=calls
+            )
+
+        [log] = calls
+        assert log.error_message == "conn reset"
+        assert log.raw_response is None
+        assert log.latency_ms is not None
+        assert log.response_valid is False
+
+    async def test_local_limiter_rejection_records_nothing(self) -> None:
+        """No network call was made, so there is no attempt to record."""
+        limiter = MagicMock()
+        limiter.reserve = AsyncMock(side_effect=LocalRateLimitError("rpm", 5.0))
+        calls: list[AICallLog] = []
+
+        with (
+            patch("app.services.ai.openai_compat.get_limiter", return_value=limiter),
+            pytest.raises(LocalRateLimitError),
+        ):
+            await _make_provider().generate_itineraries(
+                "[SYSTEM]\nS\n[USER]\nU", 1, "model", calls=calls
+            )
+
+        assert calls == []

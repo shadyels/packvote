@@ -41,7 +41,7 @@ Gemini 3.x models (including the default `gemini-3.6-flash`) replaced the old `t
 `AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `AI_PROVIDER_NAME` (default `"gemini"`). Required so the generation service can log which provider answered.
 
 **Retry strategy:**
-`AIService.generate_itineraries()` retries up to 3 times. On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries.
+`AIService.generate_itineraries()` retries up to 3 times. On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries. The openai SDK's own retries are disabled (`max_retries=0` in `_make_client`), so each `AIService` attempt is exactly one HTTP request — and one `ai_call_logs` row.
 
 Two delay schedules in `services/ai/service.py`:
 - `RETRY_DELAYS = [1.0, 2.0, 4.0]` — transient errors (parse failures, timeouts, 5xx)
@@ -110,7 +110,7 @@ if "error" in data and isinstance(data["error"], dict):
 ```
 
 **Raw response logging:**
-`ai_call_logs.raw_response` (Text column, nullable) stores the raw AI response only when parsing/validation fails. Always `None` on success to avoid table bloat.
+`ai_call_logs.raw_response` stores the raw AI output for every attempt that got a response (success or parse failure); `None` only when the request itself failed. See [AI Call Logging](#ai-call-logging).
 
 ## Input Sanitization and Prompt Isolation
 
@@ -226,4 +226,26 @@ Only auto-trigger if all participants submitted AND `trip.status == "COLLECTING_
 
 ## AI Call Logging
 
-`ai_call_logs` table records each generation: prompt version, model, provider, latency, token counts, response validity. This is part of the AI pipeline — the ops-level dashboard is Phase 3 (Grafana, admin-only).
+**One row per network attempt**, not per generation. A generation that succeeds on its second try writes two rows; one that exhausts retries writes three.
+
+- **Provider (`openai_compat.py`)** appends a transient `AICallLog` to the `calls` list threaded `generation.py → AIService → provider`, *after* `limiter.reserve()` succeeds. Local-limiter rejections made no network call, so they are **not recorded**. It fills: `provider`, `model_used` (as reported by the API in `completion.model`, not the configured name), `prompt` (rendered), `raw_response`, `latency_ms` (the `create()` call only — excludes retry backoff), `token_count_input`/`_output`/`_total` from `completion.usage`, `finish_reason`, `response_valid`, `error_message`, `created_at` (per attempt).
+- **Orchestrator (`generation.py` `_add_call_logs`)** stamps the context only it knows — `trip_id`, `prompt_version_id`, `iteration_number`, `attempt` (1-based) — adds the rows to the session, and emits one INFO line per attempt:
+  `ai_call trip=… iteration=… attempt=… provider=… model=… latency_ms=… tokens_in=… tokens_out=… tokens_total=… finish=… valid=… error=…`
+  Rows are committed on both the success and the failure path.
+- **Retention:** rows outlive their trip. `delete_trip` sets `trip_id = NULL` instead of deleting them. The stored `prompt` contains participants' free-text preferences, so that text is retained after the trip is gone.
+- **Stdout:** `app/main.py` attaches a stdout handler to the `app` logger at INFO (not `basicConfig` — a root handler would double SQLAlchemy echo output and surface httpx's per-request INFO lines).
+
+The ops-level dashboard is Phase 3 (Grafana, admin-only).
+
+## Evaluation Dataset
+
+`ai_call_logs` is the system of record for comparing models, prompts and configs over time: append-only, one row per attempt, joinable to `prompt_templates` via `prompt_version_id`, and to `itineraries` / `votes` / `trips` via `(trip_id, iteration_number)` while the trip exists.
+
+**Grouping attempts into runs:** order by `id`; `attempt` resets to `1` at the start of each generation. **Thinking tokens** are derived: `token_count_total − token_count_input − token_count_output` (non-zero means `thinking_level: minimal` still spent some).
+
+**Usage ideas — *not built*, later phases:**
+1. **Live scorecards (SQL only).** Per `model_used` × `prompt_version_id`: p50/p95 `latency_ms` on valid attempts; avg tokens in/out/total/thinking; validity rate; `finish_reason='length'` rate; attempts per generation.
+2. **Outcome labels from voting.** Label each `(trip_id, iteration_number)` *accepted* (trip FINALIZED with a winner from that iteration) or *rejected* (`trigger_new_iteration` moved past it). Ranked-choice results rank options within one call (option-level quality, position bias) but don't compare models head-to-head. Labels must be snapshotted before trip deletion nulls `trip_id`.
+3. **Golden set + replay harness.** Export ~30 diverse valid prompts as JSONL `{prompt, reference_output, model, metrics, label}`; replay through `OpenAICompatProvider` with a `calls` list (capture works unchanged); score validity, option count, latency, tokens, and pairwise LLM-as-judge vs. the reference. Small batches — the free-tier limiter applies.
+4. **Regression gate.** Replay the golden set before changing `DEFAULT_AI_MODEL` or `AI_EXTRA_BODY`; compare scorecards.
+5. **Prompt A/B.** `prompt_templates.ab_test_group` / `traffic_weight` already exist and every row carries `prompt_version_id`, so per-version scorecards come free.

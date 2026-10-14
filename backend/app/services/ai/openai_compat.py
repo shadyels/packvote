@@ -1,9 +1,12 @@
 import logging
+import time
+from datetime import UTC, datetime
 from typing import Any
 
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
+from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
 from app.services.ai.json_utils import AIInputError, AIParseError, extract_json
@@ -51,7 +54,10 @@ class OpenAICompatProvider(AIProvider):
         self.extra_body = extra_body or {}
 
     def _make_client(self) -> AsyncOpenAI:
-        return AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, timeout=180)
+        # AIService owns retries; SDK retries would hide attempts from ai_call_logs.
+        return AsyncOpenAI(
+            api_key=self.api_key, base_url=self.base_url, timeout=180, max_retries=0
+        )
 
     async def generate_itineraries(
         self,
@@ -59,17 +65,32 @@ class OpenAICompatProvider(AIProvider):
         num_options: int,
         model: str,
         reasoning_effort: str = "none",
+        *,
+        calls: list[AICallLog] | None = None,
     ) -> tuple[AIGenerationResponse, str]:
         system_msg, user_msg = _split_prompt(prompt)
         estimated_tokens = (len(system_msg) + len(user_msg)) // 4 + MAX_OUTPUT_TOKENS
         limiter = get_limiter()
         reservation = await limiter.reserve(estimated_tokens)
+        # One row per network attempt; generation.py stamps trip context and
+        # persists. ponytail: provider layer builds ORM rows directly — swap for
+        # a plain dataclass if services/ai/ must stay DB-agnostic.
+        log = AICallLog(
+            provider=self.provider_name,
+            model_used=model,
+            prompt=prompt,
+            response_valid=False,
+            created_at=datetime.now(UTC),
+        )
+        if calls is not None:
+            calls.append(log)
         client = self._make_client()
         extra_kwargs: dict[str, Any] = {}
         if reasoning_effort != "none":
             extra_kwargs["reasoning_effort"] = reasoning_effort
         if self.extra_body:
             extra_kwargs["extra_body"] = self.extra_body
+        t_start = time.monotonic()
         try:
             completion = await client.chat.completions.create(
                 model=model,
@@ -82,24 +103,42 @@ class OpenAICompatProvider(AIProvider):
                 max_tokens=MAX_OUTPUT_TOKENS,
                 **extra_kwargs,
             )
-        except Exception:
+        except Exception as exc:
+            log.latency_ms = int((time.monotonic() - t_start) * 1000)
+            log.error_message = str(exc)
             await limiter.commit(reservation, estimated_tokens)
             raise
-        actual_tokens = (
-            completion.usage.total_tokens
-            if completion.usage is not None
-            else estimated_tokens
+        log.latency_ms = int((time.monotonic() - t_start) * 1000)
+        usage = completion.usage
+        await limiter.commit(
+            reservation, usage.total_tokens if usage is not None else estimated_tokens
         )
-        await limiter.commit(reservation, actual_tokens)
-        choice = completion.choices[0]
-        if choice.finish_reason == "length":
-            logger.warning(
-                "%s response truncated (finish_reason=length) — JSON will be "
-                "incomplete. Check that the provider's thinking/reasoning pass is "
-                "disabled; it draws from the same max_tokens budget.",
-                self.provider_name,
-            )
-        raw_text = choice.message.content
+        log.model_used = completion.model or model
+        if usage is not None:
+            log.token_count_input = usage.prompt_tokens
+            log.token_count_output = usage.completion_tokens
+            log.token_count_total = usage.total_tokens
+        try:
+            choice = completion.choices[0]
+            log.finish_reason = choice.finish_reason
+            log.raw_response = choice.message.content
+            if choice.finish_reason == "length":
+                logger.warning(
+                    "%s response truncated (finish_reason=length) — JSON will be "
+                    "incomplete. Check that the provider's thinking/reasoning pass "
+                    "is disabled; it draws from the same max_tokens budget.",
+                    self.provider_name,
+                )
+            response = self._parse_response(choice.message.content, num_options)
+        except Exception as exc:
+            log.error_message = str(exc)
+            raise
+        log.response_valid = True
+        return response, self.provider_name
+
+    def _parse_response(
+        self, raw_text: str | None, num_options: int
+    ) -> AIGenerationResponse:
         try:
             data = extract_json(raw_text)
         except AIParseError:
@@ -139,7 +178,7 @@ class OpenAICompatProvider(AIProvider):
             raise ValueError(
                 f"AI returned {len(response.options)} options, expected {num_options}"
             )
-        return response, self.provider_name
+        return response
 
     async def generate_followup_survey(
         self,

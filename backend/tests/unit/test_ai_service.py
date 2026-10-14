@@ -140,3 +140,14 @@ class TestAIServiceRetry:
         provider.generate_itineraries.assert_called_once()
         # No sleep between attempts
         mock_sleep.assert_not_called()
+
+    async def test_calls_list_forwarded_to_provider(self) -> None:
+        """If this seam breaks, prod silently writes zero ai_call_logs rows."""
+        provider = AsyncMock()
+        provider.generate_itineraries.return_value = (_make_response(), "gemini")
+        service = AIService(provider=provider)
+        calls: list = []
+
+        await service.generate_itineraries("prompt", 1, "model", calls=calls)
+
+        assert provider.generate_itineraries.call_args.kwargs["calls"] is calls

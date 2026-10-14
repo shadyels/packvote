@@ -1,3 +1,6 @@
+import logging
+import sys
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,6 +8,15 @@ from app.api import admin, auth, participants, trips, unsplash, votes
 from app.core.config import get_settings
 
 settings = get_settings()
+
+# Scoped to "app" rather than root (basicConfig): a root handler would double
+# SQLAlchemy echo output and surface httpx's per-request INFO lines.
+_log_handler = logging.StreamHandler(sys.stdout)
+_log_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+)
+logging.getLogger("app").addHandler(_log_handler)
+logging.getLogger("app").setLevel(logging.INFO)
 
 app = FastAPI(
     title="PackVote API",
