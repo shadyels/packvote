@@ -64,7 +64,7 @@ Editable fields: `title`, `destination`, `proposed_start_date`, `proposed_end_da
 
 **Trip deletion — cascade pattern:**
 `DELETE /trips/{trip_id}` returns 204. Manual ordered bulk deletes (no DB-level CASCADE). Blocked with 409 when `trip.status == "GENERATING"`. Deletion order:
-1. `vote_rounds` → `votes` → `preferences` → `ai_call_logs`
+1. `vote_rounds` → `votes` → `preferences` deleted; `ai_call_logs` kept with `trip_id` set to NULL (evaluation dataset — see `docs/AI-ARCHITECTURE.md`)
 2. Set `trip.winner_itinerary_id = None` + `flush()` (breaks circular FK before deleting itineraries)
 3. `itineraries` → `participants` → trip row
 

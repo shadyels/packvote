@@ -4,7 +4,7 @@ import secrets
 import string
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -346,7 +346,10 @@ async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:
     await db.execute(delete(VoteRound).where(VoteRound.trip_id == trip_id))
     await db.execute(delete(Vote).where(Vote.trip_id == trip_id))
     await db.execute(delete(Preference).where(Preference.trip_id == trip_id))
-    await db.execute(delete(AICallLog).where(AICallLog.trip_id == trip_id))
+    # ai_call_logs is an evaluation dataset: keep rows, detach them from the trip.
+    await db.execute(
+        update(AICallLog).where(AICallLog.trip_id == trip_id).values(trip_id=None)
+    )
 
     # Break circular FK (trip.winner_itinerary_id -> itineraries.id) before deleting itineraries
     trip.winner_itinerary_id = None

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import AIGenerationResponse
 
 
@@ -17,10 +18,13 @@ class AIProvider(ABC):
         num_options: int,
         model: str,
         reasoning_effort: str = "none",
+        *,
+        calls: list[AICallLog] | None = None,
     ) -> tuple[AIGenerationResponse, str]:
         """Generate N itinerary options from the rendered prompt.
 
         Returns (response, provider_name) where provider_name is e.g. "gemini".
+        If `calls` is given, appends one unsaved AICallLog per network attempt.
         """
         ...
 

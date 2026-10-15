@@ -4,6 +4,7 @@ import logging
 from openai import RateLimitError
 
 from app.core.config import get_settings
+from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.base import AIProvider
 from app.services.ai.json_utils import AIInputError
@@ -44,10 +45,13 @@ class AIService:
         num_options: int,
         model: str | None = None,
         reasoning_effort: str | None = None,
+        *,
+        calls: list[AICallLog] | None = None,
     ) -> tuple[AIGenerationResponse, str]:
         """Generate itineraries with retry on failure.
 
-        Returns (response, provider_name).
+        Returns (response, provider_name). `calls` collects one AICallLog per
+        provider attempt, across retries.
         """
         settings = get_settings()
         resolved_model = model or settings.DEFAULT_AI_MODEL
@@ -60,7 +64,11 @@ class AIService:
         for attempt in range(max_attempts):
             try:
                 return await self.provider.generate_itineraries(
-                    prompt, num_options, resolved_model, resolved_reasoning_effort
+                    prompt,
+                    num_options,
+                    resolved_model,
+                    resolved_reasoning_effort,
+                    calls=calls,
                 )
             except (AIInputError, LocalRateLimitError):
                 # AIInputError: AI diagnosed input as invalid — retrying won't help

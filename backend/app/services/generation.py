@@ -5,7 +5,8 @@ Entry point: run_generation(trip_id, session_factory)
 This module is called as a FastAPI BackgroundTask. It opens its own DB session
 (the request-scoped session is already closed by the time the background task runs),
 fetches trip data, renders the prompt, calls the AI service with retry/fallback,
-persists Itinerary rows and an AICallLog entry, then transitions the trip to VOTING.
+persists Itinerary rows and one AICallLog row per provider attempt, then transitions
+the trip to VOTING.
 
 On total failure the trip is reset to COLLECTING_PREFERENCES so the creator can retry.
 """
@@ -14,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import UTC, datetime
 
 import httpx
 from openai import APIConnectionError, APIStatusError, RateLimitError
@@ -271,33 +271,29 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
 
     # Call AI with retry + fallback
     ai_service = AIService.from_settings()
+    iteration_number = trip.current_iteration + 1
+    calls: list[AICallLog] = []
     t_start = time.monotonic()
     try:
         ai_response, provider_name = await ai_service.generate_itineraries(
             prompt=prompt,
             num_options=trip.num_options,
+            calls=calls,
         )
-    except Exception as exc:
-        latency_ms = int((time.monotonic() - t_start) * 1000)
-        await _log_ai_call(
-            db=db,
+    except Exception:
+        _add_call_logs(
+            db,
+            calls,
             trip_id=trip_id,
             prompt_version_id=template.id,
-            model_used=get_settings().DEFAULT_AI_MODEL,
-            provider_name="unknown",
-            latency_ms=latency_ms,
-            response_valid=False,
-            error_message=str(exc),
-            raw_response=getattr(exc, "raw_text", None),
+            iteration_number=iteration_number,
         )
         await db.commit()
         raise
 
     latency_ms = int((time.monotonic() - t_start) * 1000)
 
-    # Increment iteration counter
-    trip.current_iteration += 1
-    iteration_number = trip.current_iteration
+    trip.current_iteration = iteration_number
 
     # Persist itinerary rows
     for option in ai_response.options:
@@ -319,15 +315,12 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
         )
         db.add(itinerary)
 
-    await _log_ai_call(
-        db=db,
+    _add_call_logs(
+        db,
+        calls,
         trip_id=trip_id,
         prompt_version_id=template.id,
-        model_used=get_settings().DEFAULT_AI_MODEL,
-        provider_name=provider_name,
-        latency_ms=latency_ms,
-        response_valid=True,
-        error_message=None,
+        iteration_number=iteration_number,
     )
 
     trip.status = "VOTING"
@@ -584,26 +577,35 @@ async def _send_voting_emails(
 # ---------------------------------------------------------------------------
 
 
-async def _log_ai_call(
+def _add_call_logs(
     db: AsyncSession,
+    calls: list[AICallLog],
+    *,
     trip_id: int,
     prompt_version_id: int | None,
-    model_used: str,
-    provider_name: str,
-    latency_ms: int,
-    response_valid: bool,
-    error_message: str | None,
-    raw_response: str | None = None,
+    iteration_number: int,
 ) -> None:
-    log_entry = AICallLog(
-        trip_id=trip_id,
-        prompt_version_id=prompt_version_id,
-        model_used=model_used,
-        provider=provider_name,
-        latency_ms=latency_ms,
-        response_valid=response_valid,
-        error_message=error_message,
-        raw_response=raw_response,
-        created_at=datetime.now(UTC),
-    )
-    db.add(log_entry)
+    """Stamp per-attempt rows with generation context, stage them, log each."""
+    for attempt, log in enumerate(calls, start=1):
+        log.trip_id = trip_id
+        log.prompt_version_id = prompt_version_id
+        log.iteration_number = iteration_number
+        log.attempt = attempt
+        db.add(log)
+        logger.info(
+            "ai_call trip=%s iteration=%s attempt=%s provider=%s model=%s "
+            "latency_ms=%s tokens_in=%s tokens_out=%s tokens_total=%s "
+            "finish=%s valid=%s error=%.200r",
+            trip_id,
+            iteration_number,
+            attempt,
+            log.provider,
+            log.model_used,
+            log.latency_ms,
+            log.token_count_input,
+            log.token_count_output,
+            log.token_count_total,
+            log.finish_reason,
+            log.response_valid,
+            log.error_message,
+        )
