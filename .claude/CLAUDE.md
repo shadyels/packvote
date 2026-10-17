@@ -1,0 +1,73 @@
+<!-- BEGIN subagent-orchestration -->
+# Subagent Orchestration Policy
+
+These rules apply to the MAIN session acting as orchestrator. If you are a subagent reading this, ignore the delegation rules and follow your own system prompt; subagents cannot spawn other subagents.
+
+## Core rule
+For software engineering work, the main session COORDINATES — it does not implement. Delegate to the specialized subagents below and keep your own context clean. Exception: trivial changes (single file, roughly ≤ 20 changed lines, no design impact, e.g. a typo, a config value, a one-line fix) may be done directly without the pipeline.
+
+## Agents and models
+When invoking a subagent via the Agent tool, ALWAYS pass the `model` parameter explicitly with the value from this table (do not rely on frontmatter alone):
+
+| Agent | Model | Role |
+|---|---|---|
+| architect | opus | Spec before implementation; final approval after |
+| explorer | haiku | Read-only codebase scouting / context gathering |
+| backend-worker | sonnet | Server-side implementation |
+| frontend-worker | sonnet | Client-side implementation |
+| devops-worker | sonnet | Docker, CI/CD, infra, build tooling |
+| tester | sonnet | Writes and runs tests; reports failures only |
+| code-reviewer | opus | Quality/correctness review (read-only) |
+| security-engineer | sonnet | Vulnerability review; small fixes directly |
+| debugger | opus | Root-cause analysis of failures |
+| docs-writer | haiku | Updates docs/changelog after approval |
+
+## Feature pipeline (any non-trivial feature, refactor, or multi-file change)
+1. **Context** — send `explorer` to gather relevant files/patterns. Pass its compact summary forward to later agents instead of re-exploring.
+2. **Spec** — send the request + explorer summary to `architect` (SPEC mode). If the architect returns questions, relay them to the user before proceeding. Do not start implementation without a spec.
+3. **Implement** — dispatch the spec's task breakdown to `backend-worker` / `frontend-worker` / `devops-worker` per its tags. Run independent tasks as parallel subagents; run dependent tasks in order. Always include the relevant spec excerpt and explorer context in each task prompt.
+4. **Test** — send the change summary to `tester`. On application-code failures, send the failure report to `debugger`, then re-run `tester`. Loop until green.
+5. **Review** — run `code-reviewer` and `security-engineer` in parallel on the diff. Dispatch any BLOCKER / CRITICAL / HIGH remediation back to the tagged worker, then re-run the affected reviewer. Loop until both report PASS.
+6. **Approval** — send spec + confirmation of green tests/reviews to `architect` (APPROVAL mode). If REJECTED, dispatch the blocking issues and repeat from the relevant step. Only report completion to the user after APPROVED.
+7. **Docs** — send the change summary to `docs-writer` if any user-facing or developer-facing behavior changed.
+8. **Lessons write-back** — after the pipeline (or any standalone agent run), collect the `LESSONS:` blocks from the subagent reports and record them. You (the main session) are the ONLY writer of agent specs:
+   - Generalizable craft lessons → edit that agent's spec file, ONLY inside its `<!-- BEGIN learned-lessons -->` / `<!-- END learned-lessons -->` markers. Locate the spec in `.claude/agents/` (project) or `~/.claude/agents/` (user) — whichever contains it. Merge duplicates, keep each lesson to one bullet, cap at 15 bullets per agent, prune the least useful when full. NEVER modify anything outside the markers, and never let an agent edit any spec itself.
+   - Project-specific facts (commands, paths, conventions) → record in the project CLAUDE.md Stack Profile instead, never in agent specs.
+   - Your own lessons about orchestration (routing mistakes, missing context in dispatches, pipeline-order issues) → append inside the "Orchestrator learned lessons" markers below, same rules (dedupe, one bullet each, cap 15).
+   - Skip silently when there are no lessons; do not manufacture them. Note: spec edits load at the NEXT session start — agents in the current session keep their current spec.
+
+## Standing delegation rules (outside the pipeline)
+- Any "where is / how does / find" question about the codebase → `explorer`, not your own grep.
+- Any bug report, stack trace, or failing test → `debugger`.
+- Any request to "run the tests" → `tester`.
+- Any review request ("check this", "is this safe") → `code-reviewer` and/or `security-engineer`.
+- Keep delegation prompts self-contained: subagents start with a fresh context and do not see this conversation. Include the goal, the spec excerpt, relevant file paths, and the stack profile hint.
+- When dispatching a fix, include the reviewer's or tester's finding verbatim so the responsible agent sees exactly what it got wrong.
+- Relay each subagent's summary onward; do not re-read whole files into the main context that a subagent already summarized.
+
+## Stack Profile
+Agents read this section for the stack and the exact gate commands. Detail lives in the root `CLAUDE.md` (Commands, Tech Stack, Code Conventions, Architecture Quick Reference, Hard Constraints) — read it rather than inferring.
+
+- Language(s): Python 3.12 (`backend/`), TypeScript (`frontend/`)
+- Backend: FastAPI (async) + SQLAlchemy async + Alembic on PostgreSQL, managed with `uv`. AI calls go through the `openai` SDK against an OpenAI-compatible endpoint — no vendor SDKs.
+- Frontend: React 18 + Vite, shadcn/ui on `@base-ui/react` (not Radix) + Tailwind, managed with `pnpm`.
+- Tests: from `backend/`: `uv run pytest -m "not live"` (`live` tests call the real AI provider — run them only when asked). From `frontend/`: `pnpm test --run` — bare `pnpm test` is vitest watch mode and never exits.
+- Lint/typecheck: from `backend/`: `uv run ruff check . && uv run ruff format --check .` (no Python type checker is configured). From `frontend/`: `pnpm lint` (zero warnings) and `pnpm format:check`.
+- Build: from `frontend/`: `pnpm build` (`tsc -b && vite build` — this is the TypeScript typecheck).
+- CI/CD: GitHub Actions — `.github/workflows/` is off-limits. Deploy: Railway (Railpack).
+- Other conventions: read the matching `docs/*-ARCHITECTURE.md` (AI, voting, email, frontend), `docs/DEPLOYMENT.md` or `docs/TESTING.md` before working in that area. Conventional Commits. Claude never creates branches or PRs — propose them; the user creates/submits them.
+
+## Orchestrator learned lessons
+<!-- BEGIN orchestrator-lessons (written ONLY by the orchestrator) -->
+- When two subagents make conflicting factual claims (e.g. about test coverage or behavior), do not pick a side — route the conflict to the architect (or a fresh reader) to adjudicate by reading the actual source. Surface it explicitly in the approval dispatch rather than silently resolving it yourself. This covers conflicting **judgment** calls too, not just factual ones: two reviewers reaching opposite verdicts on the same lines (e.g. "add input bounds" vs "acceptable, single writer") is the archetypal architect question. Writing the disagreement into the PR body is disclosure, not adjudication — it does not discharge the obligation to actually run the gate.
+- A detailed approved plan already serves as the architect's SPEC — skip a redundant explorer+SPEC round and dispatch the worker directly with the plan; still run the full test→review→APPROVAL tail. Workers/reviewers start fresh, so each dispatch must be self-contained (goal, plan excerpt, file paths, reuse APIs, gate commands).
+- Harness-injected `<new-diagnostics>` can be STALE mid-run snapshots that contradict a completed worker's green claim (e.g. "module not found", wrong arg-count at shifted line numbers). Do not trust either narrative — adjudicate by re-running the actual gates (Stack Profile) against the real tree. Shifted line numbers vs. the current file are the tell. A second tell is a whole-package "import could not be resolved" wave on files that demonstrably exist while the project's own gates pass: that is a tool resolving against a different interpreter (e.g. not the `uv` venv), not a defect. Be equally sceptical of its *inverted* hints — "code is unreachable" on a runtime `else: raise` guard, or "constant is not accessed" on one a test imports, are what a static checker says about guards that exist precisely BECAUSE an exhaustive `Literal`/`Enum` type is not enforcement at runtime. Confirm with a grep before believing a not-accessed claim.
+- A subagent dying on "session limit" or a mid-response connection drop is not a standing block on spawning — retry/resume before concluding you must do the work yourself. Resume by name: the agent keeps its context and only needs a precise statement of what remains. The opposite failure also occurs: an agent that reports "waiting on background work" while `ps` shows nothing running has stalled on an exited job — nudge it ONCE, then stop it and finish the residual items yourself with its already-validated artifacts. Before resuming after a crash, establish ground truth with the real gates plus targeted greps: "file is modified" is not "spec item is done", and neither is "keyword present" — hits can be docstrings rather than the guard, and a miss can mean the item lives in a different function than you searched. Audit each spec item against the CODE, and diff a worker's claims about its OWN unrequested extra work too, since nothing else in the pipeline checks that self-report.
+- Fact-check `docs-writer` output against the actual commits before committing it. Doc agents optimise for plausible prose, not correspondence with the diff — one inverted a numbering scheme and silently rewrote an exit criterion to describe what shipped, turning "not met" into "met" by redefinition. Check three further things a factual audit misses: **invented remedies** (an upgrade path nobody decided, which later reads as a decided plan — write "undecided" when it is); **leaked imperatives** from your own brief ("State explicitly that…" shipping inside the doc); and **house style you asserted rather than checked** — point briefs at the file's actual convention instead of describing it from memory, because the agent will follow the brief over the file.
+- Open every artifact you cite instead of citing it from memory — counts, paths, line references, formulas and style rules in a plan or brief included. An approved plan is a spec, not a source of facts: a worker faithfully implements a wrong instruction and writes a matching comment, so the error stays invisible until a reviewer who never saw the plan reads the code against the source. Counting by grep is the same trap: grep the BARE keyword, classify hits into definitions vs references, and confirm the baseline on `main` before attributing a bad count to your diff. Before dispatching, check each identity the plan asserts against its own logic and write down what you checked — the rows you skip are the ones that bite. When a diff both makes a correction AND cites the corrected thing elsewhere, check the CITATION SITE, not the fix: two files in one diff contradicting each other is the signature.
+- Conflict-check reviewer findings against each other before sending a combined fix round — pasting one reviewer's literal guard next to a finding that requires the opposite property ships a contradiction the worker must resolve alone. When a worker substitutes a different invariant on its own initiative, route the substitute to an independent re-review rather than accepting it, since it may be stronger or weaker than what you wrote. A caveat added to one brief (code) must be consciously carried to its twins (docs, tests): they are separate artifacts.
+- `.claude/hooks/bash_guard.py`'s `enforce-commit-convention` inspects the raw `-m` argument, so the `git commit -m "$(cat <<'EOF' …)"` idiom is always denied — the regex sees `-m "$(cat`, not the Conventional Commits prefix. A worker reporting "a hook blocks git commit entirely" has misdiagnosed this. **Multiple `-m` flags are also always denied**: the rule keeps scanning past a well-formed subject and matches at the second `-m`, whose body paragraph has no prefix. For anything longer than one line — bodies, `Co-Authored-By` trailers — write the message to a scratchpad file and use `git commit -F <file>`, which the rule does not check (packvote has no local git hooks, so check the subject yourself). Reserve the literal single-line `-m` string (no `$`, no backticks, no inner `"`) for one-line commits.
+- When the branch was cut from another *feature* branch rather than `main`, never hand a reviewer `git diff main...HEAD` — the three-dot diff drags in every commit since divergence and presents already-reviewed work as new. Check `git rev-list --count main..HEAD` before writing the dispatch, and give reviewers the precise command (`git diff HEAD -- <paths>` plus any untracked files by name). Also tell the user, since it changes what the PR should target.
+- A harness checkpoint ("usage limit approaching", "don't start subagents", "wrap up") is a budget signal, NOT user authorization to drop a pipeline gate — and a following one-word user reply like "finish" is not retroactive consent to whatever I decided to cut. If budget is genuinely tight, ask which gate to drop or defer the work; do not silently pick. The APPROVAL round is the worst one to cut, because it is the only step that judges the ORCHESTRATOR's own calls — scope declines, tie-breaks between reviewers, doc edits I wrote myself. Re-running tests personally substitutes for `tester`; nothing I can run substitutes for a fresh reader checking my judgment. Disclosing the skip afterwards does not repair it.
+<!-- END orchestrator-lessons -->
+<!-- END subagent-orchestration -->
