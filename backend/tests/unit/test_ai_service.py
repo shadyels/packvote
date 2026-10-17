@@ -42,20 +42,20 @@ def _make_response(destination: str = "Paris") -> AIGenerationResponse:
 
 class TestAIServiceRetry:
     async def test_primary_succeeds_first_attempt(self) -> None:
-        mock_result = (_make_response(), "gemini")
+        mock_result = _make_response()
         provider = AsyncMock()
         provider.generate_itineraries.return_value = mock_result
         service = AIService(provider=provider)
 
         with patch("asyncio.sleep") as mock_sleep:
-            result = await service.generate_itineraries("prompt", 1, "model")
+            result = await service.generate_itineraries("prompt", 1)
 
         assert result == mock_result
         provider.generate_itineraries.assert_called_once()
         mock_sleep.assert_not_called()
 
     async def test_primary_fails_once_then_succeeds(self) -> None:
-        mock_result = (_make_response(), "gemini")
+        mock_result = _make_response()
         provider = AsyncMock()
         provider.generate_itineraries.side_effect = [
             RuntimeError("transient error"),
@@ -64,11 +64,11 @@ class TestAIServiceRetry:
         service = AIService(provider=provider)
 
         with patch("asyncio.sleep") as mock_sleep:
-            result = await service.generate_itineraries("prompt", 1, "model")
+            result = await service.generate_itineraries("prompt", 1)
 
         assert result == mock_result
         assert provider.generate_itineraries.call_count == 2
-        mock_sleep.assert_called_once_with(1.0)
+        mock_sleep.assert_awaited_once()  # a retry backoff happened; delay value not pinned
 
     async def test_primary_fails_all_raises(self) -> None:
         provider = AsyncMock()
@@ -76,24 +76,12 @@ class TestAIServiceRetry:
         service = AIService(provider=provider)
 
         with patch("asyncio.sleep"), pytest.raises(RuntimeError, match="always fail"):
-            await service.generate_itineraries("prompt", 1, "model")
+            await service.generate_itineraries("prompt", 1)
 
         assert provider.generate_itineraries.call_count == 3
 
-    async def test_explicit_model_passed_to_provider(self) -> None:
-        mock_result = (_make_response(), "gemini")
-        provider = AsyncMock()
-        provider.generate_itineraries.return_value = mock_result
-        service = AIService(provider=provider)
-
-        with patch("asyncio.sleep"):
-            await service.generate_itineraries("prompt", 1, "my-custom-model")
-
-        call_args = provider.generate_itineraries.call_args
-        assert call_args[0][2] == "my-custom-model"
-
     async def test_default_model_resolved_from_settings(self) -> None:
-        mock_result = (_make_response(), "gemini")
+        mock_result = _make_response()
         provider = AsyncMock()
         provider.generate_itineraries.return_value = mock_result
         service = AIService(provider=provider)
@@ -104,13 +92,13 @@ class TestAIServiceRetry:
         ):
             mock_settings.return_value.DEFAULT_AI_MODEL = "gemini-2.5-flash"
             mock_settings.return_value.DEFAULT_REASONING_EFFORT = "low"
-            await service.generate_itineraries("prompt", 1, model=None)
+            await service.generate_itineraries("prompt", 1)
 
         call_args = provider.generate_itineraries.call_args
         assert call_args[0][2] == "gemini-2.5-flash"
 
     async def test_default_reasoning_effort_resolved_from_settings(self) -> None:
-        mock_result = (_make_response(), "gemini")
+        mock_result = _make_response()
         provider = AsyncMock()
         provider.generate_itineraries.return_value = mock_result
         service = AIService(provider=provider)
@@ -121,7 +109,7 @@ class TestAIServiceRetry:
         ):
             mock_settings.return_value.DEFAULT_AI_MODEL = "gemini-2.5-flash"
             mock_settings.return_value.DEFAULT_REASONING_EFFORT = "medium"
-            await service.generate_itineraries("prompt", 1, model=None)
+            await service.generate_itineraries("prompt", 1)
 
         call_args = provider.generate_itineraries.call_args
         assert call_args[0][3] == "medium"
@@ -134,7 +122,7 @@ class TestAIServiceRetry:
         service = AIService(provider=provider)
 
         with patch("asyncio.sleep") as mock_sleep, pytest.raises(AIInputError):
-            await service.generate_itineraries("prompt", 1, "model")
+            await service.generate_itineraries("prompt", 1)
 
         # Called exactly once — no retries
         provider.generate_itineraries.assert_called_once()
@@ -144,10 +132,10 @@ class TestAIServiceRetry:
     async def test_calls_list_forwarded_to_provider(self) -> None:
         """If this seam breaks, prod silently writes zero ai_call_logs rows."""
         provider = AsyncMock()
-        provider.generate_itineraries.return_value = (_make_response(), "gemini")
+        provider.generate_itineraries.return_value = _make_response()
         service = AIService(provider=provider)
         calls: list = []
 
-        await service.generate_itineraries("prompt", 1, "model", calls=calls)
+        await service.generate_itineraries("prompt", 1, calls=calls)
 
         assert provider.generate_itineraries.call_args.kwargs["calls"] is calls

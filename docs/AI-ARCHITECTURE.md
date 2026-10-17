@@ -2,15 +2,15 @@
 
 ## AI Service Layer
 
-- Single provider: `OpenAICompatProvider` using the `openai` SDK against **any** OpenAI-compatible chat-completions endpoint. Interface is `AIProvider` (abstract).
+- Single provider class: `OpenAICompatProvider` (`services/ai/openai_compat.py`) using the `openai` SDK against **any** OpenAI-compatible chat-completions endpoint. There is no provider base class.
 - Default: **Google Gemini free tier** — `gemini-3.6-flash` via `https://generativelanguage.googleapis.com/v1beta/openai/` (`gemini-2.5-flash` was retired for new API keys — 404 "no longer available to new users")
 - All AI responses MUST return validated JSON (Pydantic validation).
-- Prompts are versioned in the database (`prompt_templates` table) with basic A/B testing (traffic split, metrics per version).
+- The prompt is a code constant (`ITINERARY_PROMPT_V3` in `services/generation.py`) with `PROMPT_VERSION = "v3"`, recorded on each `Itinerary.prompt_version`. There is no prompt table and no A/B split.
 
 ## Provider Implementation
 
 **The provider is configuration, not code.**
-Gemini, OpenRouter, Mistral, Groq and Cerebras all expose the same OpenAI chat-completions shape. Switching providers means changing four settings in `app/core/config.py` (all env-overridable) — never writing a new provider class:
+Gemini, OpenRouter, Mistral, Groq and Cerebras all expose the same OpenAI chat-completions shape. Switching providers means changing these settings in `app/core/config.py` (all env-overridable) — never writing a new provider class:
 
 | Setting | Purpose |
 |---|---|
@@ -22,10 +22,10 @@ Gemini, OpenRouter, Mistral, Groq and Cerebras all expose the same OpenAI chat-c
 
 This replaced a history of provider-specific classes (HuggingFace → Groq → Cerebras), each of which required a full rewrite when a free tier disappeared.
 
-**`AsyncOpenAI` from the `openai` SDK.** Do not use raw `httpx`, `huggingface_hub`, or a vendor SDK for AI inference. Client is initialized with `timeout=180` seconds to accommodate slow cold-starts.
+**`AsyncOpenAI` from the `openai` SDK.** Do not use raw `httpx`, `huggingface_hub`, or a vendor SDK for AI inference. A client is built per call (`_make_client`, `timeout=180` seconds to accommodate slow cold-starts, `max_retries=0`) and closed with `async with client`, so no connection pool outlives the call.
 
 **Thinking/reasoning suppression is mandatory — and it is a token-budget issue, not a formatting one.**
-Gemini draws thinking tokens from the *same* `max_tokens` budget as the response. With `MAX_OUTPUT_TOKENS = 16_384` and `SAFE_OUTPUT_TOKENS = 15_000` of itinerary JSON, an enabled thinking pass risks silently truncating the JSON mid-array, surfacing as `finish_reason == "length"` rather than an error. `AI_EXTRA_BODY` defaults to:
+Gemini draws thinking tokens from the *same* `max_tokens` budget as the response. With `MAX_OUTPUT_TOKENS = 16_384` (`services/ai/openai_compat.py`) and `SAFE_OUTPUT_TOKENS = 15_000` of itinerary JSON, an enabled thinking pass risks silently truncating the JSON mid-array, surfacing as `finish_reason == "length"` rather than an error. `AI_EXTRA_BODY` defaults to:
 
 ```json
 {"extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}}
@@ -37,8 +37,8 @@ Gemini 3.x models (including the default `gemini-3.6-flash`) replaced the old `t
 
 `DEFAULT_REASONING_EFFORT` defaults to `"none"`, which **omits the `reasoning_effort` param entirely** — Gemini rejects `reasoning_effort` and `thinking_config` supplied together. Any other value is forwarded as the standard OpenAI `reasoning_effort`.
 
-**Provider return type includes provider name:**
-`AIProvider.generate_itineraries()` returns `tuple[AIGenerationResponse, str]` where the string is `AI_PROVIDER_NAME` (default `"gemini"`). Required so the generation service can log which provider answered.
+**Provider name comes from config:**
+`OpenAICompatProvider.generate_itineraries()` returns `AIGenerationResponse`. The provider name is `AI_PROVIDER_NAME` (default `"gemini"`), written to `AICallLog.provider`; the winning attempt's value is copied to `Itinerary.provider`.
 
 **Retry strategy:**
 `AIService.generate_itineraries()` retries up to 3 times. On exhaustion, re-raises the last exception. No fallback provider. Never use immediate retries. The openai SDK's own retries are disabled (`max_retries=0` in `_make_client`), so each `AIService` attempt is exactly one HTTP request — and one `ai_call_logs` row.
@@ -50,7 +50,9 @@ Two delay schedules in `services/ai/service.py`:
 The long backoff for 429s is intentional: short delays (1/2/4s) were exhausted before upstream traffic spikes resolved, causing live generation to fail after retrying too quickly.
 
 **`AIInputError` and `LocalRateLimitError` fast-fail (no retry):**
-When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), providers raise `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
+When the AI returns a structured error envelope instead of itineraries (bad destination, contradictory constraints), the provider raises `AIInputError` (a subclass of `AIParseError`). `AIService` re-raises it immediately — retrying bad input won't help. `AIInputError` carries `ai_message`, `suggestion`, and `field` attributes so `_humanize_error()` can surface them verbatim.
+
+A wrong option count raises `AIOptionCountError` (also an `AIParseError` subclass, so it *is* retried). It replaces the old string matching on the error message.
 
 `LocalRateLimitError` (from `services/ai/rate_limiter.py`) is also re-raised without retry — the in-process gate rejected the request, so retrying within the same 60s window would hit the same gate.
 
@@ -74,18 +76,18 @@ All six limits checked on every `reserve()` call. Single deque design: `commit()
 Token cost is unknown before the call, so `reserve(estimated_tokens)` places an optimistic entry in the deque. After the call, `commit(reservation, actual_tokens)` replaces the estimate with actual `completion.usage.total_tokens`. On exception, `commit` is called with the estimate to avoid a leaked slot.
 
 ```python
-reservation = await limiter.reserve(estimated_tokens)
+reservation = await limiter.reserve(estimated_tokens)  # async; raises LocalRateLimitError
 try:
     completion = await client.chat.completions.create(...)
 except Exception:
-    await limiter.commit(reservation, estimated_tokens)
+    limiter.commit(reservation, estimated_tokens)  # sync
     raise
-await limiter.commit(reservation, actual_tokens)
+limiter.commit(reservation, completion.usage.total_tokens)
 ```
 
 **`LocalRateLimitError`** carries `kind` (`"rpm"` | `"rph"` | `"rpd"` | `"tpm"` | `"tph"` | `"tpd"` | `"context_length"`) and `retry_after_seconds`. `_humanize_error()` surfaces it as:
 - `context_length` → "The trip preferences are too long to process. Try reducing the number of participants or shortening preference details."
-- `rpm` / `rph` / `rpd` / `tpm` / `tph` / `tpd` → "The AI service is busy. Please try again in N seconds." (minute/hour/day windows all map to same user message)
+- `rpm` / `rph` / `rpd` / `tpm` / `tph` / `tpd` → "The AI service is busy. Please try again in N seconds." (`_humanize_wait` reports minutes or hours for longer waits; all windows map to the same user message)
 
 ## JSON Extraction
 
@@ -129,7 +131,7 @@ Every user-controlled value injected into `ITINERARY_PROMPT_V3` must be wrapped 
 <<<USER DATA>>>{value}<<<END USER DATA>>>
 ```
 
-Applied in `_render_prompt` (trip title, destination) and `_build_preferences_block` (interests, activity_tags). This is not a security absolute — it reduces the attack surface without adding latency or cost.
+Applied in `_render_prompt` (trip title, destination) and `_build_preferences_block` (interests, activity_tags). `sanitize_text()` also strips runs of three or more `<` or `>`, so user text cannot close the block. This is not a security absolute — it reduces the attack surface without adding latency or cost.
 
 Do NOT add phrase-blacklisting (e.g. filtering "ignore previous instructions"). Structural isolation is the correct approach.
 
@@ -156,14 +158,14 @@ The current prompt (`ITINERARY_PROMPT_V3`) embeds a full-option Barcelona exampl
 ## Prompt Templates
 
 **Format — `[SYSTEM]`/`[USER]` delimiter:**
-Templates are stored as a single string in `prompt_templates` using `[SYSTEM]\n...\n[USER]\n...`. Providers split this at call time into the two-message array. Keeps a full prompt in one DB row for versioning/A/B testing.
+The prompt is one string using `[SYSTEM]\n...\n[USER]\n...`. `_split_prompt()` in `openai_compat.py` splits it at call time into the two-message array.
 
-**Seeded at runtime, not via migration:**
-`_upsert_prompt_template()` in `services/generation.py` does SELECT then INSERT if missing on every generation run. Idempotent. Do NOT create an Alembic data migration for this.
+**Versioning:**
+`PROMPT_VERSION` (`services/generation.py`) is written to `Itinerary.prompt_version` for every option. Bump it when `ITINERARY_PROMPT_V3` changes. There is no database table and no seeding migration.
 
 ## JSON Columns for Structured Fields
 
-`Itinerary.daily_itinerary` (`list`), `Itinerary.highlights` (`list[str]`), `Preference.activity_tags` (`list[str] | None`), `Vote.rankings` (`list[int]`), and `VoteRound.results` (`dict`) are native `JSON` columns. SQLAlchemy serializes/deserializes automatically — no `json.dumps`/`json.loads` at call sites.
+`Itinerary.daily_itinerary` (`list`), `Itinerary.highlights` (`list[str]`), `Preference.activity_tags` (`list[str] | None`), and `Vote.rankings` (`list[int]`) are stored with the shared `JSONType` (`app/db/base.py`). SQLAlchemy serializes/deserializes automatically — no `json.dumps`/`json.loads` at call sites.
 
 When assigning from Pydantic models, use `.model_dump()` to produce plain dicts/lists before storing:
 - `[day.model_dump() for day in daily_itinerary]`
@@ -191,22 +193,33 @@ async def run_generation(trip_id: int, session_factory: async_sessionmaker) -> N
 
 ## Generation Status Transitions
 
-**Commit `GENERATING` before scheduling the task:**
+**Claim the run with `start_generation()` before scheduling the task:**
 ```python
-trip.status = "GENERATING"
-await db.commit()
-background_tasks.add_task(run_generation, ...)
-return {"status": "accepted"}
+if not await start_generation(db, trip_id, allowed):  # conditional UPDATE + commit
+    raise HTTPException(status_code=409, ...)
+background_tasks.add_task(generation.run_generation, trip_id, session_factory)
 ```
-Ensures clients polling `GET /trips/{id}` immediately see `GENERATING`.
+`start_generation()` runs `UPDATE trips SET status='GENERATING', generation_error=NULL WHERE id=? AND status IN (allowed)` and commits. Only the caller that sees `rowcount == 1` schedules the run; a losing concurrent caller gets False and does nothing. Allowed sources:
+- `POST /trips/{id}/generate`: `CREATED`, `COLLECTING_PREFERENCES`, `GENERATION_FAILED`
+- auto-trigger when the last participant submits preferences: `CREATED`, `COLLECTING_PREFERENCES`
+- `POST /trips/{id}/new-iteration`: `VOTING`
+
+The commit happens before the task is scheduled, so clients polling `GET /trips/{id}` immediately see `GENERATING`.
+
+**Three phases, no DB connection during the AI call** (`run_generation`):
+1. `_read_phase` — session 1 snapshots trip, preferences and participant count into a plain `_GenerationJob`. Returns nothing unless the trip is `GENERATING`.
+2. `AIService.generate_itineraries()` — no session is open.
+3. `_write_phase` — session 2 runs a CAS `UPDATE trips SET current_iteration=…, status='VOTING' WHERE id=? AND status='GENERATING'`. If the CAS loses (e.g. startup recovery already failed the trip), the options are discarded and only the call logs are written. Otherwise `Itinerary` rows are added. `model_used`, `provider` and `generation_latency_ms` come from the winning (last `response_valid`) `AICallLog`, falling back to config if there is none.
 
 **On failure → `GENERATION_FAILED`** (not `COLLECTING_PREFERENCES`):
-`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores a user-friendly message in `trip.generation_error`. Raw exceptions go to server logs and `ai_call_logs.error_message` only — never shown to users.
+`_reset_trip_status()` sets `trip.status = "GENERATION_FAILED"` and stores a user-friendly message in `trip.generation_error`, but only while the trip is still `GENERATING`. Call logs are written first (`_write_call_logs`). Raw exceptions go to server logs and `ai_call_logs.error_message` only — never shown to users.
+
+**Startup recovery:** `recover_stuck_generations()` runs from the FastAPI lifespan (`app/main.py`) and marks every trip left in `GENERATING` as `GENERATION_FAILED` with "Generation was interrupted by a server restart. Please try again." It assumes a single process; see `docs/DEPLOYMENT.md`.
 
 User-facing messages from `_humanize_error(exc)` in `services/generation.py`:
 - `AIInputError` → AI's own `ai_message` verbatim, with `suggestion` appended as "Tip: …" if present. Always checked first (before the `AIParseError` branch, since `AIInputError` is a subclass).
 - `AIParseError` → "The AI returned an invalid response. This is usually temporary — try again."
-- `ValueError` (wrong option count) → "The AI generated the wrong number of itinerary options..."
+- `AIOptionCountError` → "The AI generated the wrong number of itinerary options..."
 - `LocalRateLimitError` (`context_length`) → preferences too long message
 - `LocalRateLimitError` (`rpm`/`tpm`) → "The AI service is busy. Please try again in N seconds."
 - `openai.RateLimitError` → rate limit message
@@ -216,36 +229,36 @@ User-facing messages from `_humanize_error(exc)` in `services/generation.py`:
 `openai.RateLimitError` subclasses `APIStatusError`, so the 429 branch must stay **above** the 5xx branch.
 - Anything else → generic "Something went wrong" message
 
-On next successful `POST /trips/{id}/generate`, both `status` and `generation_error` are cleared before setting `GENERATING`. `GENERATION_FAILED` is an allowed source status for `trigger_generation` (alongside `CREATED` and `COLLECTING_PREFERENCES`).
+`start_generation()` clears `generation_error` when it sets `GENERATING`. `GENERATION_FAILED` is an allowed source status for `POST /trips/{id}/generate` (alongside `CREATED` and `COLLECTING_PREFERENCES`).
 
 **Idempotency guard:**
-At the top of `run_generation`, re-read the trip and exit early if `trip.status != "GENERATING"`. Prevents double-run from race between manual and auto-trigger.
+`_read_phase` re-reads the trip and exits early if `trip.status != GENERATING`. Together with the `start_generation()` claim, this prevents a double run from a race between manual and auto-trigger.
 
-**Auto-trigger guard in `submit_preferences`:**
-Only auto-trigger if all participants submitted AND `trip.status == "COLLECTING_PREFERENCES"`. Prevents double-trigger when creator already hit `POST /trips/{id}/generate`.
+**Auto-trigger in `submit_preferences`:**
+When all participants have submitted, `_maybe_trigger_generation` calls `start_generation()` with `CREATED` / `COLLECTING_PREFERENCES`. A creator who already hit `POST /trips/{id}/generate` leaves the trip in `GENERATING`, so the auto-trigger loses the claim and does nothing.
 
 ## AI Call Logging
 
 **One row per network attempt**, not per generation. A generation that succeeds on its second try writes two rows; one that exhausts retries writes three.
 
 - **Provider (`openai_compat.py`)** appends a transient `AICallLog` to the `calls` list threaded `generation.py → AIService → provider`, *after* `limiter.reserve()` succeeds. Local-limiter rejections made no network call, so they are **not recorded**. It fills: `provider`, `model_used` (as reported by the API in `completion.model`, not the configured name), `prompt` (rendered), `raw_response`, `latency_ms` (the `create()` call only — excludes retry backoff), `token_count_input`/`_output`/`_total` from `completion.usage`, `finish_reason`, `response_valid`, `error_message`, `created_at` (per attempt).
-- **Orchestrator (`generation.py` `_add_call_logs`)** stamps the context only it knows — `trip_id`, `prompt_version_id`, `iteration_number`, `attempt` (1-based) — adds the rows to the session, and emits one INFO line per attempt:
+- **Orchestrator (`generation.py` `_add_call_logs`)** stamps the context only it knows — `trip_id`, `iteration_number`, `attempt` (1-based) — adds the rows to the session, and emits one INFO line per attempt:
   `ai_call trip=… iteration=… attempt=… provider=… model=… latency_ms=… tokens_in=… tokens_out=… tokens_total=… finish=… valid=… error=…`
   Rows are committed on both the success and the failure path.
-- **Retention:** rows outlive their trip. `delete_trip` sets `trip_id = NULL` instead of deleting them. The stored `prompt` contains participants' free-text preferences, so that text is retained after the trip is gone.
+- **Retention:** rows outlive their trip. `ai_call_logs.trip_id` is `ON DELETE SET NULL`, so `delete_trip` keeps them. The stored `prompt` contains participants' free-text preferences, so that text is retained after the trip is gone.
 - **Stdout:** `app/main.py` attaches a stdout handler to the `app` logger at INFO (not `basicConfig` — a root handler would double SQLAlchemy echo output and surface httpx's per-request INFO lines).
 
 The ops-level dashboard is Phase 3 (Grafana, admin-only).
 
 ## Evaluation Dataset
 
-`ai_call_logs` is the system of record for comparing models, prompts and configs over time: append-only, one row per attempt, joinable to `prompt_templates` via `prompt_version_id`, and to `itineraries` / `votes` / `trips` via `(trip_id, iteration_number)` while the trip exists.
+`ai_call_logs` is the system of record for comparing models, prompts and configs over time: append-only, one row per attempt. It has no prompt-version column; the prompt version lives on `itineraries.prompt_version`. Join to `itineraries` / `votes` / `trips` via `(trip_id, iteration_number)` while the trip exists.
 
 **Grouping attempts into runs:** order by `id`; `attempt` resets to `1` at the start of each generation. **Thinking tokens** are derived: `token_count_total − token_count_input − token_count_output` (non-zero means `thinking_level: minimal` still spent some).
 
 **Usage ideas — *not built*, later phases:**
-1. **Live scorecards (SQL only).** Per `model_used` × `prompt_version_id`: p50/p95 `latency_ms` on valid attempts; avg tokens in/out/total/thinking; validity rate; `finish_reason='length'` rate; attempts per generation.
+1. **Live scorecards (SQL only).** Per `model_used` × `itineraries.prompt_version`: p50/p95 `latency_ms` on valid attempts; avg tokens in/out/total/thinking; validity rate; `finish_reason='length'` rate; attempts per generation.
 2. **Outcome labels from voting.** Label each `(trip_id, iteration_number)` *accepted* (trip FINALIZED with a winner from that iteration) or *rejected* (`trigger_new_iteration` moved past it). Ranked-choice results rank options within one call (option-level quality, position bias) but don't compare models head-to-head. Labels must be snapshotted before trip deletion nulls `trip_id`.
 3. **Golden set + replay harness.** Export ~30 diverse valid prompts as JSONL `{prompt, reference_output, model, metrics, label}`; replay through `OpenAICompatProvider` with a `calls` list (capture works unchanged); score validity, option count, latency, tokens, and pairwise LLM-as-judge vs. the reference. Small batches — the free-tier limiter applies.
 4. **Regression gate.** Replay the golden set before changing `DEFAULT_AI_MODEL` or `AI_EXTRA_BODY`; compare scorecards.
-5. **Prompt A/B.** `prompt_templates.ab_test_group` / `traffic_weight` already exist and every row carries `prompt_version_id`, so per-version scorecards come free.
+5. **Prompt A/B.** Not built: there is no traffic split. `Itinerary.prompt_version` records which prompt produced each option, so per-version comparisons are possible later.

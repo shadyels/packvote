@@ -1,7 +1,10 @@
 from functools import lru_cache
 from typing import Any, Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_SECRET = "change-me-in-production"
 
 
 class Settings(BaseSettings):
@@ -13,7 +16,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://localhost/packvote"
 
     # Security
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = _DEFAULT_SECRET
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     RESET_TOKEN_EXPIRE_MINUTES: int = 60
 
@@ -35,7 +38,7 @@ class Settings(BaseSettings):
 
     # App
     FRONTEND_URL: str = "http://localhost:5173"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"  # fail closed; set "development" locally
 
     # AI model defaults
     # gemini-2.5-flash was retired for new API keys (404 "no longer available
@@ -68,6 +71,17 @@ class Settings(BaseSettings):
     AI_EXTRA_BODY: dict[str, Any] = {
         "extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}
     }
+
+    @model_validator(mode="after")
+    def _reject_default_secret(self) -> "Settings":
+        if self.ENVIRONMENT != "development" and (
+            self.SECRET_KEY == _DEFAULT_SECRET or len(self.SECRET_KEY) < 32
+        ):
+            raise ValueError(
+                "SECRET_KEY must be set to a non-default value of at least 32 "
+                "characters when ENVIRONMENT is not development"
+            )
+        return self
 
 
 @lru_cache

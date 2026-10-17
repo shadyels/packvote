@@ -1,60 +1,13 @@
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
+from app.services.rate_limit import SlidingWindow
 from app.services.unsplash import (
+    _CACHE_MAX,
+    MAX_COUNT,
     MAX_RPH,
     WINDOW_SECONDS,
-    UnsplashRateLimiter,
     fetch_destination_images,
 )
-
-# --- Rate limiter ---
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter_50_succeed() -> None:
-    limiter = UnsplashRateLimiter()
-    results = [await limiter.try_consume() for _ in range(MAX_RPH)]
-    assert all(results)
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter_51st_fails() -> None:
-    limiter = UnsplashRateLimiter()
-    for _ in range(MAX_RPH):
-        await limiter.try_consume()
-    assert not await limiter.try_consume()
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter_evicts_old_entries() -> None:
-    limiter = UnsplashRateLimiter()
-    base_time = 1000.0
-
-    with patch("app.services.unsplash.time.monotonic", return_value=base_time):
-        for _ in range(MAX_RPH):
-            await limiter.try_consume()
-        assert not await limiter.try_consume()
-
-    # Past the window — all entries evicted, new slots available
-    with patch(
-        "app.services.unsplash.time.monotonic",
-        return_value=base_time + WINDOW_SECONDS + 1.0,
-    ):
-        assert await limiter.try_consume()
-
-
-@pytest.mark.asyncio
-async def test_concurrent_consumes_exactly_50_succeed() -> None:
-    limiter = UnsplashRateLimiter()
-    results = await asyncio.gather(
-        *[limiter.try_consume() for _ in range(MAX_RPH + 10)]
-    )
-    assert sum(results) == MAX_RPH
-    assert results.count(False) == 10
-
 
 # --- fetch_destination_images ---
 
@@ -67,21 +20,20 @@ def _make_mock_response(urls: list[str], status: int = 200) -> MagicMock:
     return resp
 
 
-@pytest.mark.asyncio
 async def test_empty_key_returns_empty_no_rate_limit() -> None:
-    limiter = UnsplashRateLimiter()
+    limiter = SlidingWindow(MAX_RPH, WINDOW_SECONDS)
     with (
         patch("app.services.unsplash.get_settings") as mock_settings,
-        patch("app.services.unsplash.get_unsplash_limiter", return_value=limiter),
+        patch("app.services.unsplash._limiter", limiter),
     ):
         mock_settings.return_value.UNSPLASH_ACCESS_KEY = ""
         result = await fetch_destination_images("Paris", 3)
     assert result == []
     # Rate limiter not consumed — still at 0
-    assert len(limiter._requests) == 0
+    assert limiter.allowed()
+    assert len(limiter._events) == 0
 
 
-@pytest.mark.asyncio
 async def test_fetch_returns_image_urls() -> None:
     mock_resp = _make_mock_response(
         ["https://images.unsplash.com/a.jpg", "https://images.unsplash.com/b.jpg"]
@@ -104,7 +56,6 @@ async def test_fetch_returns_image_urls() -> None:
     ]
 
 
-@pytest.mark.asyncio
 async def test_cache_prevents_second_fetch() -> None:
     import app.services.unsplash as svc_module
 
@@ -136,7 +87,6 @@ async def test_cache_prevents_second_fetch() -> None:
     assert call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_unsplash_4xx_returns_empty() -> None:
     mock_resp = MagicMock()
     mock_resp.is_success = False
@@ -156,14 +106,13 @@ async def test_unsplash_4xx_returns_empty() -> None:
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_over_rate_limit_returns_empty() -> None:
     import app.services.unsplash as svc_module
 
     # Install an exhausted limiter
-    exhausted = UnsplashRateLimiter()
+    exhausted = SlidingWindow(MAX_RPH, WINDOW_SECONDS)
     for _ in range(MAX_RPH):
-        await exhausted.try_consume()
+        exhausted.hit()
 
     original_limiter = svc_module._limiter
     svc_module._limiter = exhausted
@@ -176,3 +125,44 @@ async def test_over_rate_limit_returns_empty() -> None:
         svc_module._limiter = original_limiter
 
     assert result == []
+
+
+async def test_max_count_fetched_once_and_sliced() -> None:
+    urls = [f"https://images.unsplash.com/{i}.jpg" for i in range(MAX_COUNT)]
+    mock_instance = AsyncMock()
+    mock_instance.get = AsyncMock(return_value=_make_mock_response(urls))
+    with (
+        patch("app.services.unsplash.get_settings") as mock_settings,
+        patch("app.services.unsplash.httpx.AsyncClient") as mock_client_cls,
+    ):
+        mock_settings.return_value.UNSPLASH_ACCESS_KEY = "test-key"
+        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        small = await fetch_destination_images("Lisbon", 2)
+        large = await fetch_destination_images("lisbon ", MAX_COUNT)
+
+    assert small == urls[:2]
+    assert large == urls
+    assert mock_instance.get.await_count == 1
+    assert mock_instance.get.await_args.kwargs["params"]["per_page"] == MAX_COUNT
+
+
+async def test_cache_is_capped() -> None:
+    import app.services.unsplash as svc_module
+
+    for i in range(_CACHE_MAX):
+        svc_module._cache[f"d{i}"] = (1e12, ["u"])
+    mock_instance = AsyncMock()
+    mock_instance.get = AsyncMock(return_value=_make_mock_response(["https://x/a.jpg"]))
+    with (
+        patch("app.services.unsplash.get_settings") as mock_settings,
+        patch("app.services.unsplash.httpx.AsyncClient") as mock_client_cls,
+    ):
+        mock_settings.return_value.UNSPLASH_ACCESS_KEY = "test-key"
+        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        await fetch_destination_images("brand-new", 1)
+
+    assert len(svc_module._cache) == _CACHE_MAX
+    assert "d0" not in svc_module._cache

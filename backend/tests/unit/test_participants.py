@@ -5,11 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.trip import Trip
-
-REGISTER_URL = "/auth/register"
-LOGIN_URL = "/auth/login"
-TRIPS_URL = "/trips/"
-ACCESS_BY_CODE_URL = "/participants/access-by-code"
+from tests.helpers import ACCESS_BY_CODE_URL, TRIPS_URL
 
 GUEST_EMAIL = "guest@example.com"
 
@@ -25,18 +21,12 @@ async def created_trip(
         headers=auth_headers,
     )
     assert resp.status_code == 201
-    import asyncio
-
-    await asyncio.sleep(0)
     return resp.json(), mock_email
 
 
 class TestAccessByCode:
     async def test_success(self, client: AsyncClient, created_trip):
         trip, mock_email_svc = created_trip
-        import asyncio
-
-        await asyncio.sleep(0)
         participant_pin = mock_email_svc.sent[0]["pin"]
         resp = await client.post(
             ACCESS_BY_CODE_URL,
@@ -57,6 +47,55 @@ class TestAccessByCode:
             json={"trip_code": trip["trip_code"], "pin": "0000"},
         )
         assert resp.status_code == 404
+
+    async def test_pin_throttle_blocks_even_correct_pin(
+        self, client: AsyncClient, created_trip
+    ):
+        trip, mock_email_svc = created_trip
+        pin = mock_email_svc.sent[0]["pin"]
+        wrong = "0000" if pin != "0000" else "1111"
+        for _ in range(10):
+            resp = await client.post(
+                ACCESS_BY_CODE_URL, json={"trip_code": trip["trip_code"], "pin": wrong}
+            )
+            assert resp.status_code == 404
+        for attempt in (wrong, pin):
+            resp = await client.post(
+                ACCESS_BY_CODE_URL,
+                json={"trip_code": trip["trip_code"], "pin": attempt},
+            )
+            assert resp.status_code == 429
+
+    async def test_unknown_codes_do_not_consume_and_other_trips_unaffected(
+        self, client: AsyncClient, created_trip, auth_headers
+    ):
+        trip, mock_email_svc = created_trip
+        pin = mock_email_svc.sent[0]["pin"]
+        for _ in range(11):
+            resp = await client.post(
+                ACCESS_BY_CODE_URL, json={"trip_code": "XXXXXXXX", "pin": "0000"}
+            )
+            assert resp.status_code == 404
+        other = (
+            await client.post(
+                TRIPS_URL,
+                json={"title": "Other", "participant_emails": ["o@example.com"]},
+                headers=auth_headers,
+            )
+        ).json()
+        for _ in range(10):
+            await client.post(
+                ACCESS_BY_CODE_URL,
+                json={"trip_code": other["trip_code"], "pin": "0000"},
+            )
+        resp = await client.post(
+            ACCESS_BY_CODE_URL, json={"trip_code": other["trip_code"], "pin": "0000"}
+        )
+        assert resp.status_code == 429
+        resp = await client.post(
+            ACCESS_BY_CODE_URL, json={"trip_code": trip["trip_code"], "pin": pin}
+        )
+        assert resp.status_code == 200
 
     async def test_bad_trip_code_returns_404(self, client: AsyncClient, created_trip):
         resp = await client.post(
@@ -104,6 +143,7 @@ class TestGetTripView:
         assert resp.status_code == 200
         for brief in resp.json()["participants"]:
             assert "email" not in brief
+            assert "email_local" not in brief
 
     async def test_invalid_token_returns_404(self, client: AsyncClient, created_trip):
         resp = await client.get("/participants/bad-token-xyz/trip-view")
@@ -185,9 +225,6 @@ class TestAutoTriggerGeneration:
             headers=auth_headers,
         )
         assert resp.status_code == 201
-        import asyncio
-
-        await asyncio.sleep(0)
         trip = resp.json()
         tokens = [e["token"] for e in mock_email.sent]
         return trip, tokens
@@ -275,3 +312,68 @@ class TestAutoTriggerGeneration:
 
         # run_generation should NOT have been called again
         mock_run.assert_not_called()
+
+
+class TestRegressionRound1:
+    async def test_parallel_wrong_pins_capped_at_ten(
+        self, client: AsyncClient, created_trip
+    ):
+        import asyncio
+
+        trip, mock_email_svc = created_trip
+        pin = mock_email_svc.sent[0]["pin"]
+        resps = await asyncio.gather(
+            *[
+                client.post(
+                    ACCESS_BY_CODE_URL,
+                    json={
+                        "trip_code": trip["trip_code"],
+                        "pin": "0000" if pin != "0000" else "1111",
+                    },
+                )
+                for _ in range(15)
+            ]
+        )
+        codes = [r.status_code for r in resps]
+        assert codes.count(404) == 10
+        assert codes.count(429) == 5
+
+    async def test_concurrent_first_preference_submit_returns_409(
+        self, client: AsyncClient, created_trip
+    ):
+        from sqlalchemy.exc import IntegrityError
+
+        _, mock_email_svc = created_trip
+        token = mock_email_svc.sent[0]["token"]
+        with patch.object(
+            AsyncSession,
+            "commit",
+            side_effect=IntegrityError("INSERT", {}, Exception("uq_preferences")),
+        ):
+            resp = await client.post(f"/participants/{token}/preferences", json={})
+        assert resp.status_code == 409
+
+    async def test_infinite_budget_returns_422(self, client: AsyncClient, created_trip):
+        _, mock_email_svc = created_trip
+        token = mock_email_svc.sent[0]["token"]
+        resp = await client.post(
+            f"/participants/{token}/preferences",
+            content='{"budget_max": Infinity}',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"budget_min": 500, "budget_max": 100},
+            {"budget_min": "NaN"},
+        ],
+    )
+    async def test_bad_budgets_return_422(
+        self, client: AsyncClient, created_trip, body
+    ):
+        _, mock_email_svc = created_trip
+        token = mock_email_svc.sent[0]["token"]
+        resp = await client.post(f"/participants/{token}/preferences", json=body)
+        assert resp.status_code == 422

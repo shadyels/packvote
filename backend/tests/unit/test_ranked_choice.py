@@ -1,35 +1,72 @@
 """Unit tests for the pure ranked-choice / instant-runoff algorithm."""
 
-from app.services.voting.ranked_choice import run_instant_runoff
+from types import SimpleNamespace
 
-TRIP_ID = 1
-ITERATION = 1
+import pytest
+
+from app.services.voting.ranked_choice import tally
+
+
+def _run(votes, candidates):
+    rounds, winner_id = tally(votes, candidates)
+    return SimpleNamespace(rounds=rounds, winner_id=winner_id, is_complete=bool(votes))
+
+
+@pytest.mark.parametrize(
+    ("votes", "candidates", "winner", "complete"),
+    [
+        pytest.param(
+            [[10], [10], [10], [20], [30]], [10, 20, 30], 10, True, id="3_of_5_majority"
+        ),
+        pytest.param(
+            [[10, 20], [10, 20], [20, 10], [20, 10]],
+            [10, 20],
+            None,
+            True,
+            id="50_percent_is_tie",
+        ),
+        pytest.param(
+            [
+                [10, 20, 30],
+                [10, 20, 30],
+                [20, 30, 10],
+                [20, 30, 10],
+                [30, 10, 20],
+                [30, 10, 20],
+            ],
+            [10, 20, 30],
+            None,
+            True,
+            id="three_way_tie",
+        ),
+        pytest.param(
+            [[10, 20], [20, 10]], [10, 20], None, True, id="two_candidate_tie"
+        ),
+        pytest.param(
+            [[10, 20, 30], [10, 20, 30], [20, 10, 30], [30]],
+            [10, 20, 30],
+            10,
+            True,
+            id="exhausted_ballot",
+        ),
+    ],
+)
+def test_tally_outcome(votes, candidates, winner, complete) -> None:
+    result = _run(votes, candidates)
+    assert result.winner_id == winner
+    assert result.is_complete is complete
 
 
 class TestMajorityInRoundOne:
     def test_clear_majority_wins(self) -> None:
         # 3 votes for candidate 10, 1 for 20 → 10 wins in round 1
         votes = [[10, 20], [10, 20], [10, 20], [20, 10]]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20])
+        result = _run(votes, [10, 20])
         assert result.winner_id == 10
         assert result.is_complete is True
         assert len(result.rounds) == 1
         assert result.rounds[0].winner_id == 10
         assert result.rounds[0].eliminated_option_id is None
-
-    def test_exactly_majority_wins(self) -> None:
-        # 3 out of 5 = 60% → majority
-        votes = [[10], [10], [10], [20], [30]]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20, 30])
-        assert result.winner_id == 10
-
-    def test_no_majority_does_not_win_in_round_one(self) -> None:
-        # 2 out of 4 = 50%, not >50% → no winner in round 1
-        votes = [[10, 20], [10, 20], [20, 10], [20, 10]]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20])
-        # With 2 candidates and a tie, all counts are equal → tie result
-        assert result.is_complete is True
-        assert result.winner_id is None
 
 
 class TestElimination:
@@ -43,7 +80,7 @@ class TestElimination:
             [20, 30, 10],
             [30, 10, 20],
         ]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20, 30])
+        result = _run(votes, [10, 20, 30])
         assert result.winner_id == 10
         assert result.is_complete is True
         assert len(result.rounds) == 2
@@ -61,60 +98,24 @@ class TestElimination:
             [4, 2, 3, 1, 5],
             [5, 2, 3, 4, 1],
         ]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [1, 2, 3, 4, 5])
+        result = _run(votes, [1, 2, 3, 4, 5])
         assert result.winner_id is not None
-        assert result.is_complete is True
-
-
-class TestTie:
-    def test_full_tie_all_equal(self) -> None:
-        # 2 votes each for 3 candidates — all equal, unresolvable
-        votes = [
-            [10, 20, 30],
-            [10, 20, 30],
-            [20, 30, 10],
-            [20, 30, 10],
-            [30, 10, 20],
-            [30, 10, 20],
-        ]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20, 30])
-        assert result.winner_id is None
-        assert result.is_complete is True
-
-    def test_two_candidate_tie(self) -> None:
-        votes = [[10, 20], [20, 10]]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20])
-        assert result.winner_id is None
         assert result.is_complete is True
 
 
 class TestEdgeCases:
     def test_no_votes(self) -> None:
-        result = run_instant_runoff(TRIP_ID, ITERATION, [], [10, 20])
+        result = _run([], [10, 20])
         assert result.winner_id is None
         assert result.is_complete is False
         assert result.rounds == []
 
     def test_single_candidate(self) -> None:
         votes = [[42], [42]]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [42])
+        result = _run(votes, [42])
         assert result.winner_id == 42
         assert result.is_complete is True
         assert len(result.rounds) == 1
-
-    def test_exhausted_ballots(self) -> None:
-        # Voter 3 only ranked candidate 30, which gets eliminated first
-        # Their ballot is exhausted after 30 is eliminated
-        votes = [
-            [10, 20, 30],
-            [10, 20, 30],
-            [20, 10, 30],
-            [30],  # exhausted after round 1
-        ]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20, 30])
-        # 30 has 1 vote, gets eliminated. Remaining: 10(2), 20(1) → 10 wins (2/3 > 50%)
-        assert result.winner_id == 10
-        assert result.is_complete is True
 
     def test_deterministic_tiebreaker_lowest_id_eliminated(self) -> None:
         # Round 1: 30→2, 10→1, 20→1 (no majority — 2/4 = 50%, not >50%)
@@ -125,17 +126,11 @@ class TestEdgeCases:
             [10, 20, 30],
             [20, 10, 30],
         ]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20, 30])
+        result = _run(votes, [10, 20, 30])
         assert result.rounds[0].eliminated_option_id == 10
-
-    def test_results_have_correct_trip_and_iteration(self) -> None:
-        votes = [[7, 8], [7, 8], [8, 7]]
-        result = run_instant_runoff(99, 3, votes, [7, 8])
-        assert result.trip_id == 99
-        assert result.iteration_number == 3
 
     def test_round_results_contain_all_remaining_candidates(self) -> None:
         votes = [[10, 20, 30], [20, 10, 30], [30, 10, 20]]
-        result = run_instant_runoff(TRIP_ID, ITERATION, votes, [10, 20, 30])
+        result = _run(votes, [10, 20, 30])
         # First round must have tallies for all 3 candidates
         assert set(result.rounds[0].results.keys()) == {10, 20, 30}

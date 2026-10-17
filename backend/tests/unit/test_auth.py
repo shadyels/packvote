@@ -7,11 +7,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-
-REGISTER_URL = "/auth/register"
-LOGIN_URL = "/auth/login"
-ME_URL = "/auth/me"
-
+from tests.helpers import LOGIN_URL, ME_URL, REGISTER_URL
 
 # ── Password hashing ────────────────────────────────────────────────────────
 
@@ -44,9 +40,9 @@ class TestJWT:
         assert isinstance(create_access_token(subject=1), str)
 
     def test_decode_invalid_token_raises(self):
-        from jose import JWTError
+        from jwt import PyJWTError
 
-        with pytest.raises(JWTError):
+        with pytest.raises(PyJWTError):
             decode_access_token("not.a.valid.token")
 
 
@@ -215,3 +211,244 @@ class TestMe:
             ME_URL, headers={"Authorization": "Bearer garbage.token.here"}
         )
         assert resp.status_code == 401
+
+
+# ── Password reset ──────────────────────────────────────────────────────────
+
+RESET_REQUEST_URL = "/auth/password-reset/request"
+RESET_CONFIRM_URL = "/auth/password-reset/confirm"
+
+
+class TestPasswordReset:
+    @pytest.fixture
+    def sent_resets(self):
+        from unittest.mock import AsyncMock, patch
+
+        svc = AsyncMock()
+        with patch("app.services.auth.EmailService.from_settings", return_value=svc):
+            yield svc.send_password_reset
+
+    async def _register(self, client: AsyncClient, email: str = "r@test.com"):
+        await client.post(REGISTER_URL, json={"email": email, "password": "oldpass12"})
+
+    async def test_request_and_confirm_happy_path(
+        self, client: AsyncClient, sent_resets
+    ):
+        await self._register(client)
+        resp = await client.post(RESET_REQUEST_URL, json={"email": "r@test.com"})
+        assert resp.status_code == 202
+        token = sent_resets.call_args.kwargs["reset_token"]
+
+        resp = await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "newpass12"}
+        )
+        assert resp.status_code == 200
+        login = lambda pw: client.post(  # noqa: E731
+            LOGIN_URL, json={"email": "r@test.com", "password": pw}
+        )
+        assert (await login("newpass12")).status_code == 200
+        assert (await login("oldpass12")).status_code == 401
+
+        # token is single-use
+        again = await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "another12"}
+        )
+        assert again.status_code == 400
+
+    async def test_unknown_email_does_not_leak(self, client: AsyncClient, sent_resets):
+        await self._register(client)
+        known = await client.post(RESET_REQUEST_URL, json={"email": "r@test.com"})
+        unknown = await client.post(RESET_REQUEST_URL, json={"email": "no@test.com"})
+        assert unknown.status_code == known.status_code == 202
+        assert unknown.json() == known.json()
+        assert sent_resets.await_count == 1
+
+    async def test_invalid_token_returns_400(self, client: AsyncClient):
+        resp = await client.post(
+            RESET_CONFIRM_URL, json={"token": "bogus", "new_password": "newpass12"}
+        )
+        assert resp.status_code == 400
+
+    async def test_expired_token_returns_400(
+        self, client: AsyncClient, sent_resets, db
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from sqlalchemy import update
+
+        from app.models.user import User
+
+        await self._register(client)
+        await client.post(RESET_REQUEST_URL, json={"email": "r@test.com"})
+        token = sent_resets.call_args.kwargs["reset_token"]
+        await db.execute(
+            update(User).values(
+                reset_token_expires_at=datetime.now(UTC) - timedelta(minutes=1)
+            )
+        )
+        await db.commit()
+
+        resp = await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "newpass12"}
+        )
+        assert resp.status_code == 400
+
+
+# ── Hardening ───────────────────────────────────────────────────────────────
+
+
+class TestAuthHardening:
+    async def test_duplicate_register_409(self, client: AsyncClient):
+        body = {"email": "dup@test.com", "password": "password12"}
+        assert (await client.post(REGISTER_URL, json=body)).status_code == 201
+        resp = await client.post(REGISTER_URL, json=body)
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == "Email already registered"
+
+    async def test_register_race_integrity_error_409(self, client: AsyncClient):
+        from unittest.mock import patch
+
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        with patch.object(
+            AsyncSession, "flush", side_effect=IntegrityError("s", {}, Exception())
+        ):
+            resp = await client.post(
+                REGISTER_URL, json={"email": "race@test.com", "password": "password12"}
+            )
+        assert resp.status_code == 409
+
+    async def test_mixed_case_email(self, client: AsyncClient):
+        await client.post(
+            REGISTER_URL, json={"email": "MiXed@Test.com", "password": "password12"}
+        )
+        resp = await client.post(
+            LOGIN_URL, json={"email": "mixed@TEST.com", "password": "password12"}
+        )
+        assert resp.status_code == 200
+        dup = await client.post(
+            REGISTER_URL, json={"email": "MIXED@test.com", "password": "password12"}
+        )
+        assert dup.status_code == 409
+
+    async def test_unknown_user_login_401(self, client: AsyncClient):
+        resp = await client.post(
+            LOGIN_URL, json={"email": "nobody@test.com", "password": "password12"}
+        )
+        assert resp.status_code == 401
+
+    async def test_token_revoked_after_reset(self, client: AsyncClient):
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        email = "rev@test.com"
+        await client.post(REGISTER_URL, json={"email": email, "password": "oldpass12"})
+        old = (
+            await client.post(LOGIN_URL, json={"email": email, "password": "oldpass12"})
+        ).json()["access_token"]
+        svc = AsyncMock()
+        with patch("app.services.auth.EmailService.from_settings", return_value=svc):
+            await client.post(RESET_REQUEST_URL, json={"email": email})
+        token = svc.send_password_reset.call_args.kwargs["reset_token"]
+        time.sleep(1.1)  # iat has whole-second granularity
+        await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "newpass12"}
+        )
+        hdr = lambda t: {"Authorization": f"Bearer {t}"}  # noqa: E731
+        assert (await client.get(ME_URL, headers=hdr(old))).status_code == 401
+        new = (
+            await client.post(LOGIN_URL, json={"email": email, "password": "newpass12"})
+        ).json()["access_token"]
+        assert (await client.get(ME_URL, headers=hdr(new))).status_code == 200
+
+
+class TestSecretKeyGuard:
+    def test_default_key_rejected_outside_development(self):
+        from pydantic import ValidationError
+
+        from app.core.config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(ENVIRONMENT="production", SECRET_KEY="change-me-in-production")
+
+    def test_default_key_ok_in_development(self):
+        from app.core.config import Settings
+
+        Settings(ENVIRONMENT="development", SECRET_KEY="change-me-in-production")
+
+    def test_custom_key_ok_in_production(self):
+        from app.core.config import Settings
+
+        Settings(ENVIRONMENT="production", SECRET_KEY="x" * 32)
+
+
+class TestSecretKeyFailClosed:
+    def test_unset_environment_with_default_key_rejected(self, monkeypatch):
+        from pydantic import ValidationError
+
+        from app.core.config import Settings
+
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("SECRET_KEY", "change-me-in-production")
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None)
+
+    def test_production_31_char_key_rejected(self):
+        from pydantic import ValidationError
+
+        from app.core.config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(ENVIRONMENT="production", SECRET_KEY="x" * 31)
+
+    def test_production_32_char_key_ok(self):
+        from app.core.config import Settings
+
+        Settings(ENVIRONMENT="production", SECRET_KEY="y" * 32)
+
+
+class TestRegisterLinksParticipants:
+    async def test_register_race_on_user_insert_only_maps_409(
+        self, client: AsyncClient
+    ):
+        # Backfill errors must not masquerade as "email taken".
+        from unittest.mock import patch
+
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        with (
+            patch.object(
+                AsyncSession,
+                "commit",
+                side_effect=IntegrityError("s", {}, Exception()),
+            ),
+            pytest.raises(IntegrityError),
+        ):
+            await client.post(
+                REGISTER_URL, json={"email": "z@test.com", "password": "password12"}
+            )
+
+
+class TestPasswordByteLimit:
+    MULTIBYTE = "é" * 40  # 40 chars, 80 bytes
+
+    async def test_register_multibyte_over_72_bytes_422(self, client: AsyncClient):
+        resp = await client.post(
+            REGISTER_URL, json={"email": "mb@test.com", "password": self.MULTIBYTE}
+        )
+        assert resp.status_code == 422
+
+    async def test_login_multibyte_over_72_bytes_422(self, client: AsyncClient):
+        resp = await client.post(
+            LOGIN_URL, json={"email": "mb@test.com", "password": self.MULTIBYTE}
+        )
+        assert resp.status_code == 422
+
+    async def test_reset_confirm_multibyte_over_72_bytes_422(self, client: AsyncClient):
+        resp = await client.post(
+            "/auth/password-reset/confirm",
+            json={"token": "t", "new_password": self.MULTIBYTE},
+        )
+        assert resp.status_code == 422

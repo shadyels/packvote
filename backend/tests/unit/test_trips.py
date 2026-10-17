@@ -1,13 +1,14 @@
 import re
 import secrets
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-REGISTER_URL = "/auth/register"
-LOGIN_URL = "/auth/login"
-TRIPS_URL = "/trips/"
-
+from app.models.itinerary import Itinerary
+from tests.factories import make_itinerary
+from tests.helpers import INVITED_URL, TRIPS_URL, login, register, register_and_login
+from tests.helpers import auth_headers as bearer
 
 _TRIP_PAYLOAD = {
     "title": "Summer Adventure",
@@ -42,9 +43,6 @@ class TestCreateTrip:
     ):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         assert resp.status_code == 201
-        import asyncio
-
-        await asyncio.sleep(0)
         assert len(mock_email.sent) > 0
         for entry in mock_email.sent:
             pin = entry["pin"]
@@ -56,10 +54,6 @@ class TestCreateTrip:
     ):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         assert resp.status_code == 201
-        # Allow a moment for fire-and-forget gather
-        import asyncio
-
-        await asyncio.sleep(0)
         assert len(mock_email.sent) == 2
         sent_emails = {e["to"] for e in mock_email.sent}
         assert sent_emails == {"alice@example.com", "bob@example.com"}
@@ -71,19 +65,13 @@ class TestCreateTrip:
         assert resp.status_code == 201
         assert resp.json()["num_options"] == 3
 
-    async def test_num_options_below_2_returns_422(
-        self, client: AsyncClient, auth_headers, mock_email
+    @pytest.mark.parametrize(("n", "status"), [(1, 422), (2, 201), (5, 201), (6, 422)])
+    async def test_num_options_bounds(
+        self, client: AsyncClient, auth_headers, mock_email, n: int, status: int
     ):
-        payload = {**_TRIP_PAYLOAD, "num_options": 1}
+        payload = {**_TRIP_PAYLOAD, "num_options": n}
         resp = await client.post(TRIPS_URL, json=payload, headers=auth_headers)
-        assert resp.status_code == 422
-
-    async def test_num_options_above_5_returns_422(
-        self, client: AsyncClient, auth_headers, mock_email
-    ):
-        payload = {**_TRIP_PAYLOAD, "num_options": 6}
-        resp = await client.post(TRIPS_URL, json=payload, headers=auth_headers)
-        assert resp.status_code == 422
+        assert resp.status_code == status
 
     async def test_no_auth_returns_401(self, client: AsyncClient, mock_email):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD)
@@ -101,18 +89,10 @@ class TestListTrips:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(
-                REGISTER_URL, json={"email": email, "password": "test1234"}
-            )
+            await register(client, email, "test1234")
 
-        async def login(email: str) -> dict:
-            r = await client.post(
-                LOGIN_URL, json={"email": email, "password": "test1234"}
-            )
-            return {"Authorization": f"Bearer {r.json()['access_token']}"}
-
-        headers_a = await login(email_a)
-        headers_b = await login(email_b)
+        headers_a = bearer(await login(client, email_a, "test1234"))
+        headers_b = bearer(await login(client, email_b, "test1234"))
 
         await client.post(
             TRIPS_URL, json={**_TRIP_PAYLOAD, "title": "Trip A"}, headers=headers_a
@@ -174,18 +154,10 @@ class TestGetTrip:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(
-                REGISTER_URL, json={"email": email, "password": "test1234"}
-            )
+            await register(client, email, "test1234")
 
-        r_a = await client.post(
-            LOGIN_URL, json={"email": email_a, "password": "test1234"}
-        )
-        headers_a = {"Authorization": f"Bearer {r_a.json()['access_token']}"}
-        r_b = await client.post(
-            LOGIN_URL, json={"email": email_b, "password": "test1234"}
-        )
-        headers_b = {"Authorization": f"Bearer {r_b.json()['access_token']}"}
+        headers_a = bearer(await login(client, email_a, "test1234"))
+        headers_b = bearer(await login(client, email_b, "test1234"))
 
         create_resp = await client.post(
             TRIPS_URL, json=_TRIP_PAYLOAD, headers=headers_a
@@ -247,18 +219,10 @@ class TestDeleteTrip:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(
-                REGISTER_URL, json={"email": email, "password": "test1234"}
-            )
+            await register(client, email, "test1234")
 
-        r_a = await client.post(
-            LOGIN_URL, json={"email": email_a, "password": "test1234"}
-        )
-        headers_a = {"Authorization": f"Bearer {r_a.json()['access_token']}"}
-        r_b = await client.post(
-            LOGIN_URL, json={"email": email_b, "password": "test1234"}
-        )
-        headers_b = {"Authorization": f"Bearer {r_b.json()['access_token']}"}
+        headers_a = bearer(await login(client, email_a, "test1234"))
+        headers_b = bearer(await login(client, email_b, "test1234"))
 
         create_resp = await client.post(
             TRIPS_URL, json=_TRIP_PAYLOAD, headers=headers_a
@@ -336,13 +300,7 @@ class TestCreatorEmailDedup:
         self, client: AsyncClient, mock_email
     ):
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         payload = {
             "title": "Dedup Trip",
@@ -369,13 +327,7 @@ class TestCreatorEmailDedup:
         self, client: AsyncClient, mock_email
     ):
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         payload = {
             "title": "Dedup Case Trip",
@@ -401,23 +353,14 @@ class TestCreatorNotEmailed:
     async def test_creator_not_sent_invitation_email(
         self, client: AsyncClient, mock_email
     ):
-        import asyncio
-
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         payload = {
             "title": "No Email Trip",
             "participant_emails": ["alice@example.com", "bob@example.com"],
         }
         await client.post(TRIPS_URL, json=payload, headers=headers)
-        await asyncio.sleep(0)
 
         sent_emails = {e["to"] for e in mock_email.sent}
         assert creator_email not in sent_emails
@@ -435,7 +378,6 @@ class TestParticipantsEndpointVoteStatus:
         """Admin participants list shows has_voted_current_iteration correctly for all rows."""
         from sqlalchemy import select
 
-        from app.models.itinerary import Itinerary
         from app.models.participant import Participant
         from app.models.trip import Trip
         from app.models.vote import Vote
@@ -454,30 +396,8 @@ class TestParticipantsEndpointVoteStatus:
         trip = trip_result.scalar_one()
         trip.status = "VOTING"
         trip.current_iteration = 1
-        itin1 = Itinerary(
-            trip_id=trip_id,
-            iteration_number=1,
-            destination_name="A",
-            destination_description="Desc A",
-            daily_itinerary=[],
-            total_estimated_budget=1000.0,
-            currency="USD",
-            match_reasoning="r",
-            highlights=["h"],
-        )
-        itin2 = Itinerary(
-            trip_id=trip_id,
-            iteration_number=1,
-            destination_name="B",
-            destination_description="Desc B",
-            daily_itinerary=[],
-            total_estimated_budget=1200.0,
-            currency="USD",
-            match_reasoning="r",
-            highlights=["h"],
-        )
-        db.add(itin1)
-        db.add(itin2)
+        itin1 = make_itinerary(db, trip_id, destination_name="A")
+        itin2 = make_itinerary(db, trip_id, destination_name="B")
         await db.flush()
 
         # Find the creator's participant row
@@ -515,9 +435,6 @@ class TestParticipantsEndpointVoteStatus:
         assert invitee_rows[0]["has_voted_current_iteration"] is False
 
 
-INVITED_URL = "/trips/invited"
-
-
 class TestCreateTripLinksUserIdToInvitee:
     async def test_invitee_user_id_set_when_user_exists(
         self, client: AsyncClient, mock_email, db: AsyncSession
@@ -530,25 +447,15 @@ class TestCreateTripLinksUserIdToInvitee:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
 
         # Register invitee first
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        await client.post(
-            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
-        )
+        await register(client, invitee_email, "test1234")
+        await login(client, invitee_email, "test1234")
         from app.models.user import User
 
         user_result = await db.execute(select(User).where(User.email == invitee_email))
         invitee_user = user_result.scalar_one()
 
         # Register creator and create trip inviting invitee
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r_creator = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r_creator.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -605,19 +512,11 @@ class TestCreateTripLinksUserIdToInvitee:
         invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
 
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
+        await register(client, invitee_email, "test1234")
         user_result = await db.execute(select(User).where(User.email == invitee_email))
         invitee_user = user_result.scalar_one()
 
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -654,13 +553,7 @@ class TestRegisterBackfillsParticipant:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
 
         # Creator creates trip BEFORE invitee registers
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -680,9 +573,7 @@ class TestRegisterBackfillsParticipant:
         assert p_before.user_id is None
 
         # Invitee now registers
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
+        await register(client, invitee_email, "test1234")
 
         # Participant row should now be linked
         await db.refresh(p_before)
@@ -694,16 +585,8 @@ class TestListInvitedTrips:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
         invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
 
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r_c = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers_c = {"Authorization": f"Bearer {r_c.json()['access_token']}"}
+        await register(client, invitee_email, "test1234")
+        headers_c = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -713,10 +596,7 @@ class TestListInvitedTrips:
         assert resp.status_code == 201
         trip_id = resp.json()["id"]
 
-        r_i = await client.post(
-            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        headers_i = {"Authorization": f"Bearer {r_i.json()['access_token']}"}
+        headers_i = bearer(await login(client, invitee_email, "test1234"))
 
         resp = await client.get(INVITED_URL, headers=headers_i)
         assert resp.status_code == 200
@@ -754,20 +634,9 @@ class TestListInvitedTrips:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
         invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
 
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r_c = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers_c = {"Authorization": f"Bearer {r_c.json()['access_token']}"}
-        r_i = await client.post(
-            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        headers_i = {"Authorization": f"Bearer {r_i.json()['access_token']}"}
+        await register(client, invitee_email, "test1234")
+        headers_c = bearer(await register_and_login(client, creator_email, "test1234"))
+        headers_i = bearer(await login(client, invitee_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -780,3 +649,218 @@ class TestListInvitedTrips:
         resp = await client.get(TRIPS_URL, headers=headers_i)
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+class TestUpdateTripDates:
+    async def test_dates_only_exceeding_stored_num_options_returns_422(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        create = await client.post(
+            TRIPS_URL, json={**_TRIP_PAYLOAD, "num_options": 5}, headers=auth_headers
+        )
+        trip_id = create.json()["id"]
+        resp = await client.patch(
+            f"/trips/{trip_id}",
+            json={
+                "proposed_start_date": "2030-01-01T00:00:00Z",
+                "proposed_end_date": "2030-03-01T00:00:00Z",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+
+class TestDeleteTripCascade:
+    async def test_delete_removes_all_children(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import func, select
+
+        from app.models.participant import Participant
+        from app.models.preference import Preference
+        from app.models.vote import Vote
+
+        create = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
+        trip_id = create.json()["id"]
+        pid = (
+            (
+                await db.execute(
+                    select(Participant.id).where(Participant.trip_id == trip_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        itin = make_itinerary(db, trip_id, destination_name="X")
+        await db.flush()
+        db.add_all(
+            [
+                Preference(participant_id=pid, trip_id=trip_id),
+                Vote(
+                    participant_id=pid,
+                    trip_id=trip_id,
+                    iteration_number=1,
+                    rankings=[itin.id],
+                ),
+            ]
+        )
+        await db.commit()
+
+        resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        assert resp.status_code == 204
+
+        db.expire_all()
+        for model in (Participant, Preference, Itinerary, Vote):
+            count = await db.scalar(
+                select(func.count()).select_from(model).where(model.trip_id == trip_id)
+            )
+            assert count == 0, model.__name__
+
+
+class TestTripLifecycleHardening:
+    async def test_pins_distinct_within_trip(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+
+        emails = [f"p{i}@example.com" for i in range(15)]
+        resp = await client.post(
+            TRIPS_URL,
+            json={**_TRIP_PAYLOAD, "participant_emails": emails},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
+        pins = (
+            (
+                await db.execute(
+                    select(Participant.pin).where(
+                        Participant.trip_id == resp.json()["id"]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(pins) == 16
+        assert len(set(pins)) == 16
+
+    async def test_update_merged_dates_vs_patched_num_options_returns_422(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        create = await client.post(
+            TRIPS_URL,
+            json={
+                **_TRIP_PAYLOAD,
+                "num_options": 2,
+                "proposed_start_date": "2030-01-01T00:00:00Z",
+                "proposed_end_date": "2030-01-16T00:00:00Z",
+            },
+            headers=auth_headers,
+        )
+        resp = await client.patch(
+            f"/trips/{create.json()['id']}",
+            json={"num_options": 5},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    async def test_generate_twice_second_is_409(
+        self, client: AsyncClient, auth_headers, mock_email, mock_session_factory
+    ):
+        from unittest.mock import AsyncMock, patch
+
+        trip_id = (
+            await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
+        ).json()["id"]
+        with patch("app.services.generation.run_generation", AsyncMock()):
+            first = await client.post(
+                f"/trips/{trip_id}/generate", headers=auth_headers
+            )
+            second = await client.post(
+                f"/trips/{trip_id}/generate", headers=auth_headers
+            )
+        assert first.status_code == 202
+        assert second.status_code == 409
+        assert "GENERATING" in second.json()["detail"]
+
+
+class TestStartupRecovery:
+    async def test_generating_trips_marked_failed(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import update
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from app.models.trip import Trip
+        from app.services.generation import recover_stuck_generations
+
+        trip_id = (
+            await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
+        ).json()["id"]
+        await db.execute(
+            update(Trip).where(Trip.id == trip_id).values(status="GENERATING")
+        )
+        await db.commit()
+
+        assert (
+            await recover_stuck_generations(
+                async_sessionmaker(db.bind, expire_on_commit=False)
+            )
+            >= 1
+        )
+        db.expire_all()
+        trip = await db.get(Trip, trip_id)
+        assert trip.status == "GENERATION_FAILED"
+        assert "interrupted" in trip.generation_error
+
+    async def test_health_has_no_environment(self, client: AsyncClient):
+        resp = await client.get("/health")
+        assert resp.json() == {"status": "ok"}
+
+
+class TestDuplicateInvites:
+    @pytest.mark.parametrize(
+        "emails", [["Bob@x.com", "bob@x.com"], ["bob@x.com", "bob@x.com"]]
+    )
+    async def test_duplicate_invite_then_register_links_one_row(
+        self, client: AsyncClient, auth_headers, mock_email, db, emails
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+
+        trip = await _create(client, auth_headers, emails)
+        assert len(mock_email.sent) == 1
+        await register(client, "bob@x.com")
+        rows = (
+            (
+                await db.execute(
+                    select(Participant).where(
+                        Participant.trip_id == trip["id"],
+                        Participant.user_id.is_not(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2  # creator + bob, no duplicate bob
+
+    async def test_duplicate_invite_for_registered_user_creates_trip(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        await register(client, "bob@x.com")
+        await _create(client, auth_headers, ["Bob@x.com", "bob@X.com"])
+        assert len(mock_email.sent) == 1
+
+
+async def _create(client: AsyncClient, headers, emails: list[str]) -> dict:
+    resp = await client.post(
+        TRIPS_URL,
+        json={"title": "T", "participant_emails": emails},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()

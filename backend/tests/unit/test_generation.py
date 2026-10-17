@@ -22,13 +22,13 @@ from app.schemas.itinerary import (
     DayItinerary,
     ItineraryOption,
 )
-from app.services.ai.json_utils import AIInputError
+from app.services.ai.json_utils import AIInputError, AIOptionCountError
+from app.services.ai.rate_limiter import LocalRateLimitError
 from app.services.ai.service import AIService
 from app.services.generation import (
     _build_preferences_block,
     _compute_trip_duration,
     _humanize_error,
-    _upsert_prompt_template,
     run_generation,
 )
 
@@ -105,11 +105,11 @@ def _make_itinerary_option(destination: str = "Barcelona") -> ItineraryOption:
     )
 
 
-def _mock_ai_response(num_options: int = 3) -> tuple[AIGenerationResponse, str]:
+def _mock_ai_response(num_options: int = 3) -> AIGenerationResponse:
     options = [
         _make_itinerary_option(f"Destination {i + 1}") for i in range(num_options)
     ]
-    return AIGenerationResponse(options=options), "gemini"
+    return AIGenerationResponse(options=options)
 
 
 # ---------------------------------------------------------------------------
@@ -197,38 +197,6 @@ class TestComputeTripDuration:
 
 
 # ---------------------------------------------------------------------------
-# _upsert_prompt_template
-# ---------------------------------------------------------------------------
-
-
-class TestUpsertPromptTemplate:
-    async def test_creates_template_on_first_call(self, db: AsyncSession):
-        from sqlalchemy import select
-
-        from app.models.prompt_template import PromptTemplate
-
-        template = await _upsert_prompt_template(db)
-        assert template.id is not None
-        assert template.name == "itinerary_generation"
-        assert template.version == "v3"
-        assert template.is_active is True
-        assert "[SYSTEM]" in template.template_text
-        assert "ERROR REPORTING" in template.template_text
-
-        # Verify it's in the DB
-        result = await db.execute(
-            select(PromptTemplate).where(PromptTemplate.name == "itinerary_generation")
-        )
-        assert result.scalar_one_or_none() is not None
-
-    async def test_returns_existing_on_second_call(self, db: AsyncSession):
-        template1 = await _upsert_prompt_template(db)
-        await db.commit()
-        template2 = await _upsert_prompt_template(db)
-        assert template1.id == template2.id
-
-
-# ---------------------------------------------------------------------------
 # _humanize_error
 # ---------------------------------------------------------------------------
 
@@ -264,6 +232,26 @@ class TestHumanizeError:
         assert "Bad destination" in result
         assert "temporary" not in result
 
+    def test_option_count_error_message(self) -> None:
+        result = _humanize_error(
+            AIOptionCountError("AI returned 1 options, expected 3")
+        )
+        assert "wrong number" in result
+
+    @pytest.mark.parametrize(
+        ("kind", "retry_after", "expected"),
+        [
+            ("rpm", 20.2, "21 seconds"),
+            ("rph", 1500.0, "26 minutes"),
+            ("rpd", 3 * 3600 - 60.0, "about 3 hours"),
+        ],
+    )
+    def test_local_rate_limit_window_humanised(
+        self, kind: str, retry_after: float, expected: str
+    ) -> None:
+        result = _humanize_error(LocalRateLimitError(kind, retry_after))
+        assert result == f"The AI service is busy. Please try again in {expected}."
+
     def test_provider_rate_limit_returns_rate_limit_message(self) -> None:
         import openai
 
@@ -285,27 +273,6 @@ class TestHumanizeError:
         err = openai.APIConnectionError.__new__(openai.APIConnectionError)
         result = _humanize_error(err)
         assert "connect" in result.lower()
-
-
-class TestUpsertPromptTemplateIdempotency:
-    async def test_idempotent_no_duplicates(self, db: AsyncSession):
-        from sqlalchemy import func, select
-
-        from app.models.prompt_template import PromptTemplate
-
-        await _upsert_prompt_template(db)
-        await db.commit()
-        await _upsert_prompt_template(db)
-        await db.commit()
-
-        result = await db.execute(
-            select(func.count(PromptTemplate.id)).where(
-                PromptTemplate.name == "itinerary_generation",
-                PromptTemplate.version == "v3",
-            )
-        )
-        count = result.scalar_one()
-        assert count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +381,7 @@ class TestRunGeneration:
         result = await db.execute(select(Itinerary).where(Itinerary.trip_id == trip_id))
         itineraries = result.scalars().all()
         assert len(itineraries) == 2
+        assert all(i.prompt_version == "v3" for i in itineraries)
 
     async def test_success_increments_current_iteration(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
@@ -476,13 +444,12 @@ class TestRunGeneration:
         assert [log.attempt for log in logs] == [1, 2]
         assert [log.response_valid for log in logs] == [False, True]
         assert all(log.iteration_number == 1 for log in logs)
-        assert all(log.prompt_version_id is not None for log in logs)
         ai_call_lines = [
             r for r in caplog.records if r.getMessage().startswith("ai_call ")
         ]
         assert len(ai_call_lines) == 2
 
-    async def test_failure_resets_status_to_collecting(
+    async def test_failure_sets_status_to_generation_failed(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
     ):
         from sqlalchemy import select
@@ -592,3 +559,169 @@ class TestRunGeneration:
             await run_generation(trip_with_preferences.id, session_factory_fixture)
 
         mock_ai.assert_not_called()
+
+    async def test_no_session_open_during_ai_call(
+        self, trip_with_preferences: Trip, engine
+    ):
+        """Read and write phases use separate sessions; none is open mid-call."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        open_sessions = 0
+        opened = 0
+        seen_during_call: list[int] = []
+
+        def counting_factory():
+            nonlocal opened
+            opened += 1
+            return _Tracked(factory())
+
+        class _Tracked:
+            def __init__(self, inner):
+                self.inner = inner
+
+            async def __aenter__(self):
+                nonlocal open_sessions
+                open_sessions += 1
+                return await self.inner.__aenter__()
+
+            async def __aexit__(self, *exc):
+                nonlocal open_sessions
+                open_sessions -= 1
+                return await self.inner.__aexit__(*exc)
+
+        async def fake_generate(*args, **kwargs):
+            seen_during_call.append(open_sessions)
+            return _mock_ai_response(num_options=2)
+
+        with patch.object(
+            AIService,
+            "generate_itineraries",
+            new_callable=AsyncMock,
+            side_effect=fake_generate,
+        ):
+            await run_generation(trip_with_preferences.id, counting_factory)
+
+        assert seen_during_call == [0]
+        assert opened >= 3  # read, write, email lookup
+
+    async def test_latency_and_model_come_from_winning_call_log(
+        self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
+    ):
+        from sqlalchemy import select
+
+        from app.models.ai_call_log import AICallLog
+        from app.models.itinerary import Itinerary
+
+        async def fake_generate(*args, **kwargs):
+            kwargs["calls"].append(
+                AICallLog(
+                    provider="p1",
+                    model_used="bad-model",
+                    latency_ms=111,
+                    response_valid=False,
+                )
+            )
+            kwargs["calls"].append(
+                AICallLog(
+                    provider="p2",
+                    model_used="winner-model",
+                    latency_ms=4321,
+                    response_valid=True,
+                )
+            )
+            return _mock_ai_response(num_options=2)
+
+        trip_id = trip_with_preferences.id
+        with patch.object(
+            AIService,
+            "generate_itineraries",
+            new_callable=AsyncMock,
+            side_effect=fake_generate,
+        ):
+            await run_generation(trip_id, session_factory_fixture)
+
+        db.expire_all()
+        its = (
+            (await db.execute(select(Itinerary).where(Itinerary.trip_id == trip_id)))
+            .scalars()
+            .all()
+        )
+        assert len(its) == 2
+        assert all(
+            (i.model_used, i.provider, i.generation_latency_ms)
+            == ("winner-model", "p2", 4321)
+            for i in its
+        )
+
+    async def test_option_count_error_sets_humanised_failure(
+        self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
+    ):
+        from sqlalchemy import select
+
+        from app.models.trip import Trip as TripModel
+
+        trip_id = trip_with_preferences.id
+        with patch.object(
+            AIService,
+            "generate_itineraries",
+            new_callable=AsyncMock,
+            side_effect=AIOptionCountError("AI returned 1 options, expected 2"),
+        ):
+            await run_generation(trip_id, session_factory_fixture)
+
+        db.expire_all()
+        trip = (
+            await db.execute(select(TripModel).where(TripModel.id == trip_id))
+        ).scalar_one()
+        assert trip.status == "GENERATION_FAILED"
+        assert "wrong number" in trip.generation_error
+
+    async def test_trip_failed_during_ai_call_discards_results(
+        self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
+    ):
+        from sqlalchemy import select, update
+
+        from app.models.ai_call_log import AICallLog
+        from app.models.itinerary import Itinerary
+        from app.models.trip import Trip as TripModel
+
+        trip_id = trip_with_preferences.id
+
+        async def fake_generate(*args, **kwargs):
+            kwargs["calls"].append(
+                AICallLog(provider="p", model_used="m", response_valid=True)
+            )
+            async with session_factory_fixture() as s:  # startup recovery elsewhere
+                await s.execute(
+                    update(TripModel)
+                    .where(TripModel.id == trip_id)
+                    .values(status="GENERATION_FAILED")
+                )
+                await s.commit()
+            return _mock_ai_response(num_options=2)
+
+        with patch.object(
+            AIService,
+            "generate_itineraries",
+            new_callable=AsyncMock,
+            side_effect=fake_generate,
+        ):
+            await run_generation(trip_id, session_factory_fixture)
+
+        db.expire_all()
+        trip = (
+            await db.execute(select(TripModel).where(TripModel.id == trip_id))
+        ).scalar_one()
+        assert trip.status == "GENERATION_FAILED"
+        assert trip.current_iteration == 0
+        its = (
+            (await db.execute(select(Itinerary).where(Itinerary.trip_id == trip_id)))
+            .scalars()
+            .all()
+        )
+        assert its == []
+        logs = (
+            (await db.execute(select(AICallLog).where(AICallLog.trip_id == trip_id)))
+            .scalars()
+            .all()
+        )
+        assert len(logs) == 1

@@ -107,10 +107,10 @@ PackVote is an AI-powered group travel planning application designed to eliminat
 - Admin can close voting at any time by:
   - Manually picking a winner ✅
   - Accepting the current ranked-choice winner ✅
-- Trip status flow: `CREATED` → `COLLECTING_PREFERENCES` → `GENERATING` → `VOTING` → `ITERATING` → `FINALIZED`
+- Trip status flow: `CREATED` → `COLLECTING_PREFERENCES` → `GENERATING` → `VOTING` → `ITERATING` → `FINALIZED` *(Superseded: `ITERATING` was removed. The backend goes `VOTING` → `GENERATING` directly, and `TripStatus` has six members.)*
   - On generation failure: `GENERATING` → `GENERATION_FAILED` (error stored in `generation_error`; admin can retry, which transitions back to `GENERATING`)
 
-**F6 implementation status:** The iteration *mechanics* are built — `POST /trips/{id}/new-iteration` triggers a new AI generation round and resets voting. What is **not yet built** is the *survey phase*: after a no-majority result, the AI should analyse the previous round and generate targeted follow-up questions before re-generation. This requires a new AI prompt, a survey response data model, a participant survey UI, and the `ITERATING` status (currently unused — new iteration goes `VOTING → GENERATING` directly, skipping `ITERATING`). The `send_new_iteration_notification` email exists but the `survey_questions` param was removed until this is built.
+**F6 implementation status:** The iteration *mechanics* are built — `POST /trips/{id}/new-iteration` triggers a new AI generation round and resets voting. What is **not yet built** is the *survey phase*: after a no-majority result, the AI should analyse the previous round and generate targeted follow-up questions before re-generation. This requires a new AI prompt, a survey response data model, a participant survey UI, and the `ITERATING` status (currently unused — new iteration goes `VOTING → GENERATING` directly, skipping `ITERATING`). The `send_new_iteration_notification` email exists but the `survey_questions` param was removed until this is built. *(Superseded: `ITERATING` no longer exists in the backend. The new-iteration email is the `new_iteration` kind of `send_trip_email` and asks participants to vote on new options; it asks no survey questions.)*
 
 ### F7: Trip Page (Participant View) ✅
 - Persistent page accessible via link or ID+PIN
@@ -129,20 +129,20 @@ PackVote is an AI-powered group travel planning application designed to eliminat
   - **Created** — trips the user created, with status badges, participant response progress, voting results, AI generation history, and controls (trigger generation, trigger new iteration, pick winner, close voting, delete trip)
   - **Invited** — trips where the authenticated user was invited as a participant (matched by email at trip creation or registration); links directly to the participant trip page via `participant_token`
 - Shows:
-- **Edit trip:** Creator can edit trip details (title, destination, dates, number of options, notes) when the trip is in `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` status. Useful for fixing inputs before retrying a failed generation. Editing is blocked in `GENERATING`, `VOTING`, `ITERATING`, and `FINALIZED` states.
+- **Edit trip:** Creator can edit trip details (title, destination, dates, number of options, notes) when the trip is in `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` status. Useful for fixing inputs before retrying a failed generation. Editing is blocked in `GENERATING`, `VOTING`, `ITERATING`, and `FINALIZED` states. *(Superseded: `ITERATING` was removed. `PATCH /trips/{id}` returns 409 for every status other than `CREATED`, `COLLECTING_PREFERENCES`, and `GENERATION_FAILED`.)*
 - **Delete trip:** Creator can permanently delete a trip and all associated data (participants, preferences, itineraries, votes). Deletion is blocked while AI generation is in progress (`GENERATING` status). Requires confirmation before executing.
 
 ### F9: Email Notifications (Brevo) ✅
 - Triggered at each stage:
   - Trip created → invitation to submit preferences
   - AI generated options → invitation to vote
-  - New iteration → follow-up survey notification
+  - New iteration → follow-up survey notification *(Superseded: the `new_iteration` email asks participants to vote on new options; no survey.)*
   - Trip finalized → final itinerary notification
 - Every email includes:
   - Direct tokenized link
   - Trip code and PIN
   - Relevant context (what action is needed)
-- **Rate limit:** Brevo free tier: 300 emails/day. Global in-process sliding-window rate limiter (`BrevoRateLimiter`) enforces the cap. When exhausted, emails are silently dropped with a warning log; callers handle gracefully (no retry)
+- **Rate limit:** Brevo free tier: 300 emails/day. Global in-process sliding-window rate limiter (`BrevoRateLimiter`) enforces the cap. When exhausted, emails are silently dropped with a warning log; callers handle gracefully (no retry). *(Superseded: the limiter is a synchronous `SlidingWindow` in `app/services/rate_limit.py`, and the warning log no longer includes the recipient address.)*
 
 ---
 
@@ -155,7 +155,7 @@ AIServiceLayer (abstract interface)
     └── AsyncOpenAI → AI_BASE_URL (default: Gemini's OpenAI-compatible endpoint)
 ```
 
-- All providers implement the same interface: `generate_itineraries()`, `generate_followup_survey()`, `organize_preferences()`
+- All providers implement the same interface: `generate_itineraries()`, `generate_followup_survey()`, `organize_preferences()` *(Superseded: there is no interface class. `OpenAICompatProvider` is the only provider and exposes `generate_itineraries()` only; the survey and preference-organising stubs were removed.)*
 - Retry: 3 attempts with exponential backoff; no fallback provider
 - Switching inference vendors is a config change (`AI_BASE_URL` / `AI_API_KEY` / `DEFAULT_AI_MODEL` / `AI_EXTRA_BODY`), not a code change — Gemini, OpenRouter, Mistral, Groq and Cerebras all speak the same OpenAI chat-completions dialect
 
@@ -169,9 +169,9 @@ AIServiceLayer (abstract interface)
 Trade-off accepted: Gemini's free tier is used to improve Google products. The rendered prompt carries no PII — `_build_preferences_block` emits `Participant 1/2/3` with dates, budget and interests, never names or emails.
 
 ### Prompt Management
-- Prompts stored in database table: `prompt_templates`
+- Prompts stored in database table: `prompt_templates` *(Superseded: no table. The prompt is a code constant, `ITINERARY_PROMPT_V3` in `services/generation.py`, and each itinerary stores `prompt_version` (`"v3"`). No A/B testing exists.)*
   - Fields: id, name, version, template_text, model_target, is_active, created_at
-- Each AI call logs: prompt_version_id, model_used, provider, latency_ms, token_count, response_valid (bool)
+- Each AI call logs: prompt_version_id, model_used, provider, latency_ms, token_count, response_valid (bool) *(Superseded: `ai_call_logs` has no prompt-version column; the prompt version is on `itineraries`.)*
 - Basic A/B testing:
   - Traffic split configurable (e.g., 50/50 between prompt v1 and v2)
   - Metrics per version: average response quality, vote outcome correlation, latency
@@ -215,7 +215,7 @@ An agent that fetches live prices for finalized trip itineraries so the group ca
 - Budget alerts are informational, not blocking
 
 ### Data Model Consideration
-- In Phase 1, ensure the itinerary data model includes nullable price fields so Phase 2 can populate them without schema migration:
+- In Phase 1, ensure the itinerary data model includes nullable price fields so Phase 2 can populate them without schema migration: *(Superseded: no price columns exist in the schema, and the three fields below are not built. `estimated_cost` survives only as a nullable key inside `daily_itinerary` JSON items.)*
   - `estimated_cost` on daily itinerary items
   - `price_last_updated` timestamp
   - `price_source` string
@@ -333,13 +333,13 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 - `trips` — (id, trip_code_8char_alphanum, creator_id, destination, proposed_dates, num_options, status, generation_error, max_iterations, current_iteration, created_at)
 - `participants` — (id, trip_id, email, name, pin_4digit, token, preferences_submitted, user_id nullable FK→users, created_at) — PIN is unique per participant within a trip. `user_id` is set eagerly for any invited participant whose email matches an existing registered user (at trip creation time, or at registration time via a bulk `UPDATE`). Partial-unique index on `(trip_id, user_id) WHERE user_id IS NOT NULL`. The creator row is inserted automatically on trip creation with `preferences_submitted = True`.
 - `preferences` — (id, participant_id, trip_id, preferred_dates, budget_min, budget_max, currency, interests, submitted_at)
-- `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at) — `daily_itinerary` and `highlights` are native JSON/JSONB columns
-- `votes` — (id, participant_id nullable, user_id nullable, trip_id, iteration_number, rankings, submitted_at) — `participant_id` is set for all votes (both invitees and the creator, who has a participant row). `user_id` is legacy/unused by new code. `rankings` is a native JSON/JSONB column.
-- `vote_rounds` — (id, trip_id, iteration_number, round_number, eliminated_option_id, results, winner_id, created_at) — `results` is a native JSON/JSONB column
+- `itineraries` — (id, trip_id, iteration_number, destination_name, description, daily_itinerary, total_estimated_budget, currency, match_reasoning, highlights, estimated_cost, price_last_updated, price_source, prompt_version_id, model_used, provider, generation_latency_ms, created_at) — `daily_itinerary` and `highlights` are native JSON/JSONB columns *(Superseded: the price columns and `prompt_version_id` are not built; the table has `prompt_version` (string, e.g. `"v3"`) instead.)*
+- `votes` — (id, participant_id nullable, user_id nullable, trip_id, iteration_number, rankings, submitted_at) — `participant_id` is set for all votes (both invitees and the creator, who has a participant row). `user_id` is legacy/unused by new code *(Superseded: the column was removed.)*. `rankings` is a native JSON/JSONB column.
+- `vote_rounds` — (id, trip_id, iteration_number, round_number, eliminated_option_id, results, winner_id, created_at) — `results` is a native JSON/JSONB column *(Superseded: no table. Results are computed from `votes` on every read by `ranked_choice.tally`.)*
 
 ### AI & Monitoring Tables
-- `prompt_templates` — (id, name, version, template_text, model_target, is_active, ab_test_group, traffic_weight, created_at)
-- `ai_call_logs` — (id, trip_id, prompt_version_id, model_used, provider, latency_ms, token_count_input, token_count_output, response_valid, error_message, created_at)
+- `prompt_templates` — (id, name, version, template_text, model_target, is_active, ab_test_group, traffic_weight, created_at) *(Superseded: table removed; see Prompt Management above.)*
+- `ai_call_logs` — (id, trip_id, prompt_version_id, model_used, provider, latency_ms, token_count_input, token_count_output, response_valid, error_message, created_at) *(Superseded: no `prompt_version_id` column.)*
 - `metrics` — (id, metric_name, metric_value, tags_json, recorded_at)
 
 ---

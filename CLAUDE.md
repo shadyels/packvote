@@ -26,13 +26,16 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 ### Backend
 - **Language:** Python 3.12
 - **Framework:** FastAPI (async ASGI)
-- **ORM:** SQLAlchemy (async) + Alembic (migrations)
+- **ORM:** SQLAlchemy (async) + Alembic (migrations; single `0001_baseline` revision in `backend/alembic/versions/`)
 - **Package Manager:** uv
 - **Database:** PostgreSQL
 - **Email:** Brevo (free tier, 300 emails/day)
 - **AI Inference:** any OpenAI-compatible endpoint via `openai` SDK (`AsyncOpenAI`) — do NOT add vendor SDKs. Provider is config (`AI_API_KEY` / `AI_BASE_URL` / `AI_PROVIDER_NAME` / `AI_EXTRA_BODY`), not code.
 - **Default AI Model:** `gemini-3.6-flash` on Google Gemini's free tier (`gemini-2.5-flash` was retired for new API keys — 404 "no longer available to new users"). Thinking suppressed via `AI_EXTRA_BODY` (`thinking_level: "minimal"` — Gemini 3.x replaced `thinking_budget` with this string enum; sending the old field 400s on 3.x models) because Gemini draws thinking tokens from the same `max_tokens` budget as the response — leaving it on risks truncating the itinerary JSON. Unlike `thinking_budget=0` on 2.5, `"minimal"` does not *guarantee* zero thinking tokens; watch for `finish_reason=length` warnings. `DEFAULT_REASONING_EFFORT="none"` omits `reasoning_effort` entirely (Gemini rejects it alongside `thinking_config`).
 - **Auth:** Email + password (trip creators), token-based links + trip code/PIN (participants)
+- **JWT:** `PyJWT` (HS256; decode requires `exp` + `sub`) — do NOT use `python-jose`. JWTs issued before the user's `password_changed_at` are rejected. `UserCreate`/`UserLogin`/`PasswordResetRequest` lowercase emails (`LowerEmail` in `schemas/user.py`). Passwords are capped at 72 UTF-8 bytes.
+- **SECRET_KEY guard:** `app/core/config.py` — `ENVIRONMENT` defaults to `production`; outside `development`, `SECRET_KEY` must be non-default and ≥ 32 chars.
+- **PIN throttle:** 10 failed PIN attempts per trip per 24h → 429 (`services/participants.py`, in-process).
 - **Password Hashing:** `bcrypt` directly — do NOT use `passlib` (incompatible with `bcrypt >= 4.0`)
 
 ### Frontend
@@ -95,17 +98,17 @@ Read the relevant `docs/` file before working in any of these areas:
 
 | Area | Key constraint | Full details |
 |------|---------------|-------------|
-| **AI service** | Use `extract_json()`, never `json.loads()`. Keep `response_format` as `json_object` — `json_schema` would make the `{"error": {...}}` envelope unrepresentable. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd) calibrated to Gemini's free tier; `LocalRateLimitError` skips retry. User-controlled fields injected into prompts must be wrapped in `<<<USER DATA>>>…<<<END USER DATA>>>` delimiters and passed through `sanitize_text()`. Trip duration is clamped to `max_trip_days(num_options)` in `_compute_trip_duration` — never let user-supplied dates exceed this cap. | `docs/AI-ARCHITECTURE.md` |
-| **Voting** | Pure algorithm in `ranked_choice.py`, DB ops in `service.py`. | `docs/VOTING-ARCHITECTURE.md` |
+| **AI service** | Use `extract_json()`, never `json.loads()`. Keep `response_format` as `json_object` — `json_schema` would make the `{"error": {...}}` envelope unrepresentable. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd) calibrated to Gemini's free tier; `LocalRateLimitError` skips retry. User-controlled fields injected into prompts must be wrapped in `<<<USER DATA>>>…<<<END USER DATA>>>` delimiters and passed through `sanitize_text()`. Trip duration is clamped to `max_trip_days(num_options)` in `_compute_trip_duration` — never let user-supplied dates exceed this cap. Generation runs in three phases (read session → AI call with no DB session open → write session guarded on `GENERATING`); every trigger claims the run via `start_generation()` (conditional UPDATE); `recover_stuck_generations` fails trips left in `GENERATING` at startup. | `docs/AI-ARCHITECTURE.md` |
+| **Voting** | Pure algorithm `ranked_choice.tally()`, DB ops + `compute_results()` in `service.py`. Results are computed from votes on every read (nothing stored). `GET /votes/trips/{id}/results` requires a participant token (`X-Participant-Token`) for the trip, or the JWT of the creator or a linked participant. Finalise is a conditional UPDATE pinned to `current_iteration`. | `docs/VOTING-ARCHITECTURE.md` |
 | **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
 | **Testing** | Unit in `tests/unit/`, integration uses SQLite+MockEmail, AI tests need `@pytest.mark.live`. | `docs/TESTING.md` |
-| **Email service** | Brevo free tier: 300 emails/day. Global in-process sliding-window rate limiter enforces the cap. When limit exhausted, `_send()` returns `False` with warning log; callers handle gracefully (no retry). All `try_consume()` calls async-safe via `asyncio.Lock`. | `docs/EMAIL-ARCHITECTURE.md` |
-| **Unsplash proxy** | `GET /unsplash/photo` (no auth). Key lives in backend `UNSPLASH_ACCESS_KEY` only — never in frontend env. In-process 45 req/hr limiter + 1hr cache in `services/unsplash.py`. Over-limit returns `{images:[]}`, frontend renders gradient. | `backend/app/services/unsplash.py` |
+| **Email service** | Brevo free tier: 300 emails/day. Shared synchronous `SlidingWindow` (`app/services/rate_limit.py`: `allowed`/`hit`/`acquire`) enforces the cap; when exhausted `_send()` returns `False` with a warning and callers do not retry. Single `send_trip_email(kind)` in `services/email/brevo.py`, kinds from `TRIP_EMAILS`. Invitation, finalized, generation and password-reset emails go out via FastAPI BackgroundTasks; admin resend sends inline. Never log recipient addresses or Brevo bodies. | `docs/EMAIL-ARCHITECTURE.md` |
+| **Unsplash proxy** | `GET /unsplash/photo` (no auth). Key lives in backend `UNSPLASH_ACCESS_KEY` only — never in frontend env. In-process limiter (`MAX_RPH` = 50 req/hr, `SlidingWindow`) + 1hr cache (max 500 destinations) in `services/unsplash.py`. Over-limit returns `{images:[]}`, frontend renders gradient. | `backend/app/services/unsplash.py` |
 
 ### AI service split
 `services/generation.py` — orchestration entry point (`run_generation(trip_id, session_factory)`). Edit here for pipeline changes.
-`services/ai/` — provider layer (`openai_compat.py`, JSON utils, base class, rate limiter). Edit here for provider changes. Switching providers should mean editing config, not this directory.
+`services/ai/` — provider layer (`openai_compat.py`, JSON utils, rate limiter). Edit here for provider changes. Switching providers should mean editing config, not this directory.
 `services/ai/rate_limiter.py` — in-process gate enforcing 6 limits (rpm/rph/rpd/tpm/tph/tpd) via single deque with 24h eviction. Singleton `get_limiter()`. `LocalRateLimitError` fast-fails without retry. Window constants: `WINDOW_1M` (60s), `WINDOW_1H` (3600s), `WINDOW_24H` (86400s).
 
 ### Admin API (`app/api/admin.py`)
@@ -113,12 +116,12 @@ Prefix `/admin`, requires `get_current_user`. Currently hosts email resend endpo
 - `POST /admin/trips/{trip_id}/resend-emails` — resend status-appropriate email to all participants
 - `POST /admin/trips/{trip_id}/participants/{participant_id}/resend-email` — resend to one participant
 
-Email type is derived from `trip.status` + `trip.current_iteration` in `services/email_resend.py`. Both endpoints enforce creator-only ownership (403 if `trip.creator_id != current_user.id`). Returns `{sent: int, failed: int}`.
+Email type is derived from `trip.status` + `trip.current_iteration` in `services/email_resend.py`. Both endpoints enforce creator-only ownership via `get_owned_trip` in `services/trips.py` (404 if missing, 403 `Not the trip creator` otherwise). Returns `{sent: int, failed: int}`.
 
 ### Participant ↔ User linking
 `Participant.user_id` is set in two places — keep both in sync if the logic ever changes:
 1. **`create_trip` (`services/trips.py`)** — batch-looks up users by lowercased email at trip creation time and sets `user_id` immediately if the invitee already has an account.
-2. **`register` (`api/auth.py`)** — after inserting the new user, bulk-updates all existing `Participant` rows whose email matches (case-insensitive) to backfill `user_id`.
+2. **`register_user` (`services/auth.py`)** — after inserting the new user, bulk-updates all existing `Participant` rows whose email matches (case-insensitive) to backfill `user_id`.
 
 ### Trips router — static routes before dynamic
 `GET /trips/invited` **must** be declared before `GET /trips/{trip_id}` in `app/api/trips.py`. FastAPI matches routes top-to-bottom; placing a static segment after a dynamic one causes `/invited` to be swallowed by the `{trip_id}` pattern.

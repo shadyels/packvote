@@ -1,6 +1,7 @@
 """Single source of truth for all input length/format caps."""
 
 import math
+from datetime import datetime
 
 # String field caps
 TITLE_MAX = 120
@@ -12,7 +13,7 @@ ACTIVITY_TAG_MAX = 40
 ACTIVITY_TAGS_MAX_ITEMS = 20
 PARTICIPANT_EMAILS_MAX = 20
 PASSWORD_MIN = 8
-PASSWORD_MAX = 72  # bcrypt silently truncates past 72 bytes
+PASSWORD_MAX = 72  # bcrypt raises past 72 bytes; schemas check UTF-8 byte length
 RANKINGS_MAX = 50
 
 # Token budget constants for trip duration cap
@@ -35,3 +36,20 @@ def max_trip_days(num_options: int) -> int:
         / (num_options * PER_DAY_TOKENS)
     )
     return max(1, result)
+
+
+def check_trip_duration(
+    start: datetime | None, end: datetime | None, num_options: int | None
+) -> None:
+    """Raise ValueError if the date range exceeds the cap for ``num_options``.
+
+    No-op when any of the three is None.
+    """
+    if start is None or end is None or num_options is None:
+        return
+    n = max_trip_days(num_options)
+    if (end - start).days > n:
+        raise ValueError(
+            f"Trip duration exceeds the maximum of {n} days "
+            f"for {num_options} itinerary options"
+        )

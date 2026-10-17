@@ -10,9 +10,8 @@ class AICallLog(Base):
     __tablename__ = "ai_call_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    trip_id: Mapped[int | None] = mapped_column(ForeignKey("trips.id"))
-    prompt_version_id: Mapped[int | None] = mapped_column(
-        ForeignKey("prompt_templates.id")
+    trip_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trips.id", ondelete="SET NULL"), index=True
     )
     iteration_number: Mapped[int | None] = mapped_column(Integer)
     attempt: Mapped[int | None] = mapped_column(Integer)

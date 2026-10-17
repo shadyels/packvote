@@ -14,10 +14,10 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 
 ## Key Features
 
-- **AI itinerary generation** — Gemini 2.5 Flash generates complete day-by-day itineraries tailored to group preferences
+- **AI itinerary generation** — Gemini 3.6 Flash generates complete day-by-day itineraries tailored to group preferences
 - **Ranked-choice voting** — full instant-runoff algorithm; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
 - **Zero-friction participant flow** — no account required; join via a tokenized email link or trip code + 4-digit PIN
-- **Real-time status tracking** — 7 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → GENERATION\_FAILED → VOTING → ITERATING → FINALIZED) with polling and live UI updates
+- **Real-time status tracking** — 6 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → GENERATION\_FAILED → VOTING → FINALIZED) with polling and live UI updates
 - **Destination photography** — Unsplash API integration with in-memory caching, graceful gradient fallback, and proper attribution
 - **Transactional email** — Brevo-powered invitations and password-reset emails containing direct links and trip code + PIN
 - **Password reset** — email-token flow for trip creators; forgot-password dialog + dedicated reset page
@@ -47,7 +47,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 | SQLAlchemy (async) + asyncpg | ORM + PostgreSQL async driver |
 | Alembic | Database migrations |
 | Pydantic v2 + pydantic-settings | Schema validation + config |
-| python-jose + bcrypt | JWT auth + password hashing |
+| PyJWT + bcrypt | JWT auth + password hashing |
 | openai `AsyncOpenAI` | AI inference (any OpenAI-compatible endpoint) |
 | Brevo API | Transactional email |
 | Ruff | Linting + formatting |
@@ -85,8 +85,8 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 - **Background task session isolation** — FastAPI closes request-scoped DB sessions before background tasks run; generation tasks open their own `async with session_factory()` session to avoid stale-connection errors
 - **Pure ranked-choice algorithm** — `services/voting/ranked_choice.py` is a stateless function with zero DB dependencies, making it trivially unit-testable and reusable
 - **Robust AI JSON extraction** — open-source models sometimes wrap responses in markdown fences; `extract_json()` tries direct parse → strip fences → brace-extraction before raising `AIParseError` with the raw text attached for logging
-- **Versioned prompt templates** — stored in the DB, seeded at runtime (idempotent); designed to support A/B testing across prompt versions with per-version metrics
-- **In-process rate limiting with sliding windows** — AI (Gemini free tier: 8 RPM / 200K TPM), email (Brevo: 300/day), and Unsplash (45 req/hr) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls; distributed rate limiting can be added in Phase 2 via shared store (Redis, PostgreSQL)
+- **Versioned prompt** — the itinerary prompt is a code constant (`ITINERARY_PROMPT_V3` in `services/generation.py`); `PROMPT_VERSION` is stored on each generated itinerary. No prompt table or A/B split
+- **In-process rate limiting with sliding windows** — AI (Gemini free tier: 8 RPM / 200K TPM), email (Brevo: 300/day), and Unsplash (50 req/hr) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls. Distributed rate limiting is undecided (limits are per process)
 - **Dual auth model** — JWT for trip creators; tokenized links + trip code/PIN for participants (no account creation)
 
 ---
@@ -104,7 +104,6 @@ packvote/
 │   │   │   ├── ai/         # Provider-agnostic AI service layer
 │   │   │   ├── voting/     # Ranked-choice algorithm + DB service
 │   │   │   └── email/      # Brevo integration
-│   │   ├── prompts/        # Versioned prompt templates
 │   │   └── core/           # Config, security, dependencies
 │   └── tests/              # Unit + integration tests (SQLite in-memory)
 └── frontend/

@@ -26,14 +26,14 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 ## Environment Variables
 
 **Backend service:**
-- `SECRET_KEY` — JWT signing key
+- `SECRET_KEY` — JWT signing key. Must be non-default and at least 32 characters unless `ENVIRONMENT=development`; the app refuses to start otherwise
 - `BREVO_API_KEY` — Brevo transactional email API key
 - `BREVO_FROM_EMAIL` — verified sender address (must be verified in Brevo → Settings → Senders)
 - `AI_API_KEY` — inference API key (Google Gemini by default: https://aistudio.google.com/apikey)
 - `AI_BASE_URL` — *optional*, defaults to Gemini's OpenAI-compatible endpoint
 - `DEFAULT_AI_MODEL` — *optional*, defaults to `gemini-3.6-flash` (`gemini-2.5-flash` was retired for new API keys)
 - `FRONTEND_URL` — Frontend public domain, no port (e.g. `https://xxx.up.railway.app`). Used for CORS — must be the public URL, NOT `.railway.internal`
-- `ENVIRONMENT` — `production`
+- `ENVIRONMENT` — defaults to `production` (fail-closed); leave it unset or set `production` on Railway. Set `development` only for local runs, which is the only setting that accepts the default `SECRET_KEY`
 
 **Frontend service:**
 - `VITE_API_URL` — Backend public domain. **Must be set before first build** — Vite bakes it in at build time.
@@ -55,3 +55,9 @@ If deployed before the var is set, the build bakes in an empty value. Redeploy a
 
 **5. `vite preview` allowedHosts must be boolean `true`**
 `vite.config.ts` has `preview: { allowedHosts: true }`. Do not change to a string `"true"` — must be boolean.
+
+**6. One-time database wipe before the baseline migration**
+Migrations were squashed into a single `0001_baseline` revision (`backend/alembic/versions/0001_baseline.py`). An existing database must be wiped before the first deploy of this revision: drop all tables and the `alembic_version` table, then let `alembic upgrade head` (in the start command) create the schema.
+
+**7. Startup recovery assumes a single process**
+On startup, `recover_stuck_generations` marks every trip left in `GENERATING` as `GENERATION_FAILED`. This is correct for one uvicorn process. During a zero-downtime deploy, the new instance fails generations still running on the old one; the old run's write-phase CAS then discards its result, so the user must retry. Upgrade path (undecided): a heartbeat/lease column on the trip.
