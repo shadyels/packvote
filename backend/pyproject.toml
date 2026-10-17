@@ -45,3 +45,6 @@ testpaths = ["tests"]
 markers = [
     "live: marks tests as requiring real API credentials (deselect with '-m not live')",
 ]
+
+[tool.coverage.run]
+concurrency = ["greenlet", "thread"]

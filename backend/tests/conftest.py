@@ -1,3 +1,6 @@
+import functools
+
+import bcrypt
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -5,13 +8,31 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
+from app.services import unsplash
+from app.services.ai import rate_limiter as ai_rate_limiter
+from app.services.email import rate_limiter as brevo_rate_limiter
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture(scope="session")
-def anyio_backend():
-    return "asyncio"
+@pytest.fixture(autouse=True)
+def _fast_bcrypt(monkeypatch):
+    """Cost factor 4 (bcrypt minimum) keeps hashing-heavy tests fast."""
+    monkeypatch.setattr(bcrypt, "gensalt", functools.partial(bcrypt.gensalt, rounds=4))
+
+
+@pytest.fixture(autouse=True)
+def _reset_module_state():
+    """Reset process-global caches/limiters so tests can't leak into each other."""
+    unsplash._cache.clear()
+    unsplash._limiter = None
+    brevo_rate_limiter._limiter = None
+    ai_rate_limiter._limiter = None
+    yield
+    unsplash._cache.clear()
+    unsplash._limiter = None
+    brevo_rate_limiter._limiter = None
+    ai_rate_limiter._limiter = None
 
 
 @pytest.fixture(scope="session")

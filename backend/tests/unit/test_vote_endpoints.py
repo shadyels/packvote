@@ -270,3 +270,26 @@ class TestNewIteration:
         ctx = voting_context
         resp = await client.post(f"/trips/{ctx['trip_id']}/new-iteration")
         assert resp.status_code == 401
+
+
+class TestResultsFreshness:
+    @pytest.mark.xfail(strict=True, reason="stage 2: results computed on read")
+    async def test_results_reflect_ballots_cast_after_first_read(
+        self, client: AsyncClient, auth_headers, voting_context
+    ) -> None:
+        ctx = voting_context
+        url = f"/votes/trips/{ctx['trip_id']}/results"
+        await client.post(
+            f"/votes/trips/{ctx['trip_id']}/vote/{ctx['token']}",
+            json={"rankings": ctx["itin_ids"]},
+        )
+        first = (await client.get(url)).json()
+        assert sum(first["rounds"][0]["results"].values()) == 1
+
+        await client.post(
+            f"/votes/trips/{ctx['trip_id']}/admin-vote",
+            json={"rankings": ctx["itin_ids"]},
+            headers=auth_headers,
+        )
+        second = (await client.get(url)).json()
+        assert sum(second["rounds"][0]["results"].values()) == 2

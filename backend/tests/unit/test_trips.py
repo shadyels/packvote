@@ -1,6 +1,7 @@
 import re
 import secrets
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -780,3 +781,92 @@ class TestListInvitedTrips:
         resp = await client.get(TRIPS_URL, headers=headers_i)
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+class TestUpdateTripDates:
+    @pytest.mark.xfail(
+        strict=True,
+        reason="stage 3.b: update_trip validates merged dates vs stored num_options",
+    )
+    async def test_dates_only_exceeding_stored_num_options_returns_422(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        create = await client.post(
+            TRIPS_URL, json={**_TRIP_PAYLOAD, "num_options": 5}, headers=auth_headers
+        )
+        trip_id = create.json()["id"]
+        resp = await client.patch(
+            f"/trips/{trip_id}",
+            json={
+                "proposed_start_date": "2030-01-01T00:00:00Z",
+                "proposed_end_date": "2030-03-01T00:00:00Z",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+
+class TestDeleteTripCascade:
+    async def test_delete_removes_all_children(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import func, select
+
+        from app.models.itinerary import Itinerary
+        from app.models.participant import Participant
+        from app.models.preference import Preference
+        from app.models.vote import Vote
+        from app.models.vote_round import VoteRound
+
+        create = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
+        trip_id = create.json()["id"]
+        pid = (
+            (
+                await db.execute(
+                    select(Participant.id).where(Participant.trip_id == trip_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        itin = Itinerary(
+            trip_id=trip_id,
+            iteration_number=1,
+            destination_name="X",
+            destination_description="d",
+            daily_itinerary=[],
+            total_estimated_budget=1.0,
+            currency="USD",
+            match_reasoning="r",
+            highlights=[],
+        )
+        db.add(itin)
+        await db.flush()
+        db.add_all(
+            [
+                Preference(participant_id=pid, trip_id=trip_id),
+                Vote(
+                    participant_id=pid,
+                    trip_id=trip_id,
+                    iteration_number=1,
+                    rankings=[itin.id],
+                ),
+                VoteRound(
+                    trip_id=trip_id,
+                    iteration_number=1,
+                    round_number=1,
+                    results={str(itin.id): 1},
+                ),
+            ]
+        )
+        await db.commit()
+
+        resp = await client.delete(f"/trips/{trip_id}", headers=auth_headers)
+        assert resp.status_code == 204
+
+        db.expire_all()
+        for model in (Participant, Preference, Itinerary, Vote, VoteRound):
+            count = await db.scalar(
+                select(func.count()).select_from(model).where(model.trip_id == trip_id)
+            )
+            assert count == 0, model.__name__

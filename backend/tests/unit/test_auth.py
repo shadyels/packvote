@@ -215,3 +215,84 @@ class TestMe:
             ME_URL, headers={"Authorization": "Bearer garbage.token.here"}
         )
         assert resp.status_code == 401
+
+
+# ── Password reset ──────────────────────────────────────────────────────────
+
+RESET_REQUEST_URL = "/auth/password-reset/request"
+RESET_CONFIRM_URL = "/auth/password-reset/confirm"
+
+
+class TestPasswordReset:
+    @pytest.fixture
+    def sent_resets(self):
+        from unittest.mock import AsyncMock, patch
+
+        svc = AsyncMock()
+        with patch("app.api.auth.EmailService.from_settings", return_value=svc):
+            yield svc.send_password_reset
+
+    async def _register(self, client: AsyncClient, email: str = "r@test.com"):
+        await client.post(REGISTER_URL, json={"email": email, "password": "oldpass12"})
+
+    async def test_request_and_confirm_happy_path(
+        self, client: AsyncClient, sent_resets
+    ):
+        await self._register(client)
+        resp = await client.post(RESET_REQUEST_URL, json={"email": "r@test.com"})
+        assert resp.status_code == 202
+        token = sent_resets.call_args.kwargs["reset_token"]
+
+        resp = await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "newpass12"}
+        )
+        assert resp.status_code == 200
+        login = lambda pw: client.post(  # noqa: E731
+            LOGIN_URL, json={"email": "r@test.com", "password": pw}
+        )
+        assert (await login("newpass12")).status_code == 200
+        assert (await login("oldpass12")).status_code == 401
+
+        # token is single-use
+        again = await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "another12"}
+        )
+        assert again.status_code == 400
+
+    async def test_unknown_email_does_not_leak(self, client: AsyncClient, sent_resets):
+        await self._register(client)
+        known = await client.post(RESET_REQUEST_URL, json={"email": "r@test.com"})
+        unknown = await client.post(RESET_REQUEST_URL, json={"email": "no@test.com"})
+        assert unknown.status_code == known.status_code == 202
+        assert unknown.json() == known.json()
+        assert sent_resets.await_count == 1
+
+    async def test_invalid_token_returns_400(self, client: AsyncClient):
+        resp = await client.post(
+            RESET_CONFIRM_URL, json={"token": "bogus", "new_password": "newpass12"}
+        )
+        assert resp.status_code == 400
+
+    async def test_expired_token_returns_400(
+        self, client: AsyncClient, sent_resets, db
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from sqlalchemy import update
+
+        from app.models.user import User
+
+        await self._register(client)
+        await client.post(RESET_REQUEST_URL, json={"email": "r@test.com"})
+        token = sent_resets.call_args.kwargs["reset_token"]
+        await db.execute(
+            update(User).values(
+                reset_token_expires_at=datetime.now(UTC) - timedelta(minutes=1)
+            )
+        )
+        await db.commit()
+
+        resp = await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "newpass12"}
+        )
+        assert resp.status_code == 400
