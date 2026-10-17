@@ -32,5 +32,6 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 
 <!-- BEGIN learned-lessons (written ONLY by the orchestrator) -->
 ## Learned lessons
-_(none yet)_
+- Before tightening a loose assertion that accepts several states, run it once with a sentinel value to learn the real one.
+- Scripted multi-test deletions by text slicing can leave empty class bodies or orphaned imports; run ruff immediately after.
 <!-- END learned-lessons -->
