@@ -9,9 +9,8 @@ from app.models.participant import Participant
 from app.models.trip import Trip
 from app.models.user import User
 from app.models.vote import Vote
-from app.models.vote_round import VoteRound
-from app.schemas.vote import VoteRoundResult, VotingResults
-from app.services.voting.ranked_choice import run_instant_runoff
+from app.schemas.vote import VotingResults
+from app.services.voting.ranked_choice import tally
 
 logger = logging.getLogger(__name__)
 
@@ -89,28 +88,48 @@ async def submit_admin_vote(
     return vote
 
 
-async def get_or_compute_results(
-    trip_id: int,
-    iteration_number: int | None,
-    db: AsyncSession,
+async def compute_results(
+    db: AsyncSession, trip: Trip, iteration: int | None = None
 ) -> VotingResults:
-    """Return stored round results or compute and persist them on demand."""
-    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = trip_result.scalar_one_or_none()
-    if trip is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
+    """Compute voting results from the Vote rows on every read (nothing stored).
+
+    For a FINALIZED trip viewed at its current iteration, the reported winner is
+    ``trip.winner_itinerary_id`` (the admin may have overridden the tally).
+    """
+    iteration = trip.current_iteration if iteration is None else iteration
+    ballots = list(
+        (
+            await db.execute(
+                select(Vote.rankings).where(
+                    Vote.trip_id == trip.id, Vote.iteration_number == iteration
+                )
+            )
         )
-
-    iteration = (
-        iteration_number if iteration_number is not None else trip.current_iteration
+        .scalars()
+        .all()
     )
-
-    stored = await _load_stored_rounds(trip_id, iteration, db)
-    if stored is not None:
-        return stored
-
-    return await _compute_and_persist_results(trip_id, iteration, db)
+    candidate_ids = list(
+        (
+            await db.execute(
+                select(Itinerary.id).where(
+                    Itinerary.trip_id == trip.id,
+                    Itinerary.iteration_number == iteration,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    rounds, winner_id = tally(ballots, candidate_ids)
+    if trip.status == "FINALIZED" and iteration == trip.current_iteration:
+        winner_id = trip.winner_itinerary_id
+    return VotingResults(
+        trip_id=trip.id,
+        iteration_number=iteration,
+        rounds=rounds,
+        winner_id=winner_id,
+        is_complete=bool(ballots),
+    )
 
 
 async def pick_winner(
@@ -295,9 +314,7 @@ async def _maybe_auto_tally(trip: Trip, db: AsyncSession) -> None:
     if vote_count < participant_count:
         return
 
-    results = await _compute_and_persist_results(
-        trip.id, trip.current_iteration, db, commit=False
-    )
+    results = await compute_results(db, trip)
 
     if results.winner_id is not None:
         trip.winner_itinerary_id = results.winner_id
@@ -305,103 +322,6 @@ async def _maybe_auto_tally(trip: Trip, db: AsyncSession) -> None:
         await db.commit()
         await db.refresh(trip)
         await _send_finalized_emails(trip, results.winner_id, db)
-    else:
-        # Tie — rounds were flushed but not committed; commit now without finalizing
-        await db.commit()
-
-
-async def _load_stored_rounds(
-    trip_id: int,
-    iteration_number: int,
-    db: AsyncSession,
-) -> VotingResults | None:
-    rounds_result = await db.execute(
-        select(VoteRound)
-        .where(
-            VoteRound.trip_id == trip_id,
-            VoteRound.iteration_number == iteration_number,
-        )
-        .order_by(VoteRound.round_number)
-    )
-    rows = rounds_result.scalars().all()
-    if not rows:
-        return None
-
-    round_results = [
-        VoteRoundResult(
-            round_number=r.round_number,
-            results={int(k): v for k, v in r.results.items()},
-            eliminated_option_id=r.eliminated_option_id,
-            winner_id=r.winner_id,
-        )
-        for r in rows
-    ]
-
-    last = round_results[-1]
-    winner_id = last.winner_id
-    # A round with no eliminated and no winner means a tie; is_complete = True
-    is_complete = winner_id is not None or last.eliminated_option_id is None
-
-    return VotingResults(
-        trip_id=trip_id,
-        iteration_number=iteration_number,
-        rounds=round_results,
-        winner_id=winner_id,
-        is_complete=is_complete,
-    )
-
-
-async def _compute_and_persist_results(
-    trip_id: int,
-    iteration_number: int,
-    db: AsyncSession,
-    commit: bool = True,
-) -> VotingResults:
-    votes_result = await db.execute(
-        select(Vote).where(
-            Vote.trip_id == trip_id,
-            Vote.iteration_number == iteration_number,
-        )
-    )
-    votes = votes_result.scalars().all()
-
-    ballots = [v.rankings for v in votes]
-
-    itin_result = await db.execute(
-        select(Itinerary.id).where(
-            Itinerary.trip_id == trip_id,
-            Itinerary.iteration_number == iteration_number,
-        )
-    )
-    candidate_ids = list(itin_result.scalars().all())
-
-    results = run_instant_runoff(trip_id, iteration_number, ballots, candidate_ids)
-
-    # Persist rounds (only if not already stored)
-    existing_check = await db.execute(
-        select(func.count(VoteRound.id)).where(
-            VoteRound.trip_id == trip_id,
-            VoteRound.iteration_number == iteration_number,
-        )
-    )
-    if existing_check.scalar_one() == 0:
-        for r in results.rounds:
-            db.add(
-                VoteRound(
-                    trip_id=trip_id,
-                    iteration_number=iteration_number,
-                    round_number=r.round_number,
-                    eliminated_option_id=r.eliminated_option_id,
-                    results=r.results,
-                    winner_id=r.winner_id,
-                )
-            )
-        if commit:
-            await db.commit()
-        else:
-            await db.flush()
-
-    return results
 
 
 async def _send_finalized_emails(

@@ -34,7 +34,6 @@ line-length = 88
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = [
     "E501",
-    "F821",  # SQLAlchemy relationship forward references are resolved at runtime
 ]
 
 [tool.pytest.ini_options]

@@ -15,7 +15,6 @@ from app.models.preference import Preference
 from app.models.trip import Trip
 from app.models.user import User
 from app.models.vote import Vote
-from app.models.vote_round import VoteRound
 from app.schemas.trip import InvitedTripSummary, TripCreate, TripSummary, TripUpdate
 from app.services.email.brevo import EmailService
 
@@ -343,7 +342,6 @@ async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:
         )
 
     # Delete child rows in FK-safe order
-    await db.execute(delete(VoteRound).where(VoteRound.trip_id == trip_id))
     await db.execute(delete(Vote).where(Vote.trip_id == trip_id))
     await db.execute(delete(Preference).where(Preference.trip_id == trip_id))
     # ai_call_logs is an evaluation dataset: keep rows, detach them from the trip.

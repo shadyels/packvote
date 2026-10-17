@@ -26,7 +26,6 @@ from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.preference import Preference
-from app.models.prompt_template import PromptTemplate
 from app.models.trip import Trip
 from app.schemas._limits import max_trip_days
 from app.schemas._sanitize import sanitize_text
@@ -37,8 +36,10 @@ from app.services.ai.service import AIService
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Prompt template (seeded into DB on first generate call)
+# Prompt template (code constant; version recorded on each Itinerary)
 # ---------------------------------------------------------------------------
+
+PROMPT_VERSION = "v3"
 
 ITINERARY_PROMPT_V3 = """\
 [SYSTEM]
@@ -251,9 +252,6 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
     # Clear any previous generation error
     trip.generation_error = None
 
-    # Seed / fetch the active prompt template
-    template = await _upsert_prompt_template(db)
-
     # Fetch all preferences for this trip
     prefs_result = await db.execute(
         select(Preference).where(Preference.trip_id == trip_id)
@@ -267,7 +265,7 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
     group_size = participant_result.scalar_one()
 
     # Render prompt
-    prompt = _render_prompt(template, trip, preferences, group_size=group_size)
+    prompt = _render_prompt(trip, preferences, group_size=group_size)
 
     # Call AI with retry + fallback
     ai_service = AIService.from_settings()
@@ -285,7 +283,6 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
             db,
             calls,
             trip_id=trip_id,
-            prompt_version_id=template.id,
             iteration_number=iteration_number,
         )
         await db.commit()
@@ -308,7 +305,7 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
             currency=option.currency,
             match_reasoning=option.match_reasoning,
             highlights=option.highlights,
-            prompt_version_id=template.id,
+            prompt_version=PROMPT_VERSION,
             model_used=get_settings().DEFAULT_AI_MODEL,
             provider=get_settings().AI_PROVIDER_NAME,
             generation_latency_ms=latency_ms,
@@ -319,7 +316,6 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
         db,
         calls,
         trip_id=trip_id,
-        prompt_version_id=template.id,
         iteration_number=iteration_number,
     )
 
@@ -358,56 +354,11 @@ async def _reset_trip_status(
 
 
 # ---------------------------------------------------------------------------
-# Prompt template upsert (seeds DB on first call, idempotent)
-# ---------------------------------------------------------------------------
-
-
-async def _upsert_prompt_template(db: AsyncSession) -> PromptTemplate:
-    # Try to find the active v3 template first
-    result = await db.execute(
-        select(PromptTemplate).where(
-            PromptTemplate.name == "itinerary_generation",
-            PromptTemplate.version == "v3",
-            PromptTemplate.is_active.is_(True),
-        )
-    )
-    template = result.scalar_one_or_none()
-    if template is not None:
-        return template
-
-    # Deactivate any existing v1/v2 templates
-    old_result = await db.execute(
-        select(PromptTemplate).where(
-            PromptTemplate.name == "itinerary_generation",
-            PromptTemplate.version.in_(["v1", "v2"]),
-        )
-    )
-    for old in old_result.scalars().all():
-        old.is_active = False
-
-    # Seed v3
-    template = PromptTemplate(
-        name="itinerary_generation",
-        version="v3",
-        template_text=ITINERARY_PROMPT_V3,
-        # Records which model this version was seeded against, for A/B metrics.
-        # Only applies on first seed — existing rows are never rewritten.
-        model_target=get_settings().DEFAULT_AI_MODEL,
-        is_active=True,
-        traffic_weight=1.0,
-    )
-    db.add(template)
-    await db.flush()  # assigns template.id before we use it
-    return template
-
-
-# ---------------------------------------------------------------------------
 # Prompt rendering helpers
 # ---------------------------------------------------------------------------
 
 
 def _render_prompt(
-    template: PromptTemplate,
     trip: Trip,
     preferences: list[Preference],
     *,
@@ -434,7 +385,7 @@ def _render_prompt(
 
     preferences_block = _build_preferences_block(preferences)
 
-    return template.template_text.format(
+    return ITINERARY_PROMPT_V3.format(
         num_options=trip.num_options,
         trip_duration_days=trip_duration_days,
         trip_title=f"<<<USER DATA>>>{sanitize_text(trip.title)}<<<END USER DATA>>>",
@@ -582,13 +533,11 @@ def _add_call_logs(
     calls: list[AICallLog],
     *,
     trip_id: int,
-    prompt_version_id: int | None,
     iteration_number: int,
 ) -> None:
     """Stamp per-attempt rows with generation context, stage them, log each."""
     for attempt, log in enumerate(calls, start=1):
         log.trip_id = trip_id
-        log.prompt_version_id = prompt_version_id
         log.iteration_number = iteration_number
         log.attempt = attempt
         db.add(log)

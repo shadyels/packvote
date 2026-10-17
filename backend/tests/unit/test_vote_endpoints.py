@@ -273,7 +273,6 @@ class TestNewIteration:
 
 
 class TestResultsFreshness:
-    @pytest.mark.xfail(strict=True, reason="stage 2: results computed on read")
     async def test_results_reflect_ballots_cast_after_first_read(
         self, client: AsyncClient, auth_headers, voting_context
     ) -> None:

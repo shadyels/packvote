@@ -52,9 +52,4 @@ class ItineraryResponse(BaseModel):
     provider: str | None
     created_at: datetime
 
-    # Phase 2 price fields
-    estimated_cost: float | None
-    price_last_updated: datetime | None
-    price_source: str | None
-
     model_config = {"from_attributes": True}

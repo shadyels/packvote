@@ -1,14 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
+from app.models.trip import Trip
 from app.models.user import User
 from app.schemas.vote import VoteResponse, VoteSubmit, VotingResults
 from app.services.voting.service import (
-    get_or_compute_results,
+    compute_results,
     submit_admin_vote,
     submit_participant_vote,
 )
@@ -46,4 +47,7 @@ async def get_voting_results(
     db: Annotated[AsyncSession, Depends(get_db)],
     iteration: int | None = None,
 ) -> VotingResults:
-    return await get_or_compute_results(trip_id, iteration, db)
+    trip = await db.get(Trip, trip_id)
+    if trip is None:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    return await compute_results(db, trip, iteration)

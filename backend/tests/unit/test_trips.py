@@ -816,7 +816,6 @@ class TestDeleteTripCascade:
         from app.models.participant import Participant
         from app.models.preference import Preference
         from app.models.vote import Vote
-        from app.models.vote_round import VoteRound
 
         create = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         trip_id = create.json()["id"]
@@ -851,12 +850,6 @@ class TestDeleteTripCascade:
                     iteration_number=1,
                     rankings=[itin.id],
                 ),
-                VoteRound(
-                    trip_id=trip_id,
-                    iteration_number=1,
-                    round_number=1,
-                    results={str(itin.id): 1},
-                ),
             ]
         )
         await db.commit()
@@ -865,7 +858,7 @@ class TestDeleteTripCascade:
         assert resp.status_code == 204
 
         db.expire_all()
-        for model in (Participant, Preference, Itinerary, Vote, VoteRound):
+        for model in (Participant, Preference, Itinerary, Vote):
             count = await db.scalar(
                 select(func.count()).select_from(model).where(model.trip_id == trip_id)
             )

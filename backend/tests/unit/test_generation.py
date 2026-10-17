@@ -28,7 +28,6 @@ from app.services.generation import (
     _build_preferences_block,
     _compute_trip_duration,
     _humanize_error,
-    _upsert_prompt_template,
     run_generation,
 )
 
@@ -197,38 +196,6 @@ class TestComputeTripDuration:
 
 
 # ---------------------------------------------------------------------------
-# _upsert_prompt_template
-# ---------------------------------------------------------------------------
-
-
-class TestUpsertPromptTemplate:
-    async def test_creates_template_on_first_call(self, db: AsyncSession):
-        from sqlalchemy import select
-
-        from app.models.prompt_template import PromptTemplate
-
-        template = await _upsert_prompt_template(db)
-        assert template.id is not None
-        assert template.name == "itinerary_generation"
-        assert template.version == "v3"
-        assert template.is_active is True
-        assert "[SYSTEM]" in template.template_text
-        assert "ERROR REPORTING" in template.template_text
-
-        # Verify it's in the DB
-        result = await db.execute(
-            select(PromptTemplate).where(PromptTemplate.name == "itinerary_generation")
-        )
-        assert result.scalar_one_or_none() is not None
-
-    async def test_returns_existing_on_second_call(self, db: AsyncSession):
-        template1 = await _upsert_prompt_template(db)
-        await db.commit()
-        template2 = await _upsert_prompt_template(db)
-        assert template1.id == template2.id
-
-
-# ---------------------------------------------------------------------------
 # _humanize_error
 # ---------------------------------------------------------------------------
 
@@ -285,27 +252,6 @@ class TestHumanizeError:
         err = openai.APIConnectionError.__new__(openai.APIConnectionError)
         result = _humanize_error(err)
         assert "connect" in result.lower()
-
-
-class TestUpsertPromptTemplateIdempotency:
-    async def test_idempotent_no_duplicates(self, db: AsyncSession):
-        from sqlalchemy import func, select
-
-        from app.models.prompt_template import PromptTemplate
-
-        await _upsert_prompt_template(db)
-        await db.commit()
-        await _upsert_prompt_template(db)
-        await db.commit()
-
-        result = await db.execute(
-            select(func.count(PromptTemplate.id)).where(
-                PromptTemplate.name == "itinerary_generation",
-                PromptTemplate.version == "v3",
-            )
-        )
-        count = result.scalar_one()
-        assert count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +360,7 @@ class TestRunGeneration:
         result = await db.execute(select(Itinerary).where(Itinerary.trip_id == trip_id))
         itineraries = result.scalars().all()
         assert len(itineraries) == 2
+        assert all(i.prompt_version == "v3" for i in itineraries)
 
     async def test_success_increments_current_iteration(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
@@ -476,7 +423,6 @@ class TestRunGeneration:
         assert [log.attempt for log in logs] == [1, 2]
         assert [log.response_valid for log in logs] == [False, True]
         assert all(log.iteration_number == 1 for log in logs)
-        assert all(log.prompt_version_id is not None for log in logs)
         ai_call_lines = [
             r for r in caplog.records if r.getMessage().startswith("ai_call ")
         ]

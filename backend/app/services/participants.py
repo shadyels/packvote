@@ -7,6 +7,7 @@ from app.models.participant import Participant
 from app.models.preference import Preference
 from app.models.trip import Trip
 from app.models.vote import Vote
+from app.schemas.participant import ParticipantTripView
 from app.schemas.preference import PreferenceCreate
 
 
@@ -38,16 +39,15 @@ async def get_participant_by_token(token: str, db: AsyncSession) -> Participant:
 
 async def get_participant_trip_view(
     token: str, db: AsyncSession
-) -> "ParticipantTripView":  # type: ignore[name-defined]
+) -> ParticipantTripView:
     """Return all trip data needed for the participant-facing trip page."""
     from app.schemas.itinerary import ItineraryResponse
     from app.schemas.participant import (
         ParticipantBrief,
         ParticipantResponse,
-        ParticipantTripView,
         TripPublicInfo,
     )
-    from app.services.voting.service import get_or_compute_results
+    from app.services.voting.service import compute_results
 
     participant = await get_participant_by_token(token, db)
 
@@ -101,10 +101,7 @@ async def get_participant_trip_view(
     # Voting results (if available)
     voting_results = None
     if trip.status in show_itinerary_statuses:
-        try:
-            voting_results = await get_or_compute_results(trip.id, None, db)
-        except HTTPException:
-            voting_results = None
+        voting_results = await compute_results(db, trip)
 
     # Has this participant already voted in the current iteration?
     vote_result = await db.execute(

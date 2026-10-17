@@ -12,9 +12,8 @@ from app.models.participant import Participant
 from app.models.trip import Trip
 from app.models.user import User
 from app.models.vote import Vote
-from app.models.vote_round import VoteRound
 from app.services.voting.service import (
-    get_or_compute_results,
+    compute_results,
     pick_winner,
     submit_admin_vote,
     submit_participant_vote,
@@ -282,15 +281,9 @@ class TestAutoTally:
         # Admin votes — this is the last eligible voter (1 participant + admin)
         await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
 
-        from sqlalchemy import select
-
-        rounds = await db.execute(
-            select(VoteRound).where(
-                VoteRound.trip_id == s["trip"].id,
-                VoteRound.iteration_number == 1,
-            )
-        )
-        assert len(rounds.scalars().all()) > 0
+        await db.refresh(s["trip"])
+        results = await compute_results(db, s["trip"])
+        assert len(results.rounds) > 0
 
     async def test_tally_does_not_run_before_all_votes(
         self, db: AsyncSession, voting_setup
@@ -303,15 +296,9 @@ class TestAutoTally:
             s["participant"].token, s["trip"].id, itin_ids, db
         )
 
-        from sqlalchemy import select
-
-        rounds = await db.execute(
-            select(VoteRound).where(
-                VoteRound.trip_id == s["trip"].id,
-                VoteRound.iteration_number == 1,
-            )
-        )
-        assert len(rounds.scalars().all()) == 0
+        results = await compute_results(db, s["trip"])
+        assert s["trip"].status == "VOTING"
+        assert results.is_complete is True  # one ballot cast, tallied live
 
     async def test_auto_finalize_when_all_voted_with_winner(
         self, db: AsyncSession, voting_setup
@@ -341,19 +328,13 @@ class TestAutoTally:
         )
         await submit_admin_vote(s["user"], s["trip"].id, reversed_ids, db)
 
-        from sqlalchemy import select
-
         await db.refresh(s["trip"])
         assert s["trip"].status == "VOTING"
         assert s["trip"].winner_itinerary_id is None
 
-        rounds = await db.execute(
-            select(VoteRound).where(
-                VoteRound.trip_id == s["trip"].id,
-                VoteRound.iteration_number == 1,
-            )
-        )
-        assert len(rounds.scalars().all()) > 0
+        results = await compute_results(db, s["trip"])
+        assert results.winner_id is None
+        assert len(results.rounds) > 0
 
     async def test_auto_finalize_sends_emails(
         self, db: AsyncSession, voting_setup, monkeypatch
@@ -380,11 +361,11 @@ class TestAutoTally:
 
 
 # ---------------------------------------------------------------------------
-# get_or_compute_results
+# compute_results
 # ---------------------------------------------------------------------------
 
 
-class TestGetOrComputeResults:
+class TestComputeResults:
     async def test_computes_on_demand(self, db: AsyncSession, voting_setup) -> None:
         s = voting_setup
         itin_ids = [i.id for i in s["itineraries"]]
@@ -408,31 +389,30 @@ class TestGetOrComputeResults:
         )
         await db.flush()
 
-        results = await get_or_compute_results(s["trip"].id, None, db)
+        results = await compute_results(db, s["trip"])
         assert results.trip_id == s["trip"].id
         assert results.is_complete is True
         assert results.winner_id is not None
 
-    async def test_returns_stored_rounds_if_present(
+    async def test_finalized_reports_trip_winner(
         self, db: AsyncSession, voting_setup
     ) -> None:
         s = voting_setup
         itin_ids = [i.id for i in s["itineraries"]]
-
-        # Pre-insert a stored round
-        stored_round = VoteRound(
-            trip_id=s["trip"].id,
-            iteration_number=1,
-            round_number=1,
-            results={str(itin_ids[0]): 2, str(itin_ids[1]): 1},
-            winner_id=itin_ids[0],
-            eliminated_option_id=None,
+        db.add(
+            Vote(
+                participant_id=s["participant"].id,
+                trip_id=s["trip"].id,
+                iteration_number=1,
+                rankings=itin_ids,
+            )
         )
-        db.add(stored_round)
         await db.flush()
 
-        results = await get_or_compute_results(s["trip"].id, None, db)
-        assert results.winner_id == itin_ids[0]
+        # Admin overrides the tally with the other itinerary
+        await pick_winner(s["user"], s["trip"].id, itin_ids[1], db)
+        results = await compute_results(db, s["trip"])
+        assert results.winner_id == itin_ids[1]
         assert len(results.rounds) == 1
 
 
