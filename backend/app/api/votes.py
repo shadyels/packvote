@@ -1,12 +1,9 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, get_results_trip
-from app.db.session import get_db
+from app.core.dependencies import DB, CurrentUser, get_results_trip
 from app.models.trip import Trip
-from app.models.user import User
 from app.schemas.vote import VoteResponse, VoteSubmit, VotingResults
 from app.services.voting.service import (
     compute_results,
@@ -24,7 +21,7 @@ async def submit_vote(
     trip_id: int,
     token: str,
     payload: VoteSubmit,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DB,
     background_tasks: BackgroundTasks,
 ) -> VoteResponse:
     return await submit_participant_vote(
@@ -38,8 +35,8 @@ async def submit_vote(
 async def submit_admin_vote_handler(
     trip_id: int,
     payload: VoteSubmit,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    db: DB,
     background_tasks: BackgroundTasks,
 ) -> VoteResponse:
     return await submit_admin_vote(
@@ -50,7 +47,7 @@ async def submit_admin_vote_handler(
 @router.get("/trips/{trip_id}/results", response_model=VotingResults)
 async def get_voting_results(
     trip: Annotated[Trip, Depends(get_results_trip)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DB,
     iteration: int | None = None,
 ) -> VotingResults:
     return await compute_results(db, trip, iteration)

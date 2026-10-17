@@ -13,7 +13,7 @@ from app.models.participant import Participant
 from app.models.trip import Trip, TripStatus
 from app.models.user import User
 from app.models.vote import Vote
-from app.schemas._limits import max_trip_days
+from app.schemas._limits import check_trip_duration
 from app.schemas.trip import InvitedTripSummary, TripCreate, TripSummary, TripUpdate
 from app.services import generation
 from app.services.email.brevo import EmailService
@@ -40,7 +40,8 @@ async def send_invitations(
     """Background task: best-effort invitation emails from snapshotted values."""
     await asyncio.gather(
         *[
-            email_service.send_invitation(
+            email_service.send_trip_email(
+                "invitation",
                 to_email=i["email"],
                 participant_name=i["name"],
                 trip_title=trip_title,
@@ -61,8 +62,7 @@ async def create_trip(
     email_service: EmailService,
     background_tasks: BackgroundTasks,
 ) -> Trip:
-    creator_result = await db.execute(select(User).where(User.id == creator_id))
-    creator = creator_result.scalar_one_or_none()
+    creator = await db.get(User, creator_id)
     if creator is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -133,7 +133,6 @@ async def create_trip(
     db.add(creator_participant)
 
     await db.commit()
-    await db.refresh(trip)
 
     # Sent after the response; email failure must not affect the trip.
     # The creator's participant row is intentionally excluded.
@@ -151,75 +150,57 @@ async def create_trip(
     return trip
 
 
+_participant_count_sq = (
+    select(func.count(Participant.id))
+    .where(Participant.trip_id == Trip.id)
+    .correlate(Trip)
+    .scalar_subquery()
+)
+_pref_submitted_sq = (
+    select(func.count(Participant.id))
+    .where(
+        Participant.trip_id == Trip.id,
+        Participant.preferences_submitted.is_(True),
+    )
+    .correlate(Trip)
+    .scalar_subquery()
+)
+
+
+def _summary_fields(trip: Trip, participant_count: int, submitted_count: int) -> dict:
+    return {
+        "id": trip.id,
+        "trip_code": trip.trip_code,
+        "title": trip.title,
+        "destination": trip.destination,
+        "status": trip.status,
+        "participant_count": participant_count,
+        "preferences_submitted_count": submitted_count,
+        "created_at": trip.created_at,
+    }
+
+
 async def list_trips_for_user(user_id: int, db: AsyncSession) -> list[TripSummary]:
-    participant_count_sq = (
-        select(func.count(Participant.id))
-        .where(Participant.trip_id == Trip.id)
-        .correlate(Trip)
-        .scalar_subquery()
-    )
-    pref_submitted_sq = (
-        select(func.count(Participant.id))
-        .where(
-            Participant.trip_id == Trip.id,
-            Participant.preferences_submitted.is_(True),
-        )
-        .correlate(Trip)
-        .scalar_subquery()
-    )
     stmt = (
-        select(
-            Trip,
-            participant_count_sq.label("participant_count"),
-            pref_submitted_sq.label("preferences_submitted_count"),
-        )
+        select(Trip, _participant_count_sq, _pref_submitted_sq)
         .where(Trip.creator_id == user_id)
         .order_by(Trip.created_at.desc())
     )
-    result = await db.execute(stmt)
-    summaries = []
-    for trip, participant_count, preferences_submitted_count in result.all():
-        summaries.append(
-            TripSummary.model_validate(
-                {
-                    "id": trip.id,
-                    "trip_code": trip.trip_code,
-                    "title": trip.title,
-                    "destination": trip.destination,
-                    "status": trip.status,
-                    "participant_count": participant_count,
-                    "preferences_submitted_count": preferences_submitted_count,
-                    "created_at": trip.created_at,
-                }
-            )
-        )
-    return summaries
+    return [
+        TripSummary(**_summary_fields(trip, count, submitted))
+        for trip, count, submitted in (await db.execute(stmt)).all()
+    ]
 
 
 async def list_invited_trips_for_user(
     user_id: int, db: AsyncSession
 ) -> list[InvitedTripSummary]:
-    participant_count_sq = (
-        select(func.count(Participant.id))
-        .where(Participant.trip_id == Trip.id)
-        .correlate(Trip)
-        .scalar_subquery()
-    )
-    pref_submitted_sq = (
-        select(func.count(Participant.id))
-        .where(
-            Participant.trip_id == Trip.id,
-            Participant.preferences_submitted.is_(True),
-        )
-        .correlate(Trip)
-        .scalar_subquery()
-    )
     stmt = (
         select(
             Trip,
-            participant_count_sq.label("participant_count"),
-            pref_submitted_sq.label("preferences_submitted_count"),
-            Participant.token.label("participant_token"),
+            _participant_count_sq,
+            _pref_submitted_sq,
+            Participant.token,
         )
         .join(Participant, Participant.trip_id == Trip.id)
         .where(
@@ -228,42 +209,24 @@ async def list_invited_trips_for_user(
         )
         .order_by(Trip.created_at.desc())
     )
-    result = await db.execute(stmt)
-    summaries = []
-    for (
-        trip,
-        participant_count,
-        preferences_submitted_count,
-        participant_token,
-    ) in result.all():
-        summaries.append(
-            InvitedTripSummary.model_validate(
-                {
-                    "id": trip.id,
-                    "trip_code": trip.trip_code,
-                    "title": trip.title,
-                    "destination": trip.destination,
-                    "status": trip.status,
-                    "participant_count": participant_count,
-                    "preferences_submitted_count": preferences_submitted_count,
-                    "created_at": trip.created_at,
-                    "participant_token": participant_token,
-                }
-            )
+    return [
+        InvitedTripSummary(
+            **_summary_fields(trip, count, submitted), participant_token=token
         )
-    return summaries
+        for trip, count, submitted, token in (await db.execute(stmt)).all()
+    ]
 
 
-async def get_trip(trip_id: int, user_id: int, db: AsyncSession) -> Trip:
-    result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = result.scalar_one_or_none()
+async def get_owned_trip(db: AsyncSession, trip_id: int, user: User) -> Trip:
+    """Trip by id; 404 if missing, 403 if ``user`` is not its creator."""
+    trip = await db.get(Trip, trip_id)
     if trip is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
         )
-    if trip.creator_id != user_id:
+    if trip.creator_id != user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not the trip creator"
         )
     return trip
 
@@ -281,9 +244,9 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 async def update_trip(
-    trip_id: int, user_id: int, payload: TripUpdate, db: AsyncSession
+    trip_id: int, user: User, payload: TripUpdate, db: AsyncSession
 ) -> Trip:
-    trip = await get_trip(trip_id, user_id, db)
+    trip = await get_owned_trip(db, trip_id, user)
     if trip.status not in _EDITABLE_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -297,27 +260,24 @@ async def update_trip(
         for f in ("proposed_start_date", "proposed_end_date", "num_options")
     }
     start, end = merged["proposed_start_date"], merged["proposed_end_date"]
-    if start is not None and end is not None:
-        n = max_trip_days(merged["num_options"])
-        if (_as_utc(end) - _as_utc(start)).days > n:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=(
-                    f"Trip duration exceeds the maximum of {n} days "
-                    f"for {merged['num_options']} itinerary options"
-                ),
-            )
+    try:
+        check_trip_duration(
+            start and _as_utc(start), end and _as_utc(end), merged["num_options"]
+        )
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
+        ) from err
     for field, value in changes.items():
         setattr(trip, field, value)
     await db.commit()
-    await db.refresh(trip)
     return trip
 
 
 async def list_participants_for_trip(
-    trip_id: int, user_id: int, db: AsyncSession
+    trip_id: int, user: User, db: AsyncSession
 ) -> list[dict]:
-    trip = await get_trip(trip_id, user_id, db)
+    trip = await get_owned_trip(db, trip_id, user)
 
     has_voted_sq = (
         select(Vote.id)
@@ -351,8 +311,8 @@ async def list_participants_for_trip(
     ]
 
 
-async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:
-    trip = await get_trip(trip_id, user_id, db)
+async def delete_trip(trip_id: int, user: User, db: AsyncSession) -> None:
+    trip = await get_owned_trip(db, trip_id, user)
     if trip.status == TripStatus.GENERATING:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -365,20 +325,12 @@ async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:
 
 async def trigger_generation(
     trip_id: int,
-    user_id: int,
+    user: User,
     db: AsyncSession,
     background_tasks: BackgroundTasks,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> dict:
-    trip = await db.get(Trip, trip_id)
-    if trip is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
-        )
-    if trip.creator_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-        )
+    trip = await get_owned_trip(db, trip_id, user)
     # Commit status change before returning so pollers see GENERATING immediately
     if not await start_generation(db, trip_id, _EDITABLE_STATUSES):
         await db.refresh(trip)
@@ -391,9 +343,9 @@ async def trigger_generation(
 
 
 async def list_itineraries_for_trip(
-    trip_id: int, user_id: int, db: AsyncSession
+    trip_id: int, user: User, db: AsyncSession
 ) -> list[Itinerary]:
-    await get_trip(trip_id, user_id, db)
+    await get_owned_trip(db, trip_id, user)
     result = await db.execute(
         select(Itinerary)
         .where(Itinerary.trip_id == trip_id)

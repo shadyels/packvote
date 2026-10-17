@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import BackgroundTasks, HTTPException, status
@@ -14,6 +15,7 @@ from app.schemas.vote import VotingResults
 from app.services import generation
 from app.services.email.brevo import EmailService
 from app.services.generation import start_generation
+from app.services.trips import get_owned_trip
 from app.services.voting.ranked_choice import tally
 
 logger = logging.getLogger(__name__)
@@ -63,11 +65,8 @@ async def submit_admin_vote(
     background_tasks: BackgroundTasks,
 ) -> Vote:
     """Submit or update the trip creator's ranked-choice vote."""
+    await get_owned_trip(db, trip_id, user)
     trip = await _get_voting_trip(trip_id, db)
-    if trip.creator_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-        )
     await _validate_rankings(rankings, trip_id, trip.current_iteration, db)
 
     creator_participant_result = await db.execute(
@@ -127,7 +126,7 @@ async def compute_results(
         .all()
     )
     rounds, winner_id = tally(ballots, candidate_ids)
-    if trip.status == "FINALIZED" and iteration == trip.current_iteration:
+    if trip.status == TripStatus.FINALIZED and iteration == trip.current_iteration:
         winner_id = trip.winner_itinerary_id
     return VotingResults(
         trip_id=trip.id,
@@ -146,16 +145,7 @@ async def pick_winner(
     background_tasks: BackgroundTasks,
 ) -> Trip:
     """Admin picks a winner, finalizing the trip."""
-    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = trip_result.scalar_one_or_none()
-    if trip is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
-        )
-    if trip.creator_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-        )
+    trip = await get_owned_trip(db, trip_id, user)
     if trip.status != TripStatus.VOTING:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -189,16 +179,7 @@ async def trigger_new_iteration(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> dict:
     """Admin triggers a new iteration of AI generation + voting."""
-    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = trip_result.scalar_one_or_none()
-    if trip is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
-        )
-    if trip.creator_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-        )
+    trip = await get_owned_trip(db, trip_id, user)
     if trip.status != TripStatus.VOTING:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -227,8 +208,7 @@ async def trigger_new_iteration(
 
 
 async def _get_voting_trip(trip_id: int, db: AsyncSession) -> Trip:
-    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = trip_result.scalar_one_or_none()
+    trip = await db.get(Trip, trip_id)
     if trip is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
@@ -303,7 +283,6 @@ async def _upsert_vote(
             status_code=status.HTTP_409_CONFLICT,
             detail="Vote was submitted concurrently; please retry",
         ) from err
-    await db.refresh(vote)
     return vote
 
 
@@ -315,18 +294,21 @@ async def _maybe_auto_tally(
     Callers guarantee ``trip`` is in VOTING (via ``_get_voting_trip``), and a
     VOTING trip never has a winner set, so it is always finalizable here.
     """
-    participant_count_result = await db.execute(
-        select(func.count(Participant.id)).where(Participant.trip_id == trip.id)
-    )
-    participant_count = participant_count_result.scalar_one()
-
-    vote_count_result = await db.execute(
-        select(func.count(Vote.id)).where(
-            Vote.trip_id == trip.id,
-            Vote.iteration_number == trip.current_iteration,
+    participant_count, vote_count = (
+        await db.execute(
+            select(
+                select(func.count(Participant.id))
+                .where(Participant.trip_id == trip.id)
+                .scalar_subquery(),
+                select(func.count(Vote.id))
+                .where(
+                    Vote.trip_id == trip.id,
+                    Vote.iteration_number == trip.current_iteration,
+                )
+                .scalar_subquery(),
+            )
         )
-    )
-    vote_count = vote_count_result.scalar_one()
+    ).one()
 
     if vote_count < participant_count:
         return
@@ -384,9 +366,10 @@ async def send_finalized_emails(
 ) -> None:
     """Background task: finalized notification to all participants (best-effort)."""
     email_service = EmailService.from_settings()
-    for r in recipients:
-        try:
-            await email_service.send_finalized_notification(
+    results = await asyncio.gather(
+        *[
+            email_service.send_trip_email(
+                "finalized",
                 to_email=r["email"],
                 participant_name=r["name"],
                 trip_title=trip_title,
@@ -395,5 +378,10 @@ async def send_finalized_emails(
                 token=r["token"],
                 destination_name=destination_name,
             )
-        except Exception:
+            for r in recipients
+        ],
+        return_exceptions=True,
+    )
+    for r in results:
+        if isinstance(r, Exception):
             logger.warning("Failed to send finalized email for trip %d", trip_id)

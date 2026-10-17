@@ -19,7 +19,7 @@ LOGIN_URL = "/auth/login"
 
 
 class MockEmailService:
-    """Superset mock for all four email methods.
+    """Mock for send_trip_email.
 
     Tracks every call in ``self.sent`` so tests can assert on recipients,
     trip codes, PINs, and tokens without hitting Brevo.
@@ -28,36 +28,10 @@ class MockEmailService:
     def __init__(self) -> None:
         self.sent: list[dict] = []
 
-    async def send_invitation(
-        self,
-        to_email: str,
-        participant_name: str | None,
-        trip_title: str,
-        trip_code: str,
-        pin: str,
-        token: str,
+    async def send_trip_email(
+        self, kind: str, *, to_email: str, **kwargs: object
     ) -> bool:
-        self.sent.append(
-            {
-                "type": "invitation",
-                "to": to_email,
-                "trip_code": trip_code,
-                "pin": pin,
-                "token": token,
-            }
-        )
-        return True
-
-    async def send_voting_notification(self, **kwargs: object) -> bool:
-        self.sent.append({"type": "voting", **kwargs})
-        return True
-
-    async def send_new_iteration_notification(self, **kwargs: object) -> bool:
-        self.sent.append({"type": "new_iteration", **kwargs})
-        return True
-
-    async def send_finalized_notification(self, **kwargs: object) -> bool:
-        self.sent.append({"type": "finalized", **kwargs})
+        self.sent.append({"type": kind, "to": to_email, "to_email": to_email, **kwargs})
         return True
 
 

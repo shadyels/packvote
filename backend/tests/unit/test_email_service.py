@@ -50,7 +50,8 @@ def _patch_httpx(status: int = 201):
 class TestSendInvitation:
     async def test_returns_true_on_201(self, email_service: EmailService) -> None:
         with _patch_httpx(201):
-            result = await email_service.send_invitation(
+            result = await email_service.send_trip_email(
+                "invitation",
                 to_email="alice@example.com",
                 participant_name="Alice",
                 trip_title="Summer Trip",
@@ -62,7 +63,8 @@ class TestSendInvitation:
 
     async def test_returns_true_on_200(self, email_service: EmailService) -> None:
         with _patch_httpx(200):
-            result = await email_service.send_invitation(
+            result = await email_service.send_trip_email(
+                "invitation",
                 to_email="alice@example.com",
                 participant_name=None,
                 trip_title="Trip",
@@ -79,7 +81,8 @@ class TestSendInvitation:
             "app.services.email.brevo.httpx.AsyncClient",
             side_effect=RuntimeError("network error"),
         ):
-            result = await email_service.send_invitation(
+            result = await email_service.send_trip_email(
+                "invitation",
                 to_email="alice@example.com",
                 participant_name="Alice",
                 trip_title="Trip",
@@ -107,7 +110,8 @@ class TestSendInvitation:
         with patch(
             "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
         ):
-            await email_service.send_invitation(
+            await email_service.send_trip_email(
+                "invitation",
                 to_email="a@a.com",
                 participant_name=None,
                 trip_title="Summer Adventure",
@@ -136,7 +140,8 @@ class TestSendInvitation:
         with patch(
             "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
         ):
-            await email_service.send_invitation(
+            await email_service.send_trip_email(
+                "invitation",
                 to_email="a@a.com",
                 participant_name=None,
                 trip_title="Trip",
@@ -173,7 +178,8 @@ class TestSendVotingNotification:
         with patch(
             "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
         ):
-            await email_service.send_voting_notification(
+            await email_service.send_trip_email(
+                "voting",
                 to_email="a@a.com",
                 participant_name="Alice",
                 trip_title="Summer Trip",
@@ -202,7 +208,8 @@ class TestSendVotingNotification:
         with patch(
             "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
         ):
-            await email_service.send_voting_notification(
+            await email_service.send_trip_email(
+                "voting",
                 to_email="a@a.com",
                 participant_name=None,
                 trip_title="Trip",
@@ -239,7 +246,8 @@ class TestSendNewIterationNotification:
         with patch(
             "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
         ):
-            await email_service.send_new_iteration_notification(
+            await email_service.send_trip_email(
+                "new_iteration",
                 to_email="a@a.com",
                 participant_name=None,
                 trip_title="Trip",
@@ -277,7 +285,8 @@ class TestSendFinalizedNotification:
         with patch(
             "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
         ):
-            await email_service.send_finalized_notification(
+            await email_service.send_trip_email(
+                "finalized",
                 to_email="a@a.com",
                 participant_name=None,
                 trip_title="Our Trip",
@@ -297,7 +306,8 @@ class TestSendFinalizedNotification:
             "app.services.email.brevo.httpx.AsyncClient",
             side_effect=Exception("api error"),
         ):
-            result = await email_service.send_finalized_notification(
+            result = await email_service.send_trip_email(
+                "finalized",
                 to_email="a@a.com",
                 participant_name=None,
                 trip_title="Trip",

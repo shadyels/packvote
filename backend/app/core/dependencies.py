@@ -105,6 +105,10 @@ async def get_results_trip(
     return trip
 
 
+CurrentUser = Annotated[User, Depends(get_current_user)]
+DB = Annotated[AsyncSession, Depends(get_db)]
+
+
 def get_email_service() -> EmailService:
     return EmailService.from_settings()
 

@@ -18,7 +18,11 @@ from app.schemas.itinerary import (
     DayItinerary,
     ItineraryOption,
 )
-from app.services.ai.json_utils import AIInputError, AIParseError
+from app.services.ai.json_utils import (
+    AIInputError,
+    AIOptionCountError,
+    AIParseError,
+)
 from app.services.ai.openai_compat import OpenAICompatProvider, _split_prompt
 from app.services.ai.rate_limiter import GlobalRateLimiter, LocalRateLimitError
 
@@ -292,7 +296,7 @@ class TestOpenAICompatProviderGenerate:
 
         with (
             patch.object(provider, "_make_client", return_value=mock_client),
-            pytest.raises(ValueError, match="expected 3"),
+            pytest.raises(AIOptionCountError, match="expected 3"),
         ):
             await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 3, "model")
 
@@ -376,6 +380,15 @@ class TestOpenAICompatProviderGenerate:
 
         assert exc_info.value.field == "general"
 
+    async def test_client_closed_after_call(self) -> None:
+        provider = _make_provider()
+        mock_client = _make_mock_client(_make_valid_response_json(num_options=1))
+
+        with patch.object(provider, "_make_client", return_value=mock_client):
+            await provider.generate_itineraries("[SYSTEM]\nS\n[USER]\nU", 1, "model")
+
+        mock_client.__aexit__.assert_awaited_once()
+
     async def test_sdk_retries_disabled(self) -> None:
         """AIService owns retries; SDK retries would hide attempts from the log."""
         assert _make_provider()._make_client().max_retries == 0
@@ -411,7 +424,7 @@ class TestOpenAICompatProviderGenerate:
         [
             ("not valid json at all", 1, AIParseError),
             (json.dumps({"error": {"message": "No such place"}}), 1, AIInputError),
-            (_make_valid_response_json(num_options=1), 3, ValueError),
+            (_make_valid_response_json(num_options=1), 3, AIOptionCountError),
         ],
         ids=["invalid-json", "error-envelope", "wrong-option-count"],
     )

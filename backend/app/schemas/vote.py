@@ -33,6 +33,11 @@ class PickWinnerRequest(BaseModel):
     itinerary_id: int
 
 
+class PickWinnerResponse(BaseModel):
+    status: str
+    winner_itinerary_id: int | None
+
+
 class VoteRoundResult(BaseModel):
     round_number: int
     results: dict[int, int]  # itinerary_id -> vote count

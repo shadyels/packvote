@@ -1,10 +1,9 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core.dependencies import get_session_factory
-from app.db.session import get_db
+from app.core.dependencies import DB, get_session_factory
 from app.schemas.participant import (
     ParticipantAccessResponse,
     ParticipantResponse,
@@ -27,19 +26,16 @@ router = APIRouter(prefix="/participants", tags=["participants"])
 @router.post("/access-by-code", response_model=ParticipantAccessResponse)
 async def access_by_code(
     payload: TripAccessByCode,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DB,
 ) -> ParticipantAccessResponse:
     participant = await access_trip_by_code(payload.trip_code, payload.pin, db)
-    return ParticipantAccessResponse(
-        token=participant.token,
-        participant=ParticipantResponse.model_validate(participant),
-    )
+    return ParticipantAccessResponse(token=participant.token, participant=participant)
 
 
 @router.get("/{token}/trip-view", response_model=ParticipantTripView)
 async def get_trip_view(
     token: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DB,
 ) -> ParticipantTripView:
     return await get_participant_trip_view(token, db)
 
@@ -47,7 +43,7 @@ async def get_trip_view(
 @router.get("/{token}", response_model=ParticipantResponse)
 async def get_participant_by_token_handler(
     token: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DB,
 ) -> ParticipantResponse:
     return await get_participant_by_token(token, db)
 
@@ -57,7 +53,7 @@ async def submit_preferences(
     token: str,
     payload: PreferenceCreate,
     background_tasks: BackgroundTasks,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DB,
     session_factory: Annotated[async_sessionmaker, Depends(get_session_factory)],
 ) -> PreferenceResponse:
     return await svc_submit_preferences(

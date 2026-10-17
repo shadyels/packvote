@@ -2,6 +2,9 @@
 
 import re
 import unicodedata
+from typing import Annotated
+
+from pydantic import AfterValidator
 
 # Zero-width and invisible Unicode characters to strip
 _ZERO_WIDTH = re.compile(r"[​-‏‪-‮⁠-⁯﻿­]")
@@ -33,3 +36,14 @@ def sanitize_text(s: str) -> str:
     while (t := _DELIMS.sub("", s)) != s:
         s = t
     return s.strip()
+
+
+def _non_empty(s: str) -> str:
+    if not s:
+        raise ValueError("must not be empty")
+    return s
+
+
+# Pydantic field types: sanitized (and stripped) str, optionally non-empty after.
+CleanStr = Annotated[str, AfterValidator(sanitize_text)]
+NonEmptyCleanStr = Annotated[CleanStr, AfterValidator(_non_empty)]

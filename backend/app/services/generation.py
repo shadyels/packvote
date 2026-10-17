@@ -13,9 +13,10 @@ On total failure the trip is reset to COLLECTING_PREFERENCES so the creator can 
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import time
 from collections.abc import Collection
+from dataclasses import dataclass
 
 import httpx
 from openai import APIConnectionError, APIStatusError, RateLimitError
@@ -30,7 +31,8 @@ from app.models.preference import Preference
 from app.models.trip import Trip, TripStatus
 from app.schemas._limits import max_trip_days
 from app.schemas._sanitize import sanitize_text
-from app.services.ai.json_utils import AIInputError, AIParseError
+from app.schemas.itinerary import AIGenerationResponse
+from app.services.ai.json_utils import AIInputError, AIOptionCountError, AIParseError
 from app.services.ai.rate_limiter import LocalRateLimitError
 from app.services.ai.service import AIService
 
@@ -173,6 +175,16 @@ Generate {num_options} travel itinerary options that best satisfy the group's co
 # ---------------------------------------------------------------------------
 
 
+def _humanize_wait(seconds: float) -> str:
+    """Seconds under two minutes, then minutes, then hours (rounded up)."""
+    secs = int(seconds) + 1
+    if secs < 120:
+        return f"{secs} seconds"
+    if secs < 7200:
+        return f"{-(-secs // 60)} minutes"
+    return f"about {round(secs / 3600)} hours"
+
+
 def _humanize_error(exc: Exception) -> str:
     """Convert a technical exception into a user-friendly error message."""
     if isinstance(exc, AIInputError):
@@ -180,15 +192,15 @@ def _humanize_error(exc: Exception) -> str:
         if exc.suggestion:
             msg = f"{msg} Tip: {exc.suggestion}"
         return msg
+    if isinstance(exc, AIOptionCountError):
+        return (
+            "The AI generated the wrong number of itinerary options. "
+            "Try again or reduce the number of options in the trip settings."
+        )
     if isinstance(exc, AIParseError):
         return (
             "The AI returned an invalid response. "
             "This is usually temporary — try again."
-        )
-    if isinstance(exc, ValueError) and "options" in str(exc):
-        return (
-            "The AI generated the wrong number of itinerary options. "
-            "Try again or reduce the number of options in the trip settings."
         )
     if isinstance(exc, LocalRateLimitError):
         if exc.kind == "context_length":
@@ -196,8 +208,10 @@ def _humanize_error(exc: Exception) -> str:
                 "The trip preferences are too long to process. "
                 "Try reducing the number of participants or shortening preference details."
             )
-        retry = int(exc.retry_after_seconds) + 1
-        return f"The AI service is busy. Please try again in {retry} seconds."
+        return (
+            "The AI service is busy. Please try again in "
+            f"{_humanize_wait(exc.retry_after_seconds)}."
+        )
     if isinstance(exc, RateLimitError):
         return (
             "The AI service is currently busy (rate limit reached). "
@@ -220,17 +234,34 @@ async def run_generation(
     trip_id: int,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Background task entry point. Opens its own DB session."""
-    async with session_factory() as db:
+    """Background task entry point.
+
+    Three phases, each with its own short-lived session, so no DB connection is
+    held while the (minutes-long) AI call runs: read -> AI call -> write.
+    """
+    try:
+        job = await _read_phase(trip_id, session_factory)
+        if job is None:
+            return
+        calls: list[AICallLog] = []
         try:
-            await _do_generation(trip_id, db)
-        except Exception as exc:
-            logger.error(
-                "Generation failed for trip %d: %s", trip_id, exc, exc_info=True
+            ai_response = await AIService.from_settings().generate_itineraries(
+                prompt=job.prompt, num_options=job.num_options, calls=calls
             )
-            await _reset_trip_status(
-                trip_id, session_factory, error_message=_humanize_error(exc)
+        except Exception:
+            await _write_call_logs(
+                trip_id, job.iteration_number, calls, session_factory
             )
+            raise
+        if not await _write_phase(trip_id, job, ai_response, calls, session_factory):
+            return
+    except Exception as exc:
+        logger.error("Generation failed for trip %d: %s", trip_id, exc, exc_info=True)
+        await _reset_trip_status(
+            trip_id, session_factory, error_message=_humanize_error(exc)
+        )
+        return
+    await _send_voting_emails(trip_id, job.iteration_number, session_factory)
 
 
 # ---------------------------------------------------------------------------
@@ -281,99 +312,126 @@ async def recover_stuck_generations(
 # ---------------------------------------------------------------------------
 
 
-async def _do_generation(trip_id: int, db: AsyncSession) -> None:
-    # Re-fetch trip — idempotency guard in case of double-trigger
-    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = trip_result.scalar_one_or_none()
-    if trip is None or trip.status != "GENERATING":
-        logger.warning(
-            "run_generation called for trip %d but status is %s — skipping",
-            trip_id,
-            getattr(trip, "status", "NOT_FOUND"),
+@dataclass(frozen=True)
+class _GenerationJob:
+    """Plain values snapshotted in the read phase (no ORM objects survive)."""
+
+    prompt: str
+    num_options: int
+    iteration_number: int
+
+
+async def _read_phase(
+    trip_id: int, session_factory: async_sessionmaker[AsyncSession]
+) -> _GenerationJob | None:
+    async with session_factory() as db:
+        # Re-fetch trip — idempotency guard in case of double-trigger
+        trip = (
+            await db.execute(select(Trip).where(Trip.id == trip_id))
+        ).scalar_one_or_none()
+        if trip is None or trip.status != TripStatus.GENERATING:
+            logger.warning(
+                "run_generation called for trip %d but status is %s — skipping",
+                trip_id,
+                getattr(trip, "status", "NOT_FOUND"),
+            )
+            return None
+
+        preferences = list(
+            (await db.execute(select(Preference).where(Preference.trip_id == trip_id)))
+            .scalars()
+            .all()
         )
-        return
-
-    # Clear any previous generation error
-    trip.generation_error = None
-
-    # Fetch all preferences for this trip
-    prefs_result = await db.execute(
-        select(Preference).where(Preference.trip_id == trip_id)
-    )
-    preferences = list(prefs_result.scalars().all())
-
-    # Count all participants (including creator who never submits a Preference row)
-    participant_result = await db.execute(
-        select(func.count(Participant.id)).where(Participant.trip_id == trip_id)
-    )
-    group_size = participant_result.scalar_one()
-
-    # Render prompt
-    prompt = _render_prompt(trip, preferences, group_size=group_size)
-
-    # Call AI with retry + fallback
-    ai_service = AIService.from_settings()
-    iteration_number = trip.current_iteration + 1
-    calls: list[AICallLog] = []
-    t_start = time.monotonic()
-    try:
-        ai_response = await ai_service.generate_itineraries(
-            prompt=prompt,
+        # Count all participants (including creator who never submits a Preference row)
+        group_size = (
+            await db.execute(
+                select(func.count(Participant.id)).where(Participant.trip_id == trip_id)
+            )
+        ).scalar_one()
+        return _GenerationJob(
+            prompt=_render_prompt(trip, preferences, group_size=group_size),
             num_options=trip.num_options,
-            calls=calls,
+            iteration_number=trip.current_iteration + 1,
         )
-    except Exception:
+
+
+async def _write_call_logs(
+    trip_id: int,
+    iteration_number: int,
+    calls: list[AICallLog],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as db:
+        _add_call_logs(db, calls, trip_id=trip_id, iteration_number=iteration_number)
+        await db.commit()
+
+
+async def _write_phase(
+    trip_id: int,
+    job: _GenerationJob,
+    ai_response: AIGenerationResponse,
+    calls: list[AICallLog],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> bool:
+    """Persist results; False (call logs only) if the trip is no longer GENERATING."""
+    # Model/provider/latency come from the winning (valid) attempt's AICallLog.
+    winner = next((c for c in reversed(calls) if c.response_valid), None)
+    settings = get_settings()
+    model_used = winner.model_used if winner else settings.DEFAULT_AI_MODEL
+    provider = winner.provider if winner else settings.AI_PROVIDER_NAME
+    latency_ms = winner.latency_ms if winner else None
+
+    async with session_factory() as db:
+        # CAS: startup recovery on a newer instance may have failed this trip while
+        # the AI call ran. ponytail: a retry started after recovery can still race
+        # this stale run (both see GENERATING); upgrade path is a per-attempt
+        # generation id on the trip.
+        result = await db.execute(
+            update(Trip)
+            .where(Trip.id == trip_id, Trip.status == TripStatus.GENERATING)
+            .values(current_iteration=job.iteration_number, status=TripStatus.VOTING)
+        )
+        if result.rowcount != 1:
+            logger.warning(
+                "Trip %d no longer GENERATING after AI call — discarding results",
+                trip_id,
+            )
+            _add_call_logs(
+                db, calls, trip_id=trip_id, iteration_number=job.iteration_number
+            )
+            await db.commit()
+            return False
+        for option in ai_response.options:
+            db.add(
+                Itinerary(
+                    trip_id=trip_id,
+                    iteration_number=job.iteration_number,
+                    option_title=option.option_title,
+                    destination_name=option.destination_name,
+                    destination_description=option.destination_description,
+                    daily_itinerary=[d.model_dump() for d in option.daily_itinerary],
+                    total_estimated_budget=option.total_estimated_budget,
+                    currency=option.currency,
+                    match_reasoning=option.match_reasoning,
+                    highlights=option.highlights,
+                    prompt_version=PROMPT_VERSION,
+                    model_used=model_used,
+                    provider=provider,
+                    generation_latency_ms=latency_ms,
+                )
+            )
         _add_call_logs(
-            db,
-            calls,
-            trip_id=trip_id,
-            iteration_number=iteration_number,
+            db, calls, trip_id=trip_id, iteration_number=job.iteration_number
         )
         await db.commit()
-        raise
-
-    latency_ms = int((time.monotonic() - t_start) * 1000)
-
-    trip.current_iteration = iteration_number
-
-    # Persist itinerary rows
-    for option in ai_response.options:
-        itinerary = Itinerary(
-            trip_id=trip_id,
-            iteration_number=iteration_number,
-            option_title=option.option_title,
-            destination_name=option.destination_name,
-            destination_description=option.destination_description,
-            daily_itinerary=[day.model_dump() for day in option.daily_itinerary],
-            total_estimated_budget=option.total_estimated_budget,
-            currency=option.currency,
-            match_reasoning=option.match_reasoning,
-            highlights=option.highlights,
-            prompt_version=PROMPT_VERSION,
-            model_used=get_settings().DEFAULT_AI_MODEL,
-            provider=get_settings().AI_PROVIDER_NAME,
-            generation_latency_ms=latency_ms,
-        )
-        db.add(itinerary)
-
-    _add_call_logs(
-        db,
-        calls,
-        trip_id=trip_id,
-        iteration_number=iteration_number,
-    )
-
-    trip.status = "VOTING"
-    await db.commit()
     logger.info(
-        "Generation complete for trip %d: %d options, provider=%s, latency=%dms",
+        "Generation complete for trip %d: %d options, provider=%s, latency=%sms",
         trip_id,
         len(ai_response.options),
-        get_settings().AI_PROVIDER_NAME,
+        provider,
         latency_ms,
     )
-
-    await _send_voting_emails(trip, iteration_number, db)
+    return True
 
 
 async def _reset_trip_status(
@@ -384,17 +442,14 @@ async def _reset_trip_status(
 ) -> None:
     """Open a fresh session to set trip status to GENERATION_FAILED after a failure."""
     async with session_factory() as db:
-        result = await db.execute(select(Trip).where(Trip.id == trip_id))
-        trip = result.scalar_one_or_none()
-        if trip is not None and trip.status == "GENERATING":
-            trip.status = "GENERATION_FAILED"
-            trip.generation_error = error_message
-            await db.commit()
-            logger.info(
-                "Trip %d set to GENERATION_FAILED: %s",
-                trip_id,
-                error_message,
-            )
+        result = await db.execute(
+            update(Trip)
+            .where(Trip.id == trip_id, Trip.status == TripStatus.GENERATING)
+            .values(status=TripStatus.GENERATION_FAILED, generation_error=error_message)
+        )
+        await db.commit()
+        if result.rowcount == 1:
+            logger.info("Trip %d set to GENERATION_FAILED: %s", trip_id, error_message)
 
 
 # ---------------------------------------------------------------------------
@@ -530,40 +585,49 @@ def _compute_trip_duration(trip: Trip, preferences: list[Preference]) -> int:
 
 
 async def _send_voting_emails(
-    trip: Trip, iteration_number: int, db: AsyncSession
+    trip_id: int,
+    iteration_number: int,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """Send voting or new-iteration notifications to all participants (best-effort)."""
-    from app.services.email.brevo import EmailService
+    from app.services.email.brevo import EmailKind, EmailService
 
-    participants_result = await db.execute(
-        select(Participant).where(Participant.trip_id == trip.id)
-    )
-    participants = participants_result.scalars().all()
+    async with session_factory() as db:
+        trip = (await db.execute(select(Trip).where(Trip.id == trip_id))).scalar_one()
+        title, trip_code = trip.title, trip.trip_code
+        participants = list(
+            (
+                await db.execute(
+                    select(Participant).where(Participant.trip_id == trip_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     email_service = EmailService.from_settings()
-    for p in participants:
-        try:
-            if iteration_number == 1:
-                await email_service.send_voting_notification(
-                    to_email=p.email,
-                    participant_name=p.name,
-                    trip_title=trip.title,
-                    trip_code=trip.trip_code,
-                    pin=p.pin,
-                    token=p.token,
-                )
-            else:
-                await email_service.send_new_iteration_notification(
-                    to_email=p.email,
-                    participant_name=p.name,
-                    trip_title=trip.title,
-                    trip_code=trip.trip_code,
-                    pin=p.pin,
-                    token=p.token,
-                )
-        except Exception:
+    kind: EmailKind = "voting" if iteration_number == 1 else "new_iteration"
+    results = await asyncio.gather(
+        *[
+            email_service.send_trip_email(
+                kind,
+                to_email=p.email,
+                participant_name=p.name,
+                trip_title=title,
+                trip_code=trip_code,
+                pin=p.pin,
+                token=p.token,
+            )
+            for p in participants
+        ],
+        return_exceptions=True,
+    )
+    for p, r in zip(participants, results, strict=True):
+        if isinstance(r, Exception):
             logger.warning(
-                "Failed to send voting email to %s for trip %d", p.email, trip.id
+                "Failed to send voting email to participant %d for trip %d",
+                p.id,
+                trip_id,
             )
 
 

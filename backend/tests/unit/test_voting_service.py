@@ -368,7 +368,7 @@ class TestAutoTally:
         itin_ids = [i.id for i in s["itineraries"]]
 
         mock_svc = MagicMock()
-        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        mock_svc.send_trip_email = AsyncMock(return_value=True)
         monkeypatch.setattr(
             "app.services.email.brevo.EmailService.from_settings",
             lambda: mock_svc,
@@ -382,7 +382,7 @@ class TestAutoTally:
         await bg()  # run queued background tasks
 
         # 2 participants (invitee + creator) → 2 finalized emails
-        assert mock_svc.send_finalized_notification.call_count == 2
+        assert mock_svc.send_trip_email.call_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -610,7 +610,7 @@ class TestAtomicLifecycle:
 
         s = voting_setup
         mock_svc = MagicMock()
-        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        mock_svc.send_trip_email = AsyncMock(return_value=True)
         monkeypatch.setattr(
             "app.services.email.brevo.EmailService.from_settings", lambda: mock_svc
         )
@@ -621,7 +621,7 @@ class TestAtomicLifecycle:
         assert await _finalize(s["trip"], winner, db, bg) is False
         await bg()
 
-        assert mock_svc.send_finalized_notification.call_count == 2  # one batch
+        assert mock_svc.send_trip_email.call_count == 2  # one batch
 
     async def test_double_auto_tally_sends_one_email_batch(
         self, db: AsyncSession, voting_setup, monkeypatch
@@ -633,7 +633,7 @@ class TestAtomicLifecycle:
         s = voting_setup
         itin_ids = [i.id for i in s["itineraries"]]
         mock_svc = MagicMock()
-        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        mock_svc.send_trip_email = AsyncMock(return_value=True)
         monkeypatch.setattr(
             "app.services.email.brevo.EmailService.from_settings", lambda: mock_svc
         )
@@ -645,7 +645,7 @@ class TestAtomicLifecycle:
         await _maybe_auto_tally(s["trip"], db, bg)  # second tally of same trip
         await bg()
 
-        assert mock_svc.send_finalized_notification.call_count == 2
+        assert mock_svc.send_trip_email.call_count == 2
 
     def test_itinerary_response_has_no_price_fields(self) -> None:
         from app.schemas.itinerary import ItineraryResponse

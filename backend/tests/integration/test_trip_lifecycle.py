@@ -313,7 +313,7 @@ class TestVotingLifecycle:
         from unittest.mock import AsyncMock, MagicMock
 
         mock_svc = MagicMock()
-        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        mock_svc.send_trip_email = AsyncMock(return_value=True)
         monkeypatch.setattr(
             "app.services.email.brevo.EmailService.from_settings",
             lambda: mock_svc,
@@ -371,7 +371,7 @@ class TestVotingLifecycle:
         from unittest.mock import AsyncMock, MagicMock
 
         mock_svc = MagicMock()
-        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        mock_svc.send_trip_email = AsyncMock(return_value=True)
         monkeypatch.setattr(
             "app.services.email.brevo.EmailService.from_settings",
             lambda: mock_svc,
@@ -406,4 +406,4 @@ class TestVotingLifecycle:
         data = resp.json()
         assert data["status"] == "VOTING"
         assert data["winner_itinerary_id"] is None
-        mock_svc.send_finalized_notification.assert_not_called()
+        mock_svc.send_trip_email.assert_not_called()

@@ -8,7 +8,12 @@ from pydantic import ValidationError
 
 from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import AIGenerationResponse
-from app.services.ai.json_utils import AIInputError, AIParseError, extract_json
+from app.services.ai.json_utils import (
+    AIInputError,
+    AIOptionCountError,
+    AIParseError,
+    extract_json,
+)
 from app.services.ai.rate_limiter import get_limiter
 
 logger = logging.getLogger(__name__)
@@ -91,17 +96,18 @@ class OpenAICompatProvider:
             extra_kwargs["extra_body"] = self.extra_body
         t_start = time.monotonic()
         try:
-            completion = await client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg},
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.7,
-                max_tokens=MAX_OUTPUT_TOKENS,
-                **extra_kwargs,
-            )
+            async with client:  # closes the connection pool per call
+                completion = await client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.7,
+                    max_tokens=MAX_OUTPUT_TOKENS,
+                    **extra_kwargs,
+                )
         except Exception as exc:
             log.latency_ms = int((time.monotonic() - t_start) * 1000)
             log.error_message = str(exc)
@@ -174,7 +180,7 @@ class OpenAICompatProvider:
             )
             raise AIParseError(str(exc)) from exc
         if len(response.options) != num_options:
-            raise ValueError(
+            raise AIOptionCountError(
                 f"AI returned {len(response.options)} options, expected {num_options}"
             )
         return response

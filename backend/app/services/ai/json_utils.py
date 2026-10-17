@@ -32,6 +32,10 @@ class AIInputError(AIParseError):
         self.field = field  # "destination" | "dates" | "budget" | "general"
 
 
+class AIOptionCountError(AIParseError):
+    """Raised when the AI returns a different number of options than requested."""
+
+
 def extract_json(raw: str | None) -> dict:
     """Extract a JSON object from an AI model response string.
 

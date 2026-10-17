@@ -86,7 +86,7 @@ async def send_reset_email(to_email: str, full_name: str | None, token: str) -> 
             to_email=to_email, full_name=full_name, reset_token=token
         )
     except Exception:
-        logger.exception("Failed to send password reset email to %s", to_email)
+        logger.exception("Failed to send password reset email")
 
 
 async def confirm_reset(db: AsyncSession, token: str, new_password: str) -> bool:

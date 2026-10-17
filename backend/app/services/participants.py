@@ -72,8 +72,7 @@ async def get_participant_trip_view(
 
     participant = await get_participant_by_token(token, db)
 
-    trip_result = await db.execute(select(Trip).where(Trip.id == participant.trip_id))
-    trip = trip_result.scalar_one_or_none()
+    trip = await db.get(Trip, participant.trip_id)
     if trip is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
@@ -95,7 +94,7 @@ async def get_participant_trip_view(
 
     # Itineraries for current iteration (only relevant during/after voting)
     itineraries: list[ItineraryModel] = []
-    show_itinerary_statuses = {"VOTING", "FINALIZED"}
+    show_itinerary_statuses = {TripStatus.VOTING, TripStatus.FINALIZED}
     if trip.status in show_itinerary_statuses:
         itin_result = await db.execute(
             select(ItineraryModel).where(
@@ -106,15 +105,10 @@ async def get_participant_trip_view(
         itineraries = list(itin_result.scalars().all())
 
         # For FINALIZED, also include the winner if it's from a different iteration
-        if trip.status == "FINALIZED" and trip.winner_itinerary_id:
+        if trip.status == TripStatus.FINALIZED and trip.winner_itinerary_id:
             winner_ids = {it.id for it in itineraries}
             if trip.winner_itinerary_id not in winner_ids:
-                winner_result = await db.execute(
-                    select(ItineraryModel).where(
-                        ItineraryModel.id == trip.winner_itinerary_id
-                    )
-                )
-                winner = winner_result.scalar_one_or_none()
+                winner = await db.get(ItineraryModel, trip.winner_itinerary_id)
                 if winner:
                     itineraries.append(winner)
 
@@ -159,27 +153,16 @@ async def submit_preferences(
     )
     pref = result.scalar_one_or_none()
 
+    # name lives on the participant, not the preference row
+    fields = payload.model_dump(exclude={"name"})
     if pref is None:
         pref = Preference(
-            participant_id=participant.id,
-            trip_id=participant.trip_id,
-            preferred_start_date=payload.preferred_start_date,
-            preferred_end_date=payload.preferred_end_date,
-            budget_min=payload.budget_min,
-            budget_max=payload.budget_max,
-            currency=payload.currency,
-            interests=payload.interests,
-            activity_tags=payload.activity_tags,
+            participant_id=participant.id, trip_id=participant.trip_id, **fields
         )
         db.add(pref)
     else:
-        pref.preferred_start_date = payload.preferred_start_date
-        pref.preferred_end_date = payload.preferred_end_date
-        pref.budget_min = payload.budget_min
-        pref.budget_max = payload.budget_max
-        pref.currency = payload.currency
-        pref.interests = payload.interests
-        pref.activity_tags = payload.activity_tags
+        for key, value in fields.items():
+            setattr(pref, key, value)
 
     if payload.name is not None:
         stripped = payload.name.strip()
@@ -188,7 +171,6 @@ async def submit_preferences(
     participant.preferences_submitted = True
 
     await db.commit()
-    await db.refresh(pref)
 
     # Auto-trigger generation if all participants have submitted
     await _maybe_trigger_generation(

@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 import httpx
 
@@ -10,6 +11,34 @@ MAX_EPD = 300  # Brevo free tier: emails per day
 _limiter = SlidingWindow(MAX_EPD, 86400)
 
 logger = logging.getLogger(__name__)
+
+EmailKind = Literal["invitation", "voting", "new_iteration", "finalized"]
+
+# kind -> (subject, intro ending at the link label, link path); "{title}"/"{dest}" filled in.
+TRIP_EMAILS: dict[EmailKind, tuple[str, str, str]] = {
+    "invitation": (
+        "You're invited to {title}",
+        "You've been invited to join the trip: {title}\n\nJoin via link: ",
+        "/join/{token}",
+    ),
+    "voting": (
+        "Vote now: {title} itineraries are ready",
+        "The itineraries for {title} are ready. Cast your vote!\n\nVote via link: ",
+        "/trip/{token}/vote",
+    ),
+    "new_iteration": (
+        "New options for {title} — vote again!",
+        "A new round of itineraries has been generated for {title}.\n"
+        "Check out the new options and cast your vote!\n\nVote via link: ",
+        "/trip/{token}/vote",
+    ),
+    "finalized": (
+        "Trip finalized: {title} — {dest}",
+        "Your group has chosen: {dest}!\nThe trip {title} has been finalized.\n\n"
+        "View the itinerary: ",
+        "/trip/{token}",
+    ),
+}
 
 
 class EmailService:
@@ -35,13 +64,11 @@ class EmailService:
 
     async def _send(self, to_email: str, subject: str, body: str) -> bool:
         if not self._api_key:
-            logger.error("BREVO_API_KEY is not set — email to %s not sent", to_email)
+            logger.error("BREVO_API_KEY is not set — email not sent")
             return False
         if not _limiter.acquire():
             logger.warning(
-                "Brevo daily rate limit reached (%d/day) — email to %s dropped",
-                MAX_EPD,
-                to_email,
+                "Brevo daily rate limit reached (%d/day) — email dropped", MAX_EPD
             )
             return False
         payload = {
@@ -62,78 +89,34 @@ class EmailService:
                     timeout=10,
                 )
             if resp.status_code not in (200, 201):
-                logger.error(
-                    "Brevo API error sending to %s: status=%s body=%s",
-                    to_email,
-                    resp.status_code,
-                    resp.text,
-                )
+                logger.error("Brevo API error: status=%s", resp.status_code)
                 return False
             return True
-        except Exception as exc:
-            logger.exception("Unexpected error sending email to %s: %s", to_email, exc)
+        except Exception:
+            logger.exception("Unexpected error sending email")
             return False
 
-    async def send_invitation(
+    async def send_trip_email(
         self,
+        kind: EmailKind,
+        *,
         to_email: str,
         participant_name: str | None,
         trip_title: str,
         trip_code: str,
         pin: str,
         token: str,
+        destination_name: str = "",
     ) -> bool:
-        """Send trip invitation with preference form link."""
+        """Send one trip email (subject/intro/link path from ``TRIP_EMAILS``)."""
+        subject, intro, path = TRIP_EMAILS[kind]
+        fmt = {"title": trip_title, "dest": destination_name}
         return await self._send(
             to_email=to_email,
-            subject=f"You're invited to {trip_title}",
+            subject=subject.format(**fmt),
             body=(
                 f"Hi {participant_name or 'there'},\n\n"
-                f"You've been invited to join the trip: {trip_title}\n\n"
-                f"Join via link: {self._frontend_url}/join/{token}\n"
-                f"Or enter Trip Code: {trip_code}  PIN: {pin}\n"
-            ),
-        )
-
-    async def send_voting_notification(
-        self,
-        to_email: str,
-        participant_name: str | None,
-        trip_title: str,
-        trip_code: str,
-        pin: str,
-        token: str,
-    ) -> bool:
-        """Notify participant that itineraries are ready to vote on."""
-        return await self._send(
-            to_email=to_email,
-            subject=f"Vote now: {trip_title} itineraries are ready",
-            body=(
-                f"Hi {participant_name or 'there'},\n\n"
-                f"The itineraries for {trip_title} are ready. Cast your vote!\n\n"
-                f"Vote via link: {self._frontend_url}/trip/{token}/vote\n"
-                f"Or enter Trip Code: {trip_code}  PIN: {pin}\n"
-            ),
-        )
-
-    async def send_new_iteration_notification(
-        self,
-        to_email: str,
-        participant_name: str | None,
-        trip_title: str,
-        trip_code: str,
-        pin: str,
-        token: str,
-    ) -> bool:
-        """Notify participant that new itinerary options are ready for voting."""
-        return await self._send(
-            to_email=to_email,
-            subject=f"New options for {trip_title} — vote again!",
-            body=(
-                f"Hi {participant_name or 'there'},\n\n"
-                f"A new round of itineraries has been generated for {trip_title}.\n"
-                f"Check out the new options and cast your vote!\n\n"
-                f"Vote via link: {self._frontend_url}/trip/{token}/vote\n"
+                f"{intro.format(**fmt)}{self._frontend_url}{path.format(token=token)}\n"
                 f"Or enter Trip Code: {trip_code}  PIN: {pin}\n"
             ),
         )
@@ -154,28 +137,5 @@ class EmailService:
                 f"Reset your password: {self._frontend_url}/reset-password?token={reset_token}\n\n"
                 f"This link expires in 60 minutes.\n\n"
                 f"If you didn't request this, you can safely ignore this email.\n"
-            ),
-        )
-
-    async def send_finalized_notification(
-        self,
-        to_email: str,
-        participant_name: str | None,
-        trip_title: str,
-        trip_code: str,
-        pin: str,
-        token: str,
-        destination_name: str,
-    ) -> bool:
-        """Notify participant that the trip has been finalized."""
-        return await self._send(
-            to_email=to_email,
-            subject=f"Trip finalized: {trip_title} — {destination_name}",
-            body=(
-                f"Hi {participant_name or 'there'},\n\n"
-                f"Your group has chosen: {destination_name}!\n"
-                f"The trip {trip_title} has been finalized.\n\n"
-                f"View the itinerary: {self._frontend_url}/trip/{token}\n"
-                f"Or enter Trip Code: {trip_code}  PIN: {pin}\n"
             ),
         )

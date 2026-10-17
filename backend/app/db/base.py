@@ -18,4 +18,5 @@ def get_engine():
     return create_async_engine(
         settings.DATABASE_URL,
         echo=settings.ENVIRONMENT == "development",
+        pool_pre_ping=True,
     )
