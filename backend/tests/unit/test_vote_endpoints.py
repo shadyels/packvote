@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import secrets
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -10,9 +9,11 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.trip import Trip
+from tests.factories import make_itinerary
+from tests.helpers import auth_headers as auth_headers_for
+from tests.helpers import register_and_login
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ async def voting_context(
     Create a trip with 1 participant, 2 itineraries in VOTING status.
     Returns dict with trip, participant token, itinerary IDs.
     """
-    voter_email = f"voter_{secrets.token_hex(4)}@test.com"
+    voter_email = "voter@test.com"
     resp = await client.post(
         "/trips/",
         json={"title": "Vote Trip", "participant_emails": [voter_email]},
@@ -43,30 +44,8 @@ async def voting_context(
     trip.status = "VOTING"
     trip.current_iteration = 1
 
-    itin1 = Itinerary(
-        trip_id=trip_id,
-        iteration_number=1,
-        destination_name="Destination A",
-        destination_description="Desc A",
-        daily_itinerary=[],
-        total_estimated_budget=1000.0,
-        currency="USD",
-        match_reasoning="reason",
-        highlights=["h1"],
-    )
-    itin2 = Itinerary(
-        trip_id=trip_id,
-        iteration_number=1,
-        destination_name="Destination B",
-        destination_description="Desc B",
-        daily_itinerary=[],
-        total_estimated_budget=1200.0,
-        currency="USD",
-        match_reasoning="reason",
-        highlights=["h2"],
-    )
-    db.add(itin1)
-    db.add(itin2)
+    itin1 = make_itinerary(db, trip_id, destination_name="Destination A")
+    itin2 = make_itinerary(db, trip_id, destination_name="Destination B")
     await db.flush()
 
     # Get an invitee participant token (not the creator row)
@@ -226,11 +205,7 @@ class TestGetResults:
 
 
 async def _login(client: AsyncClient, email: str) -> dict:
-    await client.post("/auth/register", json={"email": email, "password": "test1234"})
-    resp = await client.post(
-        "/auth/login", json={"email": email, "password": "test1234"}
-    )
-    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+    return auth_headers_for(await register_and_login(client, email, "test1234"))
 
 
 class TestResultsAuth:

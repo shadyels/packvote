@@ -18,20 +18,17 @@ from app.schemas.vote import VoteSubmit
 # ---------------------------------------------------------------------------
 
 
-def test_sanitize_text_strips_control_chars() -> None:
-    assert sanitize_text("hello\x00world\x01") == "helloworld"
-
-
-def test_sanitize_text_preserves_newlines() -> None:
-    assert sanitize_text("line1\nline2") == "line1\nline2"
-
-
-def test_sanitize_text_normalizes_multi_space() -> None:
-    assert sanitize_text("hello   world") == "hello world"
-
-
-def test_sanitize_text_strips_leading_trailing() -> None:
-    assert sanitize_text("  hello  ") == "hello"
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("hello\x00world\x01", "helloworld"),  # control chars stripped
+        ("line1\nline2", "line1\nline2"),  # newlines preserved
+        ("hello   world", "hello world"),  # multi-space collapsed
+        ("  hello  ", "hello"),  # leading/trailing stripped
+    ],
+)
+def test_sanitize_text_basic(raw: str, expected: str) -> None:
+    assert sanitize_text(raw) == expected
 
 
 @pytest.mark.parametrize(
@@ -61,20 +58,9 @@ def test_sanitize_text_strips_zero_width_chars() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_max_trip_days_n2_is_20() -> None:
-    assert max_trip_days(2) == 20
-
-
-def test_max_trip_days_n3_is_13() -> None:
-    assert max_trip_days(3) == 13
-
-
-def test_max_trip_days_n4_is_9() -> None:
-    assert max_trip_days(4) == 9
-
-
-def test_max_trip_days_n5_is_7() -> None:
-    assert max_trip_days(5) == 7
+@pytest.mark.parametrize(("n", "days"), [(2, 20), (3, 13), (4, 9), (5, 7)])
+def test_max_trip_days(n: int, days: int) -> None:
+    assert max_trip_days(n) == days
 
 
 # ---------------------------------------------------------------------------
@@ -84,34 +70,29 @@ def test_max_trip_days_n5_is_7() -> None:
 _DEFAULT_EMAILS = ["test@example.com"]
 
 
-def test_trip_create_title_too_long_raises() -> None:
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"title": "a" * 121},
+        {"title": "   "},
+        {"title": "My Trip", "notes": "a" * 2001},
+        {
+            "title": "My Trip",
+            "participant_emails": [f"user{i}@x.com" for i in range(21)],
+        },
+        {"title": "My Trip", "participant_emails": ["not-an-email"]},
+    ],
+    ids=[
+        "title_too_long",
+        "empty_title",
+        "notes_too_long",
+        "too_many_emails",
+        "bad_email",
+    ],
+)
+def test_trip_create_invalid_raises(kwargs: dict) -> None:
     with pytest.raises(ValidationError):
-        TripCreate(title="a" * 121, participant_emails=_DEFAULT_EMAILS)
-
-
-def test_trip_create_empty_title_raises() -> None:
-    with pytest.raises(ValidationError):
-        TripCreate(title="   ", participant_emails=_DEFAULT_EMAILS)
-
-
-def test_trip_create_notes_too_long_raises() -> None:
-    with pytest.raises(ValidationError):
-        TripCreate(
-            title="My Trip", notes="a" * 2001, participant_emails=_DEFAULT_EMAILS
-        )
-
-
-def test_trip_create_too_many_participant_emails_raises() -> None:
-    with pytest.raises(ValidationError):
-        TripCreate(
-            title="My Trip",
-            participant_emails=[f"user{i}@x.com" for i in range(21)],
-        )
-
-
-def test_trip_create_invalid_email_raises() -> None:
-    with pytest.raises(ValidationError):
-        TripCreate(title="My Trip", participant_emails=["not-an-email"])
+        TripCreate(**{"participant_emails": _DEFAULT_EMAILS, **kwargs})
 
 
 def test_trip_create_date_range_exceeds_cap_raises() -> None:
@@ -151,24 +132,18 @@ def test_trip_create_date_range_at_cap_passes() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_trip_access_invalid_trip_code_lowercase_raises() -> None:
+@pytest.mark.parametrize(
+    ("trip_code", "pin"),
+    [
+        ("abcdefgh", "1234"),  # lowercase code
+        ("ABCD123", "1234"),  # short code
+        ("ABCD1234", "12ab"),  # non-digit pin
+        ("ABCD1234", "12345"),  # 5-digit pin
+    ],
+)
+def test_trip_access_invalid_raises(trip_code: str, pin: str) -> None:
     with pytest.raises(ValidationError):
-        TripAccessByCode(trip_code="abcdefgh", pin="1234")
-
-
-def test_trip_access_invalid_trip_code_short_raises() -> None:
-    with pytest.raises(ValidationError):
-        TripAccessByCode(trip_code="ABCD123", pin="1234")
-
-
-def test_trip_access_invalid_pin_non_digits_raises() -> None:
-    with pytest.raises(ValidationError):
-        TripAccessByCode(trip_code="ABCD1234", pin="12ab")
-
-
-def test_trip_access_invalid_pin_5_digits_raises() -> None:
-    with pytest.raises(ValidationError):
-        TripAccessByCode(trip_code="ABCD1234", pin="12345")
+        TripAccessByCode(trip_code=trip_code, pin=pin)
 
 
 def test_trip_access_valid_passes() -> None:
@@ -182,14 +157,18 @@ def test_trip_access_valid_passes() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_user_create_password_too_short_raises() -> None:
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"password": "abc"},
+        {"password": "a" * 73},
+        {"password": "validpass", "full_name": "a" * 81},
+    ],
+    ids=["password_too_short", "password_too_long", "full_name_too_long"],
+)
+def test_user_create_invalid_raises(kwargs: dict) -> None:
     with pytest.raises(ValidationError):
-        UserCreate(email="user@example.com", password="abc")
-
-
-def test_user_create_password_too_long_raises() -> None:
-    with pytest.raises(ValidationError):
-        UserCreate(email="user@example.com", password="a" * 73)
+        UserCreate(email="user@example.com", **kwargs)
 
 
 def test_user_create_password_at_max_passes() -> None:
@@ -217,14 +196,12 @@ def test_password_reset_confirm_too_short_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_vote_submit_duplicate_rankings_raises() -> None:
+@pytest.mark.parametrize(
+    "rankings", [[1, 2, 1], list(range(51))], ids=["duplicate", "too_many"]
+)
+def test_vote_submit_invalid_raises(rankings: list[int]) -> None:
     with pytest.raises(ValidationError):
-        VoteSubmit(rankings=[1, 2, 1])
-
-
-def test_vote_submit_too_many_rankings_raises() -> None:
-    with pytest.raises(ValidationError):
-        VoteSubmit(rankings=list(range(51)))
+        VoteSubmit(rankings=rankings)
 
 
 def test_vote_submit_valid_passes() -> None:
@@ -237,14 +214,14 @@ def test_vote_submit_valid_passes() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_preference_create_too_many_tags_raises() -> None:
+@pytest.mark.parametrize(
+    "tags",
+    [[f"tag{i}" for i in range(21)], ["a" * 41]],
+    ids=["too_many", "tag_too_long"],
+)
+def test_preference_create_invalid_tags_raises(tags: list[str]) -> None:
     with pytest.raises(ValidationError):
-        PreferenceCreate(activity_tags=[f"tag{i}" for i in range(21)])
-
-
-def test_preference_create_tag_too_long_raises() -> None:
-    with pytest.raises(ValidationError):
-        PreferenceCreate(activity_tags=["a" * 41])
+        PreferenceCreate(activity_tags=tags)
 
 
 @pytest.mark.parametrize("cur", ["usd", "US", "USDX", "U5D", "", "US$", "USD\n"])

@@ -9,7 +9,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
+from app.core.dependencies import get_email_service, get_session_factory
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -43,9 +45,15 @@ def _reset_module_state():
     participants._pin_windows.clear()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def engine():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    """Fresh in-memory DB per test (StaticPool keeps one shared connection)."""
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
 
     @event.listens_for(engine.sync_engine, "connect")
     def _enable_sqlite_fks(dbapi_conn, _record):
@@ -78,3 +86,34 @@ async def client(db: AsyncSession):
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+class MockEmailService:
+    """Records every ``send_trip_email`` call in ``self.sent`` (no Brevo)."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+
+    async def send_trip_email(
+        self, kind: str, *, to_email: str, **kwargs: object
+    ) -> bool:
+        self.sent.append({"type": kind, "to": to_email, "to_email": to_email, **kwargs})
+        return True
+
+
+@pytest.fixture
+def mock_email():
+    """Override the email service dependency with MockEmailService."""
+    svc = MockEmailService()
+    app.dependency_overrides[get_email_service] = lambda: svc
+    yield svc
+    app.dependency_overrides.pop(get_email_service, None)
+
+
+@pytest.fixture
+def mock_session_factory(engine):
+    """Inject the test engine's session factory for background tasks."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    app.dependency_overrides[get_session_factory] = lambda: factory
+    yield factory
+    app.dependency_overrides.pop(get_session_factory, None)

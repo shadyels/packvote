@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-import secrets
-
 import pytest
 from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.itinerary import Itinerary
-from app.models.participant import Participant
-from app.models.trip import Trip
-from app.models.user import User
 from app.models.vote import Vote
 from app.services.voting.service import (
     compute_results,
@@ -21,75 +15,10 @@ from app.services.voting.service import (
     submit_participant_vote,
     trigger_new_iteration,
 )
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_user(db: AsyncSession, **kwargs) -> User:
-    defaults = dict(
-        email=f"user_{secrets.token_hex(4)}@test.com",
-        hashed_password="hashed",
-        full_name=None,
-    )
-    defaults.update(kwargs)
-    user = User(**defaults)
-    db.add(user)
-    return user
-
-
-def _make_trip(db: AsyncSession, creator: User, **kwargs) -> Trip:
-    defaults = dict(
-        trip_code=secrets.token_hex(4).upper()[:8],
-        creator_id=creator.id,
-        title="Test Trip",
-        destination=None,
-        num_options=2,
-        status="VOTING",
-        max_iterations=10,
-        current_iteration=1,
-        winner_itinerary_id=None,
-    )
-    defaults.update(kwargs)
-    trip = Trip(**defaults)
-    db.add(trip)
-    return trip
-
-
-def _make_participant(db: AsyncSession, trip: Trip, **kwargs) -> Participant:
-    defaults = dict(
-        trip_id=trip.id,
-        email=f"p_{secrets.token_hex(4)}@test.com",
-        token=secrets.token_urlsafe(32),
-        pin=secrets.token_hex(2)[:4],
-        preferences_submitted=True,
-    )
-    defaults.update(kwargs)
-    p = Participant(**defaults)
-    db.add(p)
-    return p
-
-
-def _make_itinerary(
-    db: AsyncSession, trip: Trip, iteration: int = 1, **kwargs
-) -> Itinerary:
-    defaults = dict(
-        trip_id=trip.id,
-        iteration_number=iteration,
-        destination_name="Test Destination",
-        destination_description="A lovely place.",
-        daily_itinerary=[],
-        total_estimated_budget=1000.0,
-        currency="USD",
-        match_reasoning="Great match.",
-        highlights=["highlight1"],
-    )
-    defaults.update(kwargs)
-    itin = Itinerary(**defaults)
-    db.add(itin)
-    return itin
-
+from tests.factories import (
+    make_user,
+    seed_voting_trip,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -98,39 +27,8 @@ def _make_itinerary(
 
 @pytest.fixture
 async def voting_setup(db: AsyncSession):
-    """Create a trip in VOTING status with 1 invitee participant, 1 creator participant, and 2 itineraries."""
-    user = _make_user(db)
-    db.add(user)
-    await db.flush()
-
-    trip = _make_trip(db, user)
-    db.add(trip)
-    await db.flush()
-
-    participant = _make_participant(db, trip)
-    db.add(participant)
-    await db.flush()
-
-    # Creator participant row — mirrors what create_trip now inserts
-    creator_participant = _make_participant(
-        db, trip, email=user.email, user_id=user.id, preferences_submitted=True
-    )
-    db.add(creator_participant)
-    await db.flush()
-
-    itin1 = _make_itinerary(db, trip, iteration=1)
-    itin2 = _make_itinerary(db, trip, iteration=1)
-    db.add(itin1)
-    db.add(itin2)
-    await db.flush()
-
-    return {
-        "user": user,
-        "trip": trip,
-        "participant": participant,
-        "creator_participant": creator_participant,
-        "itineraries": [itin1, itin2],
-    }
+    """VOTING trip: 1 invitee, 1 creator participant, 2 itineraries."""
+    return await seed_voting_trip(db)
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +166,7 @@ class TestSubmitAdminVote:
         from fastapi import HTTPException
 
         s = voting_setup
-        other_user = _make_user(db)
+        other_user = make_user(db)
         db.add(other_user)
         await db.flush()
         itin_ids = [i.id for i in s["itineraries"]]
@@ -460,7 +358,7 @@ class TestPickWinner:
         from fastapi import HTTPException
 
         s = voting_setup
-        other = _make_user(db)
+        other = make_user(db)
         db.add(other)
         await db.flush()
         with pytest.raises(HTTPException) as exc:
@@ -545,7 +443,7 @@ class TestTriggerNewIteration:
         from fastapi import HTTPException
 
         s = voting_setup
-        other = _make_user(db)
+        other = make_user(db)
         db.add(other)
         await db.flush()
         bg = MagicMock()

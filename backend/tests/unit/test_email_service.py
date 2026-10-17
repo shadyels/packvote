@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,8 +43,25 @@ def _patch_httpx(status: int = 201):
     return patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client)
 
 
+@contextmanager
+def _capture_send():
+    """Patch httpx; yields a dict filled with the JSON body of the Brevo POST."""
+    captured: dict = {}
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    async def capture_post(url: str, **kwargs: object) -> MagicMock:
+        captured.update(kwargs.get("json", {}))
+        return _make_ok_response()
+
+    mock_client.post = capture_post
+    with patch("app.services.email.brevo.httpx.AsyncClient", return_value=mock_client):
+        yield captured
+
+
 # ---------------------------------------------------------------------------
-# send_invitation
+# kind="invitation"
 # ---------------------------------------------------------------------------
 
 
@@ -95,21 +113,7 @@ class TestSendInvitation:
     async def test_subject_contains_trip_title(
         self, email_service: EmailService
     ) -> None:
-        captured: dict = {}
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        async def capture_post(url: str, **kwargs: object) -> MagicMock:
-            captured.update(kwargs.get("json", {}))
-            return _make_ok_response()
-
-        mock_client.post = capture_post
-
-        with patch(
-            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
-        ):
+        with _capture_send() as captured:
             await email_service.send_trip_email(
                 "invitation",
                 to_email="a@a.com",
@@ -125,21 +129,7 @@ class TestSendInvitation:
     async def test_body_contains_token_link_and_code_and_pin(
         self, email_service: EmailService
     ) -> None:
-        captured: dict = {}
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        async def capture_post(url: str, **kwargs: object) -> MagicMock:
-            captured.update(kwargs.get("json", {}))
-            return _make_ok_response()
-
-        mock_client.post = capture_post
-
-        with patch(
-            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
-        ):
+        with _capture_send() as captured:
             await email_service.send_trip_email(
                 "invitation",
                 to_email="a@a.com",
@@ -157,27 +147,13 @@ class TestSendInvitation:
 
 
 # ---------------------------------------------------------------------------
-# send_voting_notification
+# kind="voting"
 # ---------------------------------------------------------------------------
 
 
 class TestSendVotingNotification:
     async def test_subject_contains_vote_now(self, email_service: EmailService) -> None:
-        captured: dict = {}
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        async def capture_post(url: str, **kwargs: object) -> MagicMock:
-            captured.update(kwargs.get("json", {}))
-            return _make_ok_response()
-
-        mock_client.post = capture_post
-
-        with patch(
-            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
-        ):
+        with _capture_send() as captured:
             await email_service.send_trip_email(
                 "voting",
                 to_email="a@a.com",
@@ -193,21 +169,7 @@ class TestSendVotingNotification:
         )
 
     async def test_body_contains_vote_link(self, email_service: EmailService) -> None:
-        captured: dict = {}
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        async def capture_post(url: str, **kwargs: object) -> MagicMock:
-            captured.update(kwargs.get("json", {}))
-            return _make_ok_response()
-
-        mock_client.post = capture_post
-
-        with patch(
-            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
-        ):
+        with _capture_send() as captured:
             await email_service.send_trip_email(
                 "voting",
                 to_email="a@a.com",
@@ -223,7 +185,7 @@ class TestSendVotingNotification:
 
 
 # ---------------------------------------------------------------------------
-# send_new_iteration_notification
+# kind="new_iteration"
 # ---------------------------------------------------------------------------
 
 
@@ -231,21 +193,7 @@ class TestSendNewIterationNotification:
     async def test_subject_contains_new_options(
         self, email_service: EmailService
     ) -> None:
-        captured: dict = {}
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        async def capture_post(url: str, **kwargs: object) -> MagicMock:
-            captured.update(kwargs.get("json", {}))
-            return _make_ok_response()
-
-        mock_client.post = capture_post
-
-        with patch(
-            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
-        ):
+        with _capture_send() as captured:
             await email_service.send_trip_email(
                 "new_iteration",
                 to_email="a@a.com",
@@ -262,7 +210,7 @@ class TestSendNewIterationNotification:
 
 
 # ---------------------------------------------------------------------------
-# send_finalized_notification
+# kind="finalized"
 # ---------------------------------------------------------------------------
 
 
@@ -270,21 +218,7 @@ class TestSendFinalizedNotification:
     async def test_subject_and_body_contain_destination(
         self, email_service: EmailService
     ) -> None:
-        captured: dict = {}
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        async def capture_post(url: str, **kwargs: object) -> MagicMock:
-            captured.update(kwargs.get("json", {}))
-            return _make_ok_response()
-
-        mock_client.post = capture_post
-
-        with patch(
-            "app.services.email.brevo.httpx.AsyncClient", return_value=mock_client
-        ):
+        with _capture_send() as captured:
             await email_service.send_trip_email(
                 "finalized",
                 to_email="a@a.com",

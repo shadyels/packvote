@@ -5,10 +5,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.trip import Trip
 from app.services.email_resend import resend_emails_for_trip
+from tests.factories import make_itinerary
 
 
 @pytest.fixture
@@ -52,18 +52,7 @@ class TestResendStatusBranches:
         self, trip_ctx, db, mock_email
     ):
         trip, parts = trip_ctx
-        itin = Itinerary(
-            trip_id=trip.id,
-            iteration_number=1,
-            destination_name="Lisbon",
-            destination_description="d",
-            daily_itinerary=[],
-            total_estimated_budget=1.0,
-            currency="USD",
-            match_reasoning="r",
-            highlights=[],
-        )
-        db.add(itin)
+        itin = make_itinerary(db, trip, destination_name="Lisbon")
         await db.flush()
         trip.status, trip.winner_itinerary_id = "FINALIZED", itin.id
         sent, failed = await resend_emails_for_trip(trip, parts, db, mock_email)

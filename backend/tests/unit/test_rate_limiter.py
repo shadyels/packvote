@@ -22,7 +22,7 @@ async def test_fresh_limiter_accepts_small_request() -> None:
     assert reservation.timestamp > 0
 
 
-async def test_rpm_gate_1000th_accepted_1001st_rejected() -> None:
+async def test_rpm_gate_accepts_up_to_max_then_rejects() -> None:
     limiter = GlobalRateLimiter()
     for _ in range(MAX_RPM):
         await limiter.reserve(1)
@@ -85,7 +85,7 @@ async def test_commit_lowers_estimate_frees_token_room() -> None:
     assert r2.tokens == overflow
 
 
-async def test_concurrent_reservations_exactly_1000_succeed() -> None:
+async def test_concurrent_reservations_exactly_max_rpm_succeed() -> None:
     limiter = GlobalRateLimiter()
     results = await asyncio.gather(
         *[limiter.reserve(1) for _ in range(MAX_RPM + 100)],
@@ -100,11 +100,11 @@ async def test_concurrent_reservations_exactly_1000_succeed() -> None:
     ]
     assert len(other_errors) == 0
     assert len(successes) == MAX_RPM
-    assert len(failures) == 100
+    assert len(failures) == 100  # the 100 over-cap requests
     assert all(e.kind == "rpm" for e in failures)
 
 
-async def test_sliding_window_resets_after_60_seconds() -> None:
+async def test_sliding_window_resets_after_window() -> None:
     limiter = GlobalRateLimiter()
     base_time = 1000.0
 
@@ -120,14 +120,14 @@ async def test_sliding_window_resets_after_60_seconds() -> None:
             await limiter.reserve(1)
         assert exc_info.value.kind == "rpm"
 
-    # Past window — all old entries evicted, 1000 new slots available
+    # Past window — all old entries evicted, MAX_RPM new slots available
     advanced_time = base_time + WINDOW_1M + 1.0
     with patch(
         "app.services.ai.rate_limiter.time.monotonic", return_value=advanced_time
     ):
         for _ in range(MAX_RPM):
             await limiter.reserve(1)
-        # 1001st in new window should fail
+        # one past the cap in the new window should fail
         with pytest.raises(LocalRateLimitError) as exc_info:
             await limiter.reserve(1)
         assert exc_info.value.kind == "rpm"

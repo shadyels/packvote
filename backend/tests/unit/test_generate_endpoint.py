@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import secrets
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -11,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.trip import Trip
 from app.services.ai.service import AIService
+from tests.helpers import auth_headers as auth_headers_for
+from tests.helpers import register_and_login
 
 
 @pytest.fixture
@@ -41,7 +42,7 @@ class TestTriggerGeneration:
         assert data["status"] == "accepted"
         assert data["trip_id"] == trip_id
 
-    async def test_trip_status_set_to_generating_immediately(
+    async def test_generate_runs_background_task_to_voting(
         self,
         client: AsyncClient,
         auth_headers,
@@ -58,8 +59,9 @@ class TestTriggerGeneration:
         db.expire_all()
         result = await db.execute(select(Trip).where(Trip.id == trip_id))
         trip = result.scalar_one()
-        # Status is GENERATING, VOTING, or GENERATION_FAILED (background task may have run)
-        assert trip.status in ("GENERATING", "VOTING", "GENERATION_FAILED")
+        # ASGITransport runs the background task before returning, so the mocked
+        # generation has already completed: GENERATING -> VOTING.
+        assert trip.status == "VOTING"
 
     async def test_404_for_nonexistent_trip(self, client: AsyncClient, auth_headers):
         resp = await client.post("/trips/99999/generate", headers=auth_headers)
@@ -68,15 +70,9 @@ class TestTriggerGeneration:
     async def test_403_for_non_owner(
         self, client: AsyncClient, trip_id, mock_email, mock_session_factory
     ):
-        # Register a second user
-        email2 = f"other_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            "/auth/register", json={"email": email2, "password": "test1234"}
+        other_headers = auth_headers_for(
+            await register_and_login(client, "other@test.com")
         )
-        resp = await client.post(
-            "/auth/login", json={"email": email2, "password": "test1234"}
-        )
-        other_headers = {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
         resp = await client.post(f"/trips/{trip_id}/generate", headers=other_headers)
         assert resp.status_code == 403

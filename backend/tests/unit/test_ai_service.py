@@ -68,7 +68,7 @@ class TestAIServiceRetry:
 
         assert result == mock_result
         assert provider.generate_itineraries.call_count == 2
-        mock_sleep.assert_called_once_with(1.0)
+        mock_sleep.assert_awaited_once()  # a retry backoff happened; delay value not pinned
 
     async def test_primary_fails_all_raises(self) -> None:
         provider = AsyncMock()

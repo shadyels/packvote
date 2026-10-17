@@ -5,11 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.trip import Trip
-
-REGISTER_URL = "/auth/register"
-LOGIN_URL = "/auth/login"
-TRIPS_URL = "/trips/"
-ACCESS_BY_CODE_URL = "/participants/access-by-code"
+from tests.helpers import ACCESS_BY_CODE_URL, TRIPS_URL
 
 GUEST_EMAIL = "guest@example.com"
 

@@ -7,11 +7,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-
-REGISTER_URL = "/auth/register"
-LOGIN_URL = "/auth/login"
-ME_URL = "/auth/me"
-
+from tests.helpers import LOGIN_URL, ME_URL, REGISTER_URL
 
 # ── Password hashing ────────────────────────────────────────────────────────
 

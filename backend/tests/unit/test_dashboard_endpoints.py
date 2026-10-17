@@ -5,14 +5,11 @@ Covers:
   GET /trips/{trip_id}/itineraries
 """
 
-import secrets
-
 import pytest
 from httpx import AsyncClient
 
-REGISTER_URL = "/auth/register"
-LOGIN_URL = "/auth/login"
-TRIPS_URL = "/trips/"
+from tests.helpers import TRIPS_URL, register_and_login
+from tests.helpers import auth_headers as auth_headers_for
 
 _TRIP_PAYLOAD = {
     "title": "Dashboard Test Trip",
@@ -58,14 +55,9 @@ class TestGetTripParticipants:
         assert invitee["preferences_submitted"] is False
 
     async def test_403_when_not_creator(self, client: AsyncClient, mock_email, trip_id):
-        other_email = f"other_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": other_email, "password": "test1234"}
+        other_headers = auth_headers_for(
+            await register_and_login(client, "other@test.com")
         )
-        r = await client.post(
-            LOGIN_URL, json={"email": other_email, "password": "test1234"}
-        )
-        other_headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
         resp = await client.get(f"/trips/{trip_id}/participants", headers=other_headers)
         assert resp.status_code == 403
 
@@ -87,14 +79,9 @@ class TestGetTripItineraries:
         assert resp.json() == []
 
     async def test_403_when_not_creator(self, client: AsyncClient, mock_email, trip_id):
-        other_email = f"other_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": other_email, "password": "test1234"}
+        other_headers = auth_headers_for(
+            await register_and_login(client, "other@test.com")
         )
-        r = await client.post(
-            LOGIN_URL, json={"email": other_email, "password": "test1234"}
-        )
-        other_headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
         resp = await client.get(f"/trips/{trip_id}/itineraries", headers=other_headers)
         assert resp.status_code == 403
 

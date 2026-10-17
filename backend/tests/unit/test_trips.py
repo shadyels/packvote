@@ -1,13 +1,14 @@
 import re
 import secrets
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-REGISTER_URL = "/auth/register"
-LOGIN_URL = "/auth/login"
-TRIPS_URL = "/trips/"
-
+from app.models.itinerary import Itinerary
+from tests.factories import make_itinerary
+from tests.helpers import INVITED_URL, TRIPS_URL, login, register, register_and_login
+from tests.helpers import auth_headers as bearer
 
 _TRIP_PAYLOAD = {
     "title": "Summer Adventure",
@@ -64,19 +65,13 @@ class TestCreateTrip:
         assert resp.status_code == 201
         assert resp.json()["num_options"] == 3
 
-    async def test_num_options_below_2_returns_422(
-        self, client: AsyncClient, auth_headers, mock_email
+    @pytest.mark.parametrize(("n", "status"), [(1, 422), (2, 201), (5, 201), (6, 422)])
+    async def test_num_options_bounds(
+        self, client: AsyncClient, auth_headers, mock_email, n: int, status: int
     ):
-        payload = {**_TRIP_PAYLOAD, "num_options": 1}
+        payload = {**_TRIP_PAYLOAD, "num_options": n}
         resp = await client.post(TRIPS_URL, json=payload, headers=auth_headers)
-        assert resp.status_code == 422
-
-    async def test_num_options_above_5_returns_422(
-        self, client: AsyncClient, auth_headers, mock_email
-    ):
-        payload = {**_TRIP_PAYLOAD, "num_options": 6}
-        resp = await client.post(TRIPS_URL, json=payload, headers=auth_headers)
-        assert resp.status_code == 422
+        assert resp.status_code == status
 
     async def test_no_auth_returns_401(self, client: AsyncClient, mock_email):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD)
@@ -94,18 +89,10 @@ class TestListTrips:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(
-                REGISTER_URL, json={"email": email, "password": "test1234"}
-            )
+            await register(client, email, "test1234")
 
-        async def login(email: str) -> dict:
-            r = await client.post(
-                LOGIN_URL, json={"email": email, "password": "test1234"}
-            )
-            return {"Authorization": f"Bearer {r.json()['access_token']}"}
-
-        headers_a = await login(email_a)
-        headers_b = await login(email_b)
+        headers_a = bearer(await login(client, email_a, "test1234"))
+        headers_b = bearer(await login(client, email_b, "test1234"))
 
         await client.post(
             TRIPS_URL, json={**_TRIP_PAYLOAD, "title": "Trip A"}, headers=headers_a
@@ -167,18 +154,10 @@ class TestGetTrip:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(
-                REGISTER_URL, json={"email": email, "password": "test1234"}
-            )
+            await register(client, email, "test1234")
 
-        r_a = await client.post(
-            LOGIN_URL, json={"email": email_a, "password": "test1234"}
-        )
-        headers_a = {"Authorization": f"Bearer {r_a.json()['access_token']}"}
-        r_b = await client.post(
-            LOGIN_URL, json={"email": email_b, "password": "test1234"}
-        )
-        headers_b = {"Authorization": f"Bearer {r_b.json()['access_token']}"}
+        headers_a = bearer(await login(client, email_a, "test1234"))
+        headers_b = bearer(await login(client, email_b, "test1234"))
 
         create_resp = await client.post(
             TRIPS_URL, json=_TRIP_PAYLOAD, headers=headers_a
@@ -240,18 +219,10 @@ class TestDeleteTrip:
         email_a = f"a_{secrets.token_hex(4)}@test.com"
         email_b = f"b_{secrets.token_hex(4)}@test.com"
         for email in (email_a, email_b):
-            await client.post(
-                REGISTER_URL, json={"email": email, "password": "test1234"}
-            )
+            await register(client, email, "test1234")
 
-        r_a = await client.post(
-            LOGIN_URL, json={"email": email_a, "password": "test1234"}
-        )
-        headers_a = {"Authorization": f"Bearer {r_a.json()['access_token']}"}
-        r_b = await client.post(
-            LOGIN_URL, json={"email": email_b, "password": "test1234"}
-        )
-        headers_b = {"Authorization": f"Bearer {r_b.json()['access_token']}"}
+        headers_a = bearer(await login(client, email_a, "test1234"))
+        headers_b = bearer(await login(client, email_b, "test1234"))
 
         create_resp = await client.post(
             TRIPS_URL, json=_TRIP_PAYLOAD, headers=headers_a
@@ -329,13 +300,7 @@ class TestCreatorEmailDedup:
         self, client: AsyncClient, mock_email
     ):
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         payload = {
             "title": "Dedup Trip",
@@ -362,13 +327,7 @@ class TestCreatorEmailDedup:
         self, client: AsyncClient, mock_email
     ):
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         payload = {
             "title": "Dedup Case Trip",
@@ -395,13 +354,7 @@ class TestCreatorNotEmailed:
         self, client: AsyncClient, mock_email
     ):
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         payload = {
             "title": "No Email Trip",
@@ -425,7 +378,6 @@ class TestParticipantsEndpointVoteStatus:
         """Admin participants list shows has_voted_current_iteration correctly for all rows."""
         from sqlalchemy import select
 
-        from app.models.itinerary import Itinerary
         from app.models.participant import Participant
         from app.models.trip import Trip
         from app.models.vote import Vote
@@ -444,30 +396,8 @@ class TestParticipantsEndpointVoteStatus:
         trip = trip_result.scalar_one()
         trip.status = "VOTING"
         trip.current_iteration = 1
-        itin1 = Itinerary(
-            trip_id=trip_id,
-            iteration_number=1,
-            destination_name="A",
-            destination_description="Desc A",
-            daily_itinerary=[],
-            total_estimated_budget=1000.0,
-            currency="USD",
-            match_reasoning="r",
-            highlights=["h"],
-        )
-        itin2 = Itinerary(
-            trip_id=trip_id,
-            iteration_number=1,
-            destination_name="B",
-            destination_description="Desc B",
-            daily_itinerary=[],
-            total_estimated_budget=1200.0,
-            currency="USD",
-            match_reasoning="r",
-            highlights=["h"],
-        )
-        db.add(itin1)
-        db.add(itin2)
+        itin1 = make_itinerary(db, trip_id, destination_name="A")
+        itin2 = make_itinerary(db, trip_id, destination_name="B")
         await db.flush()
 
         # Find the creator's participant row
@@ -505,9 +435,6 @@ class TestParticipantsEndpointVoteStatus:
         assert invitee_rows[0]["has_voted_current_iteration"] is False
 
 
-INVITED_URL = "/trips/invited"
-
-
 class TestCreateTripLinksUserIdToInvitee:
     async def test_invitee_user_id_set_when_user_exists(
         self, client: AsyncClient, mock_email, db: AsyncSession
@@ -520,25 +447,15 @@ class TestCreateTripLinksUserIdToInvitee:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
 
         # Register invitee first
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        await client.post(
-            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
-        )
+        await register(client, invitee_email, "test1234")
+        await login(client, invitee_email, "test1234")
         from app.models.user import User
 
         user_result = await db.execute(select(User).where(User.email == invitee_email))
         invitee_user = user_result.scalar_one()
 
         # Register creator and create trip inviting invitee
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r_creator = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r_creator.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -595,19 +512,11 @@ class TestCreateTripLinksUserIdToInvitee:
         invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
 
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
+        await register(client, invitee_email, "test1234")
         user_result = await db.execute(select(User).where(User.email == invitee_email))
         invitee_user = user_result.scalar_one()
 
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -644,13 +553,7 @@ class TestRegisterBackfillsParticipant:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
 
         # Creator creates trip BEFORE invitee registers
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        headers = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -670,9 +573,7 @@ class TestRegisterBackfillsParticipant:
         assert p_before.user_id is None
 
         # Invitee now registers
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
+        await register(client, invitee_email, "test1234")
 
         # Participant row should now be linked
         await db.refresh(p_before)
@@ -684,16 +585,8 @@ class TestListInvitedTrips:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
         invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
 
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r_c = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers_c = {"Authorization": f"Bearer {r_c.json()['access_token']}"}
+        await register(client, invitee_email, "test1234")
+        headers_c = bearer(await register_and_login(client, creator_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -703,10 +596,7 @@ class TestListInvitedTrips:
         assert resp.status_code == 201
         trip_id = resp.json()["id"]
 
-        r_i = await client.post(
-            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        headers_i = {"Authorization": f"Bearer {r_i.json()['access_token']}"}
+        headers_i = bearer(await login(client, invitee_email, "test1234"))
 
         resp = await client.get(INVITED_URL, headers=headers_i)
         assert resp.status_code == 200
@@ -744,20 +634,9 @@ class TestListInvitedTrips:
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
         invitee_email = f"invitee_{secrets.token_hex(4)}@test.com"
 
-        await client.post(
-            REGISTER_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        await client.post(
-            REGISTER_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        r_c = await client.post(
-            LOGIN_URL, json={"email": creator_email, "password": "test1234"}
-        )
-        headers_c = {"Authorization": f"Bearer {r_c.json()['access_token']}"}
-        r_i = await client.post(
-            LOGIN_URL, json={"email": invitee_email, "password": "test1234"}
-        )
-        headers_i = {"Authorization": f"Bearer {r_i.json()['access_token']}"}
+        await register(client, invitee_email, "test1234")
+        headers_c = bearer(await register_and_login(client, creator_email, "test1234"))
+        headers_i = bearer(await login(client, invitee_email, "test1234"))
 
         resp = await client.post(
             TRIPS_URL,
@@ -797,7 +676,6 @@ class TestDeleteTripCascade:
     ):
         from sqlalchemy import func, select
 
-        from app.models.itinerary import Itinerary
         from app.models.participant import Participant
         from app.models.preference import Preference
         from app.models.vote import Vote
@@ -813,18 +691,7 @@ class TestDeleteTripCascade:
             .scalars()
             .first()
         )
-        itin = Itinerary(
-            trip_id=trip_id,
-            iteration_number=1,
-            destination_name="X",
-            destination_description="d",
-            daily_itinerary=[],
-            total_estimated_budget=1.0,
-            currency="USD",
-            match_reasoning="r",
-            highlights=[],
-        )
-        db.add(itin)
+        itin = make_itinerary(db, trip_id, destination_name="X")
         await db.flush()
         db.add_all(
             [
