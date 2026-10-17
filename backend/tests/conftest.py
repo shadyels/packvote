@@ -1,4 +1,8 @@
 import functools
+import os
+
+# Set before app imports (settings are cached); >=32 bytes avoids PyJWT warnings.
+os.environ["SECRET_KEY"] = "test-secret-key-0123456789-abcdefghijkl"
 
 import bcrypt
 import pytest
@@ -9,9 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.services import unsplash
+from app.services import participants, unsplash
 from app.services.ai import rate_limiter as ai_rate_limiter
-from app.services.email import rate_limiter as brevo_rate_limiter
+from app.services.email import brevo
+from app.services.rate_limit import SlidingWindow
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -26,14 +31,16 @@ def _fast_bcrypt(monkeypatch):
 def _reset_module_state():
     """Reset process-global caches/limiters so tests can't leak into each other."""
     unsplash._cache.clear()
-    unsplash._limiter = None
-    brevo_rate_limiter._limiter = None
+    unsplash._limiter = SlidingWindow(unsplash.MAX_RPH, unsplash.WINDOW_SECONDS)
+    brevo._limiter = SlidingWindow(brevo.MAX_EPD, 86400)
     ai_rate_limiter._limiter = None
+    participants._pin_windows.clear()
     yield
     unsplash._cache.clear()
-    unsplash._limiter = None
-    brevo_rate_limiter._limiter = None
+    unsplash._limiter = SlidingWindow(unsplash.MAX_RPH, unsplash.WINDOW_SECONDS)
+    brevo._limiter = SlidingWindow(brevo.MAX_EPD, 86400)
     ai_rate_limiter._limiter = None
+    participants._pin_windows.clear()
 
 
 @pytest.fixture(scope="session")

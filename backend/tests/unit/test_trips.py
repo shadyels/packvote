@@ -1,7 +1,6 @@
 import re
 import secrets
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,9 +42,6 @@ class TestCreateTrip:
     ):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         assert resp.status_code == 201
-        import asyncio
-
-        await asyncio.sleep(0)
         assert len(mock_email.sent) > 0
         for entry in mock_email.sent:
             pin = entry["pin"]
@@ -57,10 +53,6 @@ class TestCreateTrip:
     ):
         resp = await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
         assert resp.status_code == 201
-        # Allow a moment for fire-and-forget gather
-        import asyncio
-
-        await asyncio.sleep(0)
         assert len(mock_email.sent) == 2
         sent_emails = {e["to"] for e in mock_email.sent}
         assert sent_emails == {"alice@example.com", "bob@example.com"}
@@ -402,8 +394,6 @@ class TestCreatorNotEmailed:
     async def test_creator_not_sent_invitation_email(
         self, client: AsyncClient, mock_email
     ):
-        import asyncio
-
         creator_email = f"creator_{secrets.token_hex(4)}@test.com"
         await client.post(
             REGISTER_URL, json={"email": creator_email, "password": "test1234"}
@@ -418,7 +408,6 @@ class TestCreatorNotEmailed:
             "participant_emails": ["alice@example.com", "bob@example.com"],
         }
         await client.post(TRIPS_URL, json=payload, headers=headers)
-        await asyncio.sleep(0)
 
         sent_emails = {e["to"] for e in mock_email.sent}
         assert creator_email not in sent_emails
@@ -784,10 +773,6 @@ class TestListInvitedTrips:
 
 
 class TestUpdateTripDates:
-    @pytest.mark.xfail(
-        strict=True,
-        reason="stage 3.b: update_trip validates merged dates vs stored num_options",
-    )
     async def test_dates_only_exceeding_stored_num_options_returns_422(
         self, client: AsyncClient, auth_headers, mock_email
     ):
@@ -863,3 +848,106 @@ class TestDeleteTripCascade:
                 select(func.count()).select_from(model).where(model.trip_id == trip_id)
             )
             assert count == 0, model.__name__
+
+
+class TestTripLifecycleHardening:
+    async def test_pins_distinct_within_trip(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+
+        emails = [f"p{i}@example.com" for i in range(15)]
+        resp = await client.post(
+            TRIPS_URL,
+            json={**_TRIP_PAYLOAD, "participant_emails": emails},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
+        pins = (
+            (
+                await db.execute(
+                    select(Participant.pin).where(
+                        Participant.trip_id == resp.json()["id"]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(pins) == 16
+        assert len(set(pins)) == 16
+
+    async def test_update_merged_dates_vs_patched_num_options_returns_422(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        create = await client.post(
+            TRIPS_URL,
+            json={
+                **_TRIP_PAYLOAD,
+                "num_options": 2,
+                "proposed_start_date": "2030-01-01T00:00:00Z",
+                "proposed_end_date": "2030-01-16T00:00:00Z",
+            },
+            headers=auth_headers,
+        )
+        resp = await client.patch(
+            f"/trips/{create.json()['id']}",
+            json={"num_options": 5},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    async def test_generate_twice_second_is_409(
+        self, client: AsyncClient, auth_headers, mock_email, mock_session_factory
+    ):
+        from unittest.mock import AsyncMock, patch
+
+        trip_id = (
+            await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
+        ).json()["id"]
+        with patch("app.services.generation.run_generation", AsyncMock()):
+            first = await client.post(
+                f"/trips/{trip_id}/generate", headers=auth_headers
+            )
+            second = await client.post(
+                f"/trips/{trip_id}/generate", headers=auth_headers
+            )
+        assert first.status_code == 202
+        assert second.status_code == 409
+        assert "GENERATING" in second.json()["detail"]
+
+
+class TestStartupRecovery:
+    async def test_generating_trips_marked_failed(
+        self, client: AsyncClient, auth_headers, mock_email, db: AsyncSession
+    ):
+        from sqlalchemy import update
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from app.models.trip import Trip
+        from app.services.generation import recover_stuck_generations
+
+        trip_id = (
+            await client.post(TRIPS_URL, json=_TRIP_PAYLOAD, headers=auth_headers)
+        ).json()["id"]
+        await db.execute(
+            update(Trip).where(Trip.id == trip_id).values(status="GENERATING")
+        )
+        await db.commit()
+
+        assert (
+            await recover_stuck_generations(
+                async_sessionmaker(db.bind, expire_on_commit=False)
+            )
+            >= 1
+        )
+        db.expire_all()
+        trip = await db.get(Trip, trip_id)
+        assert trip.status == "GENERATION_FAILED"
+        assert "interrupted" in trip.generation_error
+
+    async def test_health_has_no_environment(self, client: AsyncClient):
+        resp = await client.get("/health")
+        assert resp.json() == {"status": "ok"}

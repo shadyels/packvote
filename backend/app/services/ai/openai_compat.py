@@ -105,11 +105,11 @@ class OpenAICompatProvider:
         except Exception as exc:
             log.latency_ms = int((time.monotonic() - t_start) * 1000)
             log.error_message = str(exc)
-            await limiter.commit(reservation, estimated_tokens)
+            limiter.commit(reservation, estimated_tokens)
             raise
         log.latency_ms = int((time.monotonic() - t_start) * 1000)
         usage = completion.usage
-        await limiter.commit(
+        limiter.commit(
             reservation, usage.total_tokens if usage is not None else estimated_tokens
         )
         log.model_used = completion.model or model

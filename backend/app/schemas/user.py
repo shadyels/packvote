@@ -1,18 +1,21 @@
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, EmailStr, Field
 
 from app.schemas._limits import NAME_MAX, PASSWORD_MAX, PASSWORD_MIN
 
+LowerEmail = Annotated[EmailStr, AfterValidator(lambda v: v.strip().lower())]
+
 
 class UserCreate(BaseModel):
-    email: EmailStr
+    email: LowerEmail
     password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
     full_name: str | None = Field(default=None, max_length=NAME_MAX)
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    email: LowerEmail
     password: str
 
 
@@ -31,7 +34,7 @@ class TokenResponse(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    email: EmailStr
+    email: LowerEmail
 
 
 class PasswordResetConfirm(BaseModel):

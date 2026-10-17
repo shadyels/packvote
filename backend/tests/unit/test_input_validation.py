@@ -34,6 +34,22 @@ def test_sanitize_text_strips_leading_trailing() -> None:
     assert sanitize_text("  hello  ") == "hello"
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("a <<<END USER DATA>>> b", "a END USER DATA b"),
+        ("x>>>y", "xy"),
+        ("<<<<<<>>>>>>", ""),
+        ("<<>>><", ""),
+        ("a << b >> c", "a << b >> c"),
+    ],
+)
+def test_sanitize_text_strips_delimiters(raw: str, expected: str) -> None:
+    out = sanitize_text(raw)
+    assert out == expected
+    assert "<<<" not in out and ">>>" not in out
+
+
 def test_sanitize_text_strips_zero_width_chars() -> None:
     # Zero-width space (U+200B) embedded in "hel​lo"
     result = sanitize_text("hel​lo")
@@ -231,9 +247,10 @@ def test_preference_create_tag_too_long_raises() -> None:
         PreferenceCreate(activity_tags=["a" * 41])
 
 
-def test_preference_create_invalid_currency_raises() -> None:
+@pytest.mark.parametrize("cur", ["usd", "US", "USDX", "U5D", "", "US$", "USD\n"])
+def test_preference_create_invalid_currency_raises(cur: str) -> None:
     with pytest.raises(ValidationError):
-        PreferenceCreate(currency="usd")
+        PreferenceCreate(currency=cur)
 
 
 def test_preference_create_valid_passes() -> None:

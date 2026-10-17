@@ -5,25 +5,46 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.models.itinerary import Itinerary as ItineraryModel
 from app.models.participant import Participant
 from app.models.preference import Preference
-from app.models.trip import Trip
+from app.models.trip import Trip, TripStatus
 from app.models.vote import Vote
 from app.schemas.participant import ParticipantTripView
 from app.schemas.preference import PreferenceCreate
+from app.services import generation
+from app.services.generation import start_generation
+from app.services.rate_limit import SlidingWindow
+
+# ponytail: in-process only; resets on restart and is per worker. Upgrade path:
+# DB/Redis-backed failure counter.
+_pin_windows: dict[int, SlidingWindow] = {}
 
 
 async def access_trip_by_code(
     trip_code: str, pin: str, db: AsyncSession
 ) -> Participant:
-    result = await db.execute(
-        select(Participant)
-        .join(Trip, Participant.trip_id == Trip.id)
-        .where(Trip.trip_code == trip_code, Participant.pin == pin)
+    invalid = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Invalid trip code or PIN"
     )
-    participant = result.scalar_one_or_none()
-    if participant is None:
+    trip = (
+        await db.execute(select(Trip).where(Trip.trip_code == trip_code))
+    ).scalar_one_or_none()
+    if trip is None:
+        raise invalid  # unknown codes are not recorded
+    window = _pin_windows.setdefault(trip.id, SlidingWindow(10, 86400))
+    if not window.allowed():
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Invalid trip code or PIN"
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed attempts. Try again later.",
         )
+    participant = (
+        await db.execute(
+            select(Participant).where(
+                Participant.trip_id == trip.id, Participant.pin == pin
+            )
+        )
+    ).scalar_one_or_none()
+    if participant is None:
+        window.hit()
+        raise invalid
     return participant
 
 
@@ -67,7 +88,6 @@ async def get_participant_trip_view(
         ParticipantBrief(
             id=p.id,
             name=p.name,
-            email_local=p.email.split("@")[0],
             preferences_submitted=p.preferences_submitted,
         )
         for p in all_participants
@@ -114,8 +134,8 @@ async def get_participant_trip_view(
     has_voted = vote_result.scalar_one_or_none() is not None
 
     return ParticipantTripView(
-        participant=ParticipantResponse.model_validate(
-            {**participant.__dict__, "has_voted_current_iteration": has_voted}
+        participant=ParticipantResponse.model_validate(participant).model_copy(
+            update={"has_voted_current_iteration": has_voted}
         ),
         trip=TripPublicInfo.model_validate(trip),
         participants=participant_briefs,
@@ -129,8 +149,8 @@ async def submit_preferences(
     token: str,
     payload: PreferenceCreate,
     db: AsyncSession,
-    background_tasks: BackgroundTasks | None = None,
-    session_factory: async_sessionmaker[AsyncSession] | None = None,
+    background_tasks: BackgroundTasks,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> Preference:
     participant = await get_participant_by_token(token, db)
 
@@ -171,13 +191,12 @@ async def submit_preferences(
     await db.refresh(pref)
 
     # Auto-trigger generation if all participants have submitted
-    if background_tasks is not None and session_factory is not None:
-        await _maybe_trigger_generation(
-            trip_id=participant.trip_id,
-            db=db,
-            session_factory=session_factory,
-            background_tasks=background_tasks,
-        )
+    await _maybe_trigger_generation(
+        trip_id=participant.trip_id,
+        db=db,
+        session_factory=session_factory,
+        background_tasks=background_tasks,
+    )
 
     return pref
 
@@ -189,8 +208,6 @@ async def _maybe_trigger_generation(
     background_tasks: BackgroundTasks,
 ) -> None:
     """Auto-trigger generation when all participants have submitted preferences."""
-    from app.services.generation import run_generation  # avoid circular import
-
     total_result = await db.execute(
         select(func.count(Participant.id)).where(Participant.trip_id == trip_id)
     )
@@ -207,13 +224,8 @@ async def _maybe_trigger_generation(
     if total == 0 or submitted < total:
         return
 
-    # All submitted — check trip status allows triggering
-    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = trip_result.scalar_one_or_none()
-    if trip is None or trip.status not in ("CREATED", "COLLECTING_PREFERENCES"):
-        return
-
-    trip.status = "GENERATING"
-    await db.commit()
-
-    background_tasks.add_task(run_generation, trip_id, session_factory)
+    # All submitted — atomically claim the transition; losers do nothing
+    if await start_generation(
+        db, trip_id, [TripStatus.CREATED, TripStatus.COLLECTING_PREFERENCES]
+    ):
+        background_tasks.add_task(generation.run_generation, trip_id, session_factory)

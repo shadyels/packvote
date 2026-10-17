@@ -5,7 +5,6 @@ to ensure the router → service → ORM wiring is intact. These are
 broad coverage checks — unit tests cover edge cases.
 """
 
-import asyncio
 import re
 import secrets
 
@@ -80,8 +79,6 @@ class TestTripLifecycle:
         assert re.fullmatch(r"[A-Z0-9]{8}", data["trip_code"])
         assert "pin" not in data
 
-        # Allow fire-and-forget email gather to resolve
-        await asyncio.sleep(0)
         invitations = [e for e in mock_email.sent if e["type"] == "invitation"]
         assert len(invitations) == 2
         assert {inv["to"] for inv in invitations} == {"a@test.com", "b@test.com"}
@@ -102,7 +99,6 @@ class TestTripLifecycle:
         )
         trip_code = trip_resp.json()["trip_code"]
 
-        await asyncio.sleep(0)
         assert mock_email.sent, "invitation email was not captured"
         invite = next(e for e in mock_email.sent if e["type"] == "invitation")
         pin = invite["pin"]

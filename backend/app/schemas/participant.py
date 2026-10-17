@@ -46,7 +46,6 @@ class ParticipantBrief(BaseModel):
 
     id: int
     name: str | None
-    email_local: str
     preferences_submitted: bool
 
 

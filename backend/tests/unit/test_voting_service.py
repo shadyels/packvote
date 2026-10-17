@@ -5,6 +5,8 @@ from __future__ import annotations
 import secrets
 
 import pytest
+from fastapi import BackgroundTasks, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.itinerary import Itinerary
@@ -141,7 +143,7 @@ class TestSubmitParticipantVote:
         s = voting_setup
         itin_ids = [i.id for i in s["itineraries"]]
         vote = await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
         )
         assert vote.participant_id == s["participant"].id
         assert vote.trip_id == s["trip"].id
@@ -154,7 +156,9 @@ class TestSubmitParticipantVote:
         s = voting_setup
         itin_ids = [i.id for i in s["itineraries"]]
         with pytest.raises(HTTPException) as exc:
-            await submit_participant_vote("bad-token", s["trip"].id, itin_ids, db)
+            await submit_participant_vote(
+                "bad-token", s["trip"].id, itin_ids, db, BackgroundTasks()
+            )
         assert exc.value.status_code == 404
 
     async def test_wrong_trip(self, db: AsyncSession, voting_setup) -> None:
@@ -164,7 +168,11 @@ class TestSubmitParticipantVote:
         itin_ids = [i.id for i in s["itineraries"]]
         with pytest.raises(HTTPException) as exc:
             await submit_participant_vote(
-                s["participant"].token, s["trip"].id + 999, itin_ids, db
+                s["participant"].token,
+                s["trip"].id + 999,
+                itin_ids,
+                db,
+                BackgroundTasks(),
             )
         # Participant exists but does not belong to that trip → 403
         assert exc.value.status_code == 403
@@ -180,7 +188,7 @@ class TestSubmitParticipantVote:
         itin_ids = [i.id for i in s["itineraries"]]
         with pytest.raises(HTTPException) as exc:
             await submit_participant_vote(
-                s["participant"].token, s["trip"].id, itin_ids, db
+                s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
             )
         assert exc.value.status_code == 409
 
@@ -197,6 +205,7 @@ class TestSubmitParticipantVote:
                 s["trip"].id,
                 [s["itineraries"][0].id],
                 db,
+                BackgroundTasks(),
             )
         assert exc.value.status_code == 422
 
@@ -208,7 +217,11 @@ class TestSubmitParticipantVote:
         s = voting_setup
         with pytest.raises(HTTPException) as exc:
             await submit_participant_vote(
-                s["participant"].token, s["trip"].id, [9999, 8888], db
+                s["participant"].token,
+                s["trip"].id,
+                [9999, 8888],
+                db,
+                BackgroundTasks(),
             )
         assert exc.value.status_code == 422
 
@@ -218,10 +231,10 @@ class TestSubmitParticipantVote:
         reversed_ids = list(reversed(itin_ids))
 
         await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
         )
         vote2 = await submit_participant_vote(
-            s["participant"].token, s["trip"].id, reversed_ids, db
+            s["participant"].token, s["trip"].id, reversed_ids, db, BackgroundTasks()
         )
         assert vote2.rankings == reversed_ids
 
@@ -246,7 +259,9 @@ class TestSubmitAdminVote:
     async def test_success(self, db: AsyncSession, voting_setup) -> None:
         s = voting_setup
         itin_ids = [i.id for i in s["itineraries"]]
-        vote = await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+        vote = await submit_admin_vote(
+            s["user"], s["trip"].id, itin_ids, db, BackgroundTasks()
+        )
         assert vote.participant_id == s["creator_participant"].id
 
     async def test_non_creator_rejected(self, db: AsyncSession, voting_setup) -> None:
@@ -258,7 +273,9 @@ class TestSubmitAdminVote:
         await db.flush()
         itin_ids = [i.id for i in s["itineraries"]]
         with pytest.raises(HTTPException) as exc:
-            await submit_admin_vote(other_user, s["trip"].id, itin_ids, db)
+            await submit_admin_vote(
+                other_user, s["trip"].id, itin_ids, db, BackgroundTasks()
+            )
         assert exc.value.status_code == 403
 
 
@@ -276,10 +293,12 @@ class TestAutoTally:
 
         # Participant votes
         await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
         )
         # Admin votes — this is the last eligible voter (1 participant + admin)
-        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+        await submit_admin_vote(
+            s["user"], s["trip"].id, itin_ids, db, BackgroundTasks()
+        )
 
         await db.refresh(s["trip"])
         results = await compute_results(db, s["trip"])
@@ -293,7 +312,7 @@ class TestAutoTally:
 
         # Only participant votes, admin has not voted yet
         await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
         )
 
         results = await compute_results(db, s["trip"])
@@ -307,9 +326,11 @@ class TestAutoTally:
         itin_ids = [i.id for i in s["itineraries"]]
 
         await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
         )
-        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+        await submit_admin_vote(
+            s["user"], s["trip"].id, itin_ids, db, BackgroundTasks()
+        )
 
         await db.refresh(s["trip"])
         assert s["trip"].status == "FINALIZED"
@@ -324,9 +345,11 @@ class TestAutoTally:
 
         # Each voter picks opposite order → perfect tie
         await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
         )
-        await submit_admin_vote(s["user"], s["trip"].id, reversed_ids, db)
+        await submit_admin_vote(
+            s["user"], s["trip"].id, reversed_ids, db, BackgroundTasks()
+        )
 
         await db.refresh(s["trip"])
         assert s["trip"].status == "VOTING"
@@ -351,10 +374,12 @@ class TestAutoTally:
             lambda: mock_svc,
         )
 
+        bg = BackgroundTasks()
         await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, bg
         )
-        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db, bg)
+        await bg()  # run queued background tasks
 
         # 2 participants (invitee + creator) → 2 finalized emails
         assert mock_svc.send_finalized_notification.call_count == 2
@@ -410,7 +435,7 @@ class TestComputeResults:
         await db.flush()
 
         # Admin overrides the tally with the other itinerary
-        await pick_winner(s["user"], s["trip"].id, itin_ids[1], db)
+        await pick_winner(s["user"], s["trip"].id, itin_ids[1], db, BackgroundTasks())
         results = await compute_results(db, s["trip"])
         assert results.winner_id == itin_ids[1]
         assert len(results.rounds) == 1
@@ -425,7 +450,9 @@ class TestPickWinner:
     async def test_success(self, db: AsyncSession, voting_setup) -> None:
         s = voting_setup
         itin = s["itineraries"][0]
-        trip = await pick_winner(s["user"], s["trip"].id, itin.id, db)
+        trip = await pick_winner(
+            s["user"], s["trip"].id, itin.id, db, BackgroundTasks()
+        )
         assert trip.status == "FINALIZED"
         assert trip.winner_itinerary_id == itin.id
 
@@ -437,7 +464,9 @@ class TestPickWinner:
         db.add(other)
         await db.flush()
         with pytest.raises(HTTPException) as exc:
-            await pick_winner(other, s["trip"].id, s["itineraries"][0].id, db)
+            await pick_winner(
+                other, s["trip"].id, s["itineraries"][0].id, db, BackgroundTasks()
+            )
         assert exc.value.status_code == 403
 
     async def test_wrong_status_rejected(self, db: AsyncSession, voting_setup) -> None:
@@ -447,7 +476,9 @@ class TestPickWinner:
         s["trip"].status = "COLLECTING_PREFERENCES"
         await db.flush()
         with pytest.raises(HTTPException) as exc:
-            await pick_winner(s["user"], s["trip"].id, s["itineraries"][0].id, db)
+            await pick_winner(
+                s["user"], s["trip"].id, s["itineraries"][0].id, db, BackgroundTasks()
+            )
         assert exc.value.status_code == 409
 
     async def test_wrong_itinerary_rejected(
@@ -457,7 +488,7 @@ class TestPickWinner:
 
         s = voting_setup
         with pytest.raises(HTTPException) as exc:
-            await pick_winner(s["user"], s["trip"].id, 99999, db)
+            await pick_winner(s["user"], s["trip"].id, 99999, db, BackgroundTasks())
         assert exc.value.status_code == 404
 
     async def test_pick_winner_rejected_after_auto_finalize(
@@ -469,13 +500,17 @@ class TestPickWinner:
         itin_ids = [i.id for i in s["itineraries"]]
 
         await submit_participant_vote(
-            s["participant"].token, s["trip"].id, itin_ids, db
+            s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
         )
-        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db)
+        await submit_admin_vote(
+            s["user"], s["trip"].id, itin_ids, db, BackgroundTasks()
+        )
 
         # Trip is now FINALIZED — pick_winner must reject with 409
         with pytest.raises(HTTPException) as exc:
-            await pick_winner(s["user"], s["trip"].id, itin_ids[0], db)
+            await pick_winner(
+                s["user"], s["trip"].id, itin_ids[0], db, BackgroundTasks()
+            )
         assert exc.value.status_code == 409
 
 
@@ -547,4 +582,103 @@ class TestTriggerNewIteration:
         mock_factory = MagicMock()
         with pytest.raises(HTTPException) as exc:
             await trigger_new_iteration(s["user"], s["trip"].id, db, bg, mock_factory)
+        assert exc.value.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Atomic lifecycle transitions
+# ---------------------------------------------------------------------------
+
+
+class TestAtomicLifecycle:
+    async def test_start_generation_second_call_loses(
+        self, db: AsyncSession, voting_setup
+    ) -> None:
+        from app.models.trip import TripStatus
+        from app.services.generation import start_generation
+
+        trip_id = voting_setup["trip"].id
+        assert await start_generation(db, trip_id, [TripStatus.VOTING]) is True
+        assert await start_generation(db, trip_id, [TripStatus.VOTING]) is False
+
+    async def test_double_finalize_sends_one_email_batch(
+        self, db: AsyncSession, voting_setup, monkeypatch
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.voting.service import _finalize
+
+        s = voting_setup
+        mock_svc = MagicMock()
+        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "app.services.email.brevo.EmailService.from_settings", lambda: mock_svc
+        )
+        winner = s["itineraries"][0].id
+        bg = BackgroundTasks()
+
+        assert await _finalize(s["trip"], winner, db, bg) is True
+        assert await _finalize(s["trip"], winner, db, bg) is False
+        await bg()
+
+        assert mock_svc.send_finalized_notification.call_count == 2  # one batch
+
+    async def test_double_auto_tally_sends_one_email_batch(
+        self, db: AsyncSession, voting_setup, monkeypatch
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.voting.service import _maybe_auto_tally
+
+        s = voting_setup
+        itin_ids = [i.id for i in s["itineraries"]]
+        mock_svc = MagicMock()
+        mock_svc.send_finalized_notification = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "app.services.email.brevo.EmailService.from_settings", lambda: mock_svc
+        )
+        bg = BackgroundTasks()
+        await submit_participant_vote(
+            s["participant"].token, s["trip"].id, itin_ids, db, bg
+        )
+        await submit_admin_vote(s["user"], s["trip"].id, itin_ids, db, bg)
+        await _maybe_auto_tally(s["trip"], db, bg)  # second tally of same trip
+        await bg()
+
+        assert mock_svc.send_finalized_notification.call_count == 2
+
+    def test_itinerary_response_has_no_price_fields(self) -> None:
+        from app.schemas.itinerary import ItineraryResponse
+
+        fields = ItineraryResponse.model_fields
+        for gone in ("estimated_cost", "price_last_updated", "price_source"):
+            assert gone not in fields
+
+    async def test_pick_winner_after_finalized_returns_409(
+        self, db: AsyncSession, voting_setup
+    ) -> None:
+        s = voting_setup
+        await pick_winner(
+            s["user"], s["trip"].id, s["itineraries"][0].id, db, BackgroundTasks()
+        )
+        with pytest.raises(HTTPException) as exc:
+            await pick_winner(
+                s["user"], s["trip"].id, s["itineraries"][1].id, db, BackgroundTasks()
+            )
+        assert exc.value.status_code == 409
+
+    async def test_concurrent_duplicate_vote_integrity_error_returns_409(
+        self, db: AsyncSession, voting_setup, monkeypatch
+    ) -> None:
+        s = voting_setup
+        itin_ids = [i.id for i in s["itineraries"]]
+
+        async def boom() -> None:
+            raise IntegrityError("INSERT", {}, Exception("uq_votes"))
+
+        monkeypatch.setattr(db, "commit", boom)
+        with pytest.raises(HTTPException) as exc:
+            await submit_participant_vote(
+                s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
+            )
         assert exc.value.status_code == 409

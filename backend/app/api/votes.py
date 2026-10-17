@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_results_trip
 from app.db.session import get_db
 from app.models.trip import Trip
 from app.models.user import User
@@ -25,8 +25,11 @@ async def submit_vote(
     token: str,
     payload: VoteSubmit,
     db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
 ) -> VoteResponse:
-    return await submit_participant_vote(token, trip_id, payload.rankings, db)
+    return await submit_participant_vote(
+        token, trip_id, payload.rankings, db, background_tasks
+    )
 
 
 @router.post(
@@ -37,17 +40,17 @@ async def submit_admin_vote_handler(
     payload: VoteSubmit,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
 ) -> VoteResponse:
-    return await submit_admin_vote(current_user, trip_id, payload.rankings, db)
+    return await submit_admin_vote(
+        current_user, trip_id, payload.rankings, db, background_tasks
+    )
 
 
 @router.get("/trips/{trip_id}/results", response_model=VotingResults)
 async def get_voting_results(
-    trip_id: int,
+    trip: Annotated[Trip, Depends(get_results_trip)],
     db: Annotated[AsyncSession, Depends(get_db)],
     iteration: int | None = None,
 ) -> VotingResults:
-    trip = await db.get(Trip, trip_id)
-    if trip is None:
-        raise HTTPException(status_code=404, detail="Trip not found")
     return await compute_results(db, trip, iteration)

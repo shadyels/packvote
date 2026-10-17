@@ -1,43 +1,20 @@
-import asyncio
 import time
-from collections import deque
 
 import httpx
 
 from app.core.config import get_settings
+from app.services.rate_limit import SlidingWindow
 
 WINDOW_SECONDS = 3600.0
 MAX_RPH = 50
+MAX_COUNT = 10  # endpoint caps `count` at 10 (api/unsplash.py); fetch that once
 _CACHE_TTL = 3600.0
+_CACHE_MAX = 500
 
+_limiter = SlidingWindow(MAX_RPH, WINDOW_SECONDS)
+# ponytail: one entry per destination, capped at _CACHE_MAX with oldest-first
+# eviction; swap for an LRU/TTL cache lib if hit-rate matters.
 _cache: dict[str, tuple[float, list[str]]] = {}
-
-
-class UnsplashRateLimiter:
-    def __init__(self) -> None:
-        self._requests: deque[float] = deque()
-        self._lock = asyncio.Lock()
-
-    async def try_consume(self) -> bool:
-        async with self._lock:
-            now = time.monotonic()
-            cutoff = now - WINDOW_SECONDS
-            while self._requests and self._requests[0] < cutoff:
-                self._requests.popleft()
-            if len(self._requests) >= MAX_RPH:
-                return False
-            self._requests.append(now)
-            return True
-
-
-_limiter: UnsplashRateLimiter | None = None
-
-
-def get_unsplash_limiter() -> UnsplashRateLimiter:
-    global _limiter
-    if _limiter is None:
-        _limiter = UnsplashRateLimiter()
-    return _limiter
 
 
 async def fetch_destination_images(destination: str, count: int) -> list[str]:
@@ -54,8 +31,7 @@ async def fetch_destination_images(destination: str, count: int) -> list[str]:
         if now < expires_at:
             return urls[:count]
 
-    limiter = get_unsplash_limiter()
-    if not await limiter.try_consume():
+    if not _limiter.acquire():
         return []
 
     try:
@@ -63,7 +39,11 @@ async def fetch_destination_images(destination: str, count: int) -> list[str]:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 "https://api.unsplash.com/search/photos",
-                params={"query": query, "orientation": "landscape", "per_page": count},
+                params={
+                    "query": query,
+                    "orientation": "landscape",
+                    "per_page": MAX_COUNT,
+                },
                 headers={"Authorization": f"Client-ID {settings.UNSPLASH_ACCESS_KEY}"},
                 timeout=10.0,
             )
@@ -81,7 +61,9 @@ async def fetch_destination_images(destination: str, count: int) -> list[str]:
         if not urls:
             return []
 
+        if len(_cache) >= _CACHE_MAX:
+            _cache.pop(next(iter(_cache)))
         _cache[key] = (now + _CACHE_TTL, urls)
-        return urls
+        return urls[:count]
     except Exception:
         return []

@@ -229,7 +229,7 @@ class TestPasswordReset:
         from unittest.mock import AsyncMock, patch
 
         svc = AsyncMock()
-        with patch("app.api.auth.EmailService.from_settings", return_value=svc):
+        with patch("app.services.auth.EmailService.from_settings", return_value=svc):
             yield svc.send_password_reset
 
     async def _register(self, client: AsyncClient, email: str = "r@test.com"):
@@ -296,3 +296,92 @@ class TestPasswordReset:
             RESET_CONFIRM_URL, json={"token": token, "new_password": "newpass12"}
         )
         assert resp.status_code == 400
+
+
+# ── Hardening ───────────────────────────────────────────────────────────────
+
+
+class TestAuthHardening:
+    async def test_duplicate_register_409(self, client: AsyncClient):
+        body = {"email": "dup@test.com", "password": "password12"}
+        assert (await client.post(REGISTER_URL, json=body)).status_code == 201
+        resp = await client.post(REGISTER_URL, json=body)
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == "Email already registered"
+
+    async def test_register_race_integrity_error_409(self, client: AsyncClient):
+        from unittest.mock import patch
+
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        with patch.object(
+            AsyncSession, "flush", side_effect=IntegrityError("s", {}, Exception())
+        ):
+            resp = await client.post(
+                REGISTER_URL, json={"email": "race@test.com", "password": "password12"}
+            )
+        assert resp.status_code == 409
+
+    async def test_mixed_case_email(self, client: AsyncClient):
+        await client.post(
+            REGISTER_URL, json={"email": "MiXed@Test.com", "password": "password12"}
+        )
+        resp = await client.post(
+            LOGIN_URL, json={"email": "mixed@TEST.com", "password": "password12"}
+        )
+        assert resp.status_code == 200
+        dup = await client.post(
+            REGISTER_URL, json={"email": "MIXED@test.com", "password": "password12"}
+        )
+        assert dup.status_code == 409
+
+    async def test_unknown_user_login_401(self, client: AsyncClient):
+        resp = await client.post(
+            LOGIN_URL, json={"email": "nobody@test.com", "password": "password12"}
+        )
+        assert resp.status_code == 401
+
+    async def test_token_revoked_after_reset(self, client: AsyncClient):
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        email = "rev@test.com"
+        await client.post(REGISTER_URL, json={"email": email, "password": "oldpass12"})
+        old = (
+            await client.post(LOGIN_URL, json={"email": email, "password": "oldpass12"})
+        ).json()["access_token"]
+        svc = AsyncMock()
+        with patch("app.services.auth.EmailService.from_settings", return_value=svc):
+            await client.post(RESET_REQUEST_URL, json={"email": email})
+        token = svc.send_password_reset.call_args.kwargs["reset_token"]
+        time.sleep(1.1)  # iat has whole-second granularity
+        await client.post(
+            RESET_CONFIRM_URL, json={"token": token, "new_password": "newpass12"}
+        )
+        hdr = lambda t: {"Authorization": f"Bearer {t}"}  # noqa: E731
+        assert (await client.get(ME_URL, headers=hdr(old))).status_code == 401
+        new = (
+            await client.post(LOGIN_URL, json={"email": email, "password": "newpass12"})
+        ).json()["access_token"]
+        assert (await client.get(ME_URL, headers=hdr(new))).status_code == 200
+
+
+class TestSecretKeyGuard:
+    def test_default_key_rejected_outside_development(self):
+        from pydantic import ValidationError
+
+        from app.core.config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(ENVIRONMENT="production", SECRET_KEY="change-me-in-production")
+
+    def test_default_key_ok_in_development(self):
+        from app.core.config import Settings
+
+        Settings(ENVIRONMENT="development", SECRET_KEY="change-me-in-production")
+
+    def test_custom_key_ok_in_production(self):
+        from app.core.config import Settings
+
+        Settings(ENVIRONMENT="production", SECRET_KEY="x" * 32)

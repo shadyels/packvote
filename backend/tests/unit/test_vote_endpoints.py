@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -26,9 +27,10 @@ async def voting_context(
     Create a trip with 1 participant, 2 itineraries in VOTING status.
     Returns dict with trip, participant token, itinerary IDs.
     """
+    voter_email = f"voter_{secrets.token_hex(4)}@test.com"
     resp = await client.post(
         "/trips/",
-        json={"title": "Vote Trip", "participant_emails": ["voter@test.com"]},
+        json={"title": "Vote Trip", "participant_emails": [voter_email]},
         headers=auth_headers,
     )
     assert resp.status_code == 201
@@ -81,6 +83,7 @@ async def voting_context(
     return {
         "trip_id": trip_id,
         "token": participant.token,
+        "voter_email": voter_email,
         "itin_ids": [itin1.id, itin2.id],
     }
 
@@ -200,16 +203,89 @@ class TestGetResults:
             json={"rankings": ctx["itin_ids"]},
             headers=auth_headers,
         )
-        resp = await client.get(f"/votes/trips/{ctx['trip_id']}/results")
+        resp = await client.get(
+            f"/votes/trips/{ctx['trip_id']}/results", headers=auth_headers
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["trip_id"] == ctx["trip_id"]
         assert data["is_complete"] is True
         assert len(data["rounds"]) > 0
 
-    async def test_trip_not_found_returns_404(self, client: AsyncClient) -> None:
-        resp = await client.get("/votes/trips/99999/results")
+    async def test_trip_not_found_returns_404(
+        self, client: AsyncClient, auth_headers
+    ) -> None:
+        resp = await client.get("/votes/trips/99999/results", headers=auth_headers)
         assert resp.status_code == 404
+
+    async def test_missing_trip_without_credentials_is_401(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.get("/votes/trips/99999/results")
+        assert resp.status_code == 401
+
+
+async def _login(client: AsyncClient, email: str) -> dict:
+    await client.post("/auth/register", json={"email": email, "password": "test1234"})
+    resp = await client.post(
+        "/auth/login", json={"email": email, "password": "test1234"}
+    )
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+class TestResultsAuth:
+    async def test_no_credentials_401(self, client, voting_context) -> None:
+        url = f"/votes/trips/{voting_context['trip_id']}/results"
+        assert (await client.get(url)).status_code == 401
+
+    async def test_unknown_participant_token_401(self, client, voting_context) -> None:
+        url = f"/votes/trips/{voting_context['trip_id']}/results"
+        resp = await client.get(url, headers={"X-Participant-Token": "nope"})
+        assert resp.status_code == 401
+
+    async def test_own_participant_token_200(self, client, voting_context) -> None:
+        ctx = voting_context
+        resp = await client.get(
+            f"/votes/trips/{ctx['trip_id']}/results",
+            headers={"X-Participant-Token": ctx["token"]},
+        )
+        assert resp.status_code == 200
+
+    async def test_other_trips_participant_token_403(
+        self, client, auth_headers, voting_context
+    ) -> None:
+        other = await client.post(
+            "/trips/",
+            json={"title": "Other", "participant_emails": ["x@test.com"]},
+            headers=auth_headers,
+        )
+        other_id = other.json()["id"]
+        resp = await client.get(
+            f"/votes/trips/{other_id}/results",
+            headers={"X-Participant-Token": voting_context["token"]},
+        )
+        assert resp.status_code == 403
+
+    async def test_unrelated_jwt_403(self, client, voting_context) -> None:
+        headers = await _login(client, "stranger@test.com")
+        resp = await client.get(
+            f"/votes/trips/{voting_context['trip_id']}/results", headers=headers
+        )
+        assert resp.status_code == 403
+
+    async def test_creator_jwt_200(self, client, auth_headers, voting_context) -> None:
+        resp = await client.get(
+            f"/votes/trips/{voting_context['trip_id']}/results", headers=auth_headers
+        )
+        assert resp.status_code == 200
+
+    async def test_linked_participant_jwt_200(self, client, voting_context) -> None:
+        # Registering the invited email links the existing participant row.
+        headers = await _login(client, voting_context["voter_email"])
+        resp = await client.get(
+            f"/votes/trips/{voting_context['trip_id']}/results", headers=headers
+        )
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +358,7 @@ class TestResultsFreshness:
             f"/votes/trips/{ctx['trip_id']}/vote/{ctx['token']}",
             json={"rankings": ctx["itin_ids"]},
         )
-        first = (await client.get(url)).json()
+        first = (await client.get(url, headers=auth_headers)).json()
         assert sum(first["rounds"][0]["results"].values()) == 1
 
         await client.post(
@@ -290,5 +366,5 @@ class TestResultsFreshness:
             json={"rankings": ctx["itin_ids"]},
             headers=auth_headers,
         )
-        second = (await client.get(url)).json()
+        second = (await client.get(url, headers=auth_headers)).json()
         assert sum(second["rounds"][0]["results"].values()) == 2

@@ -18,7 +18,7 @@ from app.services.ai.rate_limiter import (
 async def test_fresh_limiter_accepts_small_request() -> None:
     limiter = GlobalRateLimiter()
     reservation = await limiter.reserve(1000)
-    assert reservation.estimated_tokens == 1000
+    assert reservation.tokens == 1000
     assert reservation.timestamp > 0
 
 
@@ -63,7 +63,7 @@ async def test_context_length_rejected_before_lock() -> None:
         await limiter.reserve(MAX_CONTEXT_TOKENS + 1)
     # Should still accept a valid request after the oversized rejection
     reservation = await limiter.reserve(1000)
-    assert reservation.estimated_tokens == 1000
+    assert reservation.tokens == 1000
 
 
 async def test_commit_lowers_estimate_frees_token_room() -> None:
@@ -80,9 +80,9 @@ async def test_commit_lowers_estimate_frees_token_room() -> None:
         await limiter.reserve(overflow)
     assert exc_info.value.kind == "tpm"
     # Commit the first reservation with a much lower actual — frees its room.
-    await limiter.commit(first, 1_000)
+    limiter.commit(first, 1_000)
     r2 = await limiter.reserve(overflow)
-    assert r2.estimated_tokens == overflow
+    assert r2.tokens == overflow
 
 
 async def test_concurrent_reservations_exactly_1000_succeed() -> None:

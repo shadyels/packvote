@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Collection
 
 import httpx
 from openai import APIConnectionError, APIStatusError, RateLimitError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
@@ -26,7 +27,7 @@ from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
 from app.models.participant import Participant
 from app.models.preference import Preference
-from app.models.trip import Trip
+from app.models.trip import Trip, TripStatus
 from app.schemas._limits import max_trip_days
 from app.schemas._sanitize import sanitize_text
 from app.services.ai.json_utils import AIInputError, AIParseError
@@ -230,6 +231,49 @@ async def run_generation(
             await _reset_trip_status(
                 trip_id, session_factory, error_message=_humanize_error(exc)
             )
+
+
+# ---------------------------------------------------------------------------
+# Generation start / crash recovery
+# ---------------------------------------------------------------------------
+
+
+async def start_generation(
+    db: AsyncSession, trip_id: int, allowed: Collection[TripStatus]
+) -> bool:
+    """Atomically flip a trip to GENERATING if its status is in ``allowed``.
+
+    Returns True when this call won the transition (rowcount == 1); a concurrent
+    caller that lost the race gets False and must not schedule a generation.
+    """
+    result = await db.execute(
+        update(Trip)
+        .where(Trip.id == trip_id, Trip.status.in_(allowed))
+        .values(status=TripStatus.GENERATING, generation_error=None)
+    )
+    await db.commit()
+    return result.rowcount == 1
+
+
+async def recover_stuck_generations(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> int:
+    """Mark trips left in GENERATING (server restarted mid-run) as failed."""
+    # ponytail: assumes a single worker process; with several, a restarting worker
+    # would fail another worker's live runs. Upgrade path: heartbeat/lease column.
+    async with session_factory() as db:
+        result = await db.execute(
+            update(Trip)
+            .where(Trip.status == TripStatus.GENERATING)
+            .values(
+                status=TripStatus.GENERATION_FAILED,
+                generation_error=(
+                    "Generation was interrupted by a server restart. Please try again."
+                ),
+            )
+        )
+        await db.commit()
+        return result.rowcount
 
 
 # ---------------------------------------------------------------------------

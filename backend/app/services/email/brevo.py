@@ -3,9 +3,11 @@ import logging
 import httpx
 
 from app.core.config import get_settings
-from app.services.email.rate_limiter import get_brevo_limiter
+from app.services.rate_limit import SlidingWindow
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+MAX_EPD = 300  # Brevo free tier: emails per day
+_limiter = SlidingWindow(MAX_EPD, 86400)
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +37,10 @@ class EmailService:
         if not self._api_key:
             logger.error("BREVO_API_KEY is not set — email to %s not sent", to_email)
             return False
-        if not await get_brevo_limiter().try_consume():
+        if not _limiter.acquire():
             logger.warning(
-                "Brevo daily rate limit reached (300/day) — email to %s dropped",
+                "Brevo daily rate limit reached (%d/day) — email to %s dropped",
+                MAX_EPD,
                 to_email,
             )
             return False

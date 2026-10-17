@@ -1,7 +1,10 @@
 from functools import lru_cache
 from typing import Any, Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_SECRET = "change-me-in-production"
 
 
 class Settings(BaseSettings):
@@ -13,7 +16,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://localhost/packvote"
 
     # Security
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = _DEFAULT_SECRET
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     RESET_TOKEN_EXPIRE_MINUTES: int = 60
 
@@ -68,6 +71,14 @@ class Settings(BaseSettings):
     AI_EXTRA_BODY: dict[str, Any] = {
         "extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}
     }
+
+    @model_validator(mode="after")
+    def _reject_default_secret(self) -> "Settings":
+        if self.ENVIRONMENT != "development" and self.SECRET_KEY == _DEFAULT_SECRET:
+            raise ValueError(
+                "SECRET_KEY must be set when ENVIRONMENT is not development"
+            )
+        return self
 
 
 @lru_cache

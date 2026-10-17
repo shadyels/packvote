@@ -25,18 +25,12 @@ async def created_trip(
         headers=auth_headers,
     )
     assert resp.status_code == 201
-    import asyncio
-
-    await asyncio.sleep(0)
     return resp.json(), mock_email
 
 
 class TestAccessByCode:
     async def test_success(self, client: AsyncClient, created_trip):
         trip, mock_email_svc = created_trip
-        import asyncio
-
-        await asyncio.sleep(0)
         participant_pin = mock_email_svc.sent[0]["pin"]
         resp = await client.post(
             ACCESS_BY_CODE_URL,
@@ -57,6 +51,55 @@ class TestAccessByCode:
             json={"trip_code": trip["trip_code"], "pin": "0000"},
         )
         assert resp.status_code == 404
+
+    async def test_pin_throttle_blocks_even_correct_pin(
+        self, client: AsyncClient, created_trip
+    ):
+        trip, mock_email_svc = created_trip
+        pin = mock_email_svc.sent[0]["pin"]
+        wrong = "0000" if pin != "0000" else "1111"
+        for _ in range(10):
+            resp = await client.post(
+                ACCESS_BY_CODE_URL, json={"trip_code": trip["trip_code"], "pin": wrong}
+            )
+            assert resp.status_code == 404
+        for attempt in (wrong, pin):
+            resp = await client.post(
+                ACCESS_BY_CODE_URL,
+                json={"trip_code": trip["trip_code"], "pin": attempt},
+            )
+            assert resp.status_code == 429
+
+    async def test_unknown_codes_do_not_consume_and_other_trips_unaffected(
+        self, client: AsyncClient, created_trip, auth_headers
+    ):
+        trip, mock_email_svc = created_trip
+        pin = mock_email_svc.sent[0]["pin"]
+        for _ in range(11):
+            resp = await client.post(
+                ACCESS_BY_CODE_URL, json={"trip_code": "XXXXXXXX", "pin": "0000"}
+            )
+            assert resp.status_code == 404
+        other = (
+            await client.post(
+                TRIPS_URL,
+                json={"title": "Other", "participant_emails": ["o@example.com"]},
+                headers=auth_headers,
+            )
+        ).json()
+        for _ in range(10):
+            await client.post(
+                ACCESS_BY_CODE_URL,
+                json={"trip_code": other["trip_code"], "pin": "0000"},
+            )
+        resp = await client.post(
+            ACCESS_BY_CODE_URL, json={"trip_code": other["trip_code"], "pin": "0000"}
+        )
+        assert resp.status_code == 429
+        resp = await client.post(
+            ACCESS_BY_CODE_URL, json={"trip_code": trip["trip_code"], "pin": pin}
+        )
+        assert resp.status_code == 200
 
     async def test_bad_trip_code_returns_404(self, client: AsyncClient, created_trip):
         resp = await client.post(
@@ -104,6 +147,7 @@ class TestGetTripView:
         assert resp.status_code == 200
         for brief in resp.json()["participants"]:
             assert "email" not in brief
+            assert "email_local" not in brief
 
     async def test_invalid_token_returns_404(self, client: AsyncClient, created_trip):
         resp = await client.get("/participants/bad-token-xyz/trip-view")
@@ -185,9 +229,6 @@ class TestAutoTriggerGeneration:
             headers=auth_headers,
         )
         assert resp.status_code == 201
-        import asyncio
-
-        await asyncio.sleep(0)
         trip = resp.json()
         tokens = [e["token"] for e in mock_email.sent]
         return trip, tokens

@@ -30,21 +30,23 @@ class LocalRateLimitError(Exception):
 
 @dataclass
 class Reservation:
+    """Token entry held in the window; `commit` mutates `tokens` in place."""
+
     timestamp: float
-    estimated_tokens: int
+    tokens: int
 
 
 class GlobalRateLimiter:
     def __init__(self) -> None:
         self._requests: deque[float] = deque()
-        self._tokens: deque[tuple[float, int]] = deque()
+        self._tokens: deque[Reservation] = deque()
         self._lock = asyncio.Lock()
 
     def _evict(self, now: float) -> None:
         cutoff = now - WINDOW_24H
         while self._requests and self._requests[0] < cutoff:
             self._requests.popleft()
-        while self._tokens and self._tokens[0][0] < cutoff:
+        while self._tokens and self._tokens[0].timestamp < cutoff:
             self._tokens.popleft()
 
     async def reserve(self, estimated_tokens: int) -> Reservation:
@@ -67,32 +69,33 @@ class GlobalRateLimiter:
             if rpd >= MAX_RPD:
                 raise LocalRateLimitError("rpd", WINDOW_24H - (now - self._requests[0]))
 
-            tpm = sum(n for ts, n in self._tokens if ts >= now - WINDOW_1M)
-            tph = sum(n for ts, n in self._tokens if ts >= now - WINDOW_1H)
-            tpd = sum(n for ts, n in self._tokens)
+            tpm = sum(r.tokens for r in self._tokens if r.timestamp >= now - WINDOW_1M)
+            tph = sum(r.tokens for r in self._tokens if r.timestamp >= now - WINDOW_1H)
+            tpd = sum(r.tokens for r in self._tokens)
 
             if tpm + estimated_tokens > MAX_TPM:
-                oldest = next(ts for ts, _ in self._tokens if ts >= now - WINDOW_1M)
+                oldest = next(
+                    r.timestamp for r in self._tokens if r.timestamp >= now - WINDOW_1M
+                )
                 raise LocalRateLimitError("tpm", WINDOW_1M - (now - oldest))
             if tph + estimated_tokens > MAX_TPH:
-                oldest = next(ts for ts, _ in self._tokens if ts >= now - WINDOW_1H)
+                oldest = next(
+                    r.timestamp for r in self._tokens if r.timestamp >= now - WINDOW_1H
+                )
                 raise LocalRateLimitError("tph", WINDOW_1H - (now - oldest))
             if tpd + estimated_tokens > MAX_TPD:
                 raise LocalRateLimitError(
-                    "tpd", WINDOW_24H - (now - self._tokens[0][0])
+                    "tpd", WINDOW_24H - (now - self._tokens[0].timestamp)
                 )
 
             self._requests.append(now)
-            self._tokens.append((now, estimated_tokens))
-            return Reservation(timestamp=now, estimated_tokens=estimated_tokens)
+            entry = Reservation(timestamp=now, tokens=estimated_tokens)
+            self._tokens.append(entry)
+            return entry
 
-    async def commit(self, reservation: Reservation, actual_tokens: int) -> None:
+    def commit(self, reservation: Reservation, actual_tokens: int) -> None:
         """Replace the reservation's estimate with actual usage post-call."""
-        async with self._lock:
-            for i, (ts, _) in enumerate(self._tokens):
-                if ts == reservation.timestamp:
-                    self._tokens[i] = (ts, actual_tokens)
-                    return
+        reservation.tokens = actual_tokens
 
 
 _limiter: GlobalRateLimiter | None = None

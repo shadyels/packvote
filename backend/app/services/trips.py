@@ -2,48 +2,56 @@ import asyncio
 import random
 import secrets
 import string
+from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
-from sqlalchemy import delete, func, select, update
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import BackgroundTasks, HTTPException, status
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
 from app.models.participant import Participant
-from app.models.preference import Preference
-from app.models.trip import Trip
+from app.models.trip import Trip, TripStatus
 from app.models.user import User
 from app.models.vote import Vote
+from app.schemas._limits import max_trip_days
 from app.schemas.trip import InvitedTripSummary, TripCreate, TripSummary, TripUpdate
+from app.services import generation
 from app.services.email.brevo import EmailService
+from app.services.generation import start_generation
 
 _ALPHANUM = string.ascii_uppercase + string.digits
 
 
 def _generate_trip_code() -> str:
-    return "".join(random.choices(_ALPHANUM, k=8))
+    return "".join(secrets.choice(_ALPHANUM) for _ in range(8))
 
 
-def _generate_pin() -> str:
-    return "".join(random.choices(string.digits, k=4))
+def _distinct_pins(n: int) -> list[str]:
+    """n distinct 4-digit PINs (the (trip_id, pin) pair is unique)."""
+    return [f"{p:04d}" for p in random.SystemRandom().sample(range(10_000), n)]
 
 
-def _next_unique_pin(used: set[str]) -> str:
-    pin = _generate_pin()
-    while pin in used:
-        pin = _generate_pin()
-    used.add(pin)
-    return pin
-
-
-async def _unique_trip_code(db: AsyncSession) -> str:
-    for _ in range(10):
-        code = _generate_trip_code()
-        result = await db.execute(select(Trip).where(Trip.trip_code == code))
-        if result.scalar_one_or_none() is None:
-            return code
-    return _generate_trip_code()
+async def send_invitations(
+    email_service: EmailService,
+    trip_title: str,
+    trip_code: str,
+    invitees: list[dict[str, str | None]],
+) -> None:
+    """Background task: best-effort invitation emails from snapshotted values."""
+    await asyncio.gather(
+        *[
+            email_service.send_invitation(
+                to_email=i["email"],
+                participant_name=i["name"],
+                trip_title=trip_title,
+                trip_code=trip_code,
+                pin=i["pin"],
+                token=i["token"],
+            )
+            for i in invitees
+        ],
+        return_exceptions=True,
+    )
 
 
 async def create_trip(
@@ -51,6 +59,7 @@ async def create_trip(
     creator_id: int,
     db: AsyncSession,
     email_service: EmailService,
+    background_tasks: BackgroundTasks,
 ) -> Trip:
     creator_result = await db.execute(select(User).where(User.id == creator_id))
     creator = creator_result.scalar_one_or_none()
@@ -60,10 +69,11 @@ async def create_trip(
             detail="Authenticated user record not found",
         )
 
-    trip_code = await _unique_trip_code(db)
-
+    # ponytail: no pre-check/retry on trip_code. 36^8 codes make a collision
+    # negligible; if it ever happens the unique constraint raises IntegrityError
+    # -> 500. Upgrade path: retry on IntegrityError with a fresh code.
     trip = Trip(
-        trip_code=trip_code,
+        trip_code=_generate_trip_code(),
         creator_id=creator_id,
         title=payload.title,
         destination=payload.destination,
@@ -74,14 +84,7 @@ async def create_trip(
     )
     db.add(trip)
 
-    try:
-        await db.flush()
-    except IntegrityError:
-        await db.rollback()
-        # Extremely rare race on trip_code — retry once with a fresh code
-        trip.trip_code = _generate_trip_code()
-        db.add(trip)
-        await db.flush()
+    await db.flush()
 
     # Dedupe: drop the creator's email from the invite list
     invite_emails = [
@@ -101,15 +104,17 @@ async def create_trip(
         ).all()
         email_to_user_id = {email: uid for uid, email in user_rows}
 
+    # Participants are only ever created here (none are added later), so
+    # distinct PINs within this batch are enough.
+    pins = iter(_distinct_pins(len(invite_emails) + 1))
     participants: list[Participant] = []
-    used_pins: set[str] = set()
     for email in invite_emails:
         token = secrets.token_urlsafe(32)
         participant = Participant(
             trip_id=trip.id,
             email=email,
             token=token,
-            pin=_next_unique_pin(used_pins),
+            pin=next(pins),
             user_id=email_to_user_id.get(email.lower()),
         )
         db.add(participant)
@@ -121,7 +126,7 @@ async def create_trip(
         email=creator.email,
         name=creator.full_name,
         token=secrets.token_urlsafe(32),
-        pin=_next_unique_pin(used_pins),
+        pin=next(pins),
         user_id=creator.id,
         preferences_submitted=True,
     )
@@ -130,21 +135,17 @@ async def create_trip(
     await db.commit()
     await db.refresh(trip)
 
-    # Fire-and-forget — email failure must not roll back the trip
-    # creator_participant is intentionally excluded from this list
-    asyncio.gather(
-        *[
-            email_service.send_invitation(
-                to_email=p.email,
-                participant_name=p.name,
-                trip_title=trip.title,
-                trip_code=trip.trip_code,
-                pin=p.pin,
-                token=p.token,
-            )
+    # Sent after the response; email failure must not affect the trip.
+    # The creator's participant row is intentionally excluded.
+    background_tasks.add_task(
+        send_invitations,
+        email_service,
+        trip.title,
+        trip.trip_code,
+        [
+            {"email": p.email, "name": p.name, "pin": p.pin, "token": p.token}
             for p in participants
         ],
-        return_exceptions=True,
     )
 
     return trip
@@ -267,7 +268,16 @@ async def get_trip(trip_id: int, user_id: int, db: AsyncSession) -> Trip:
     return trip
 
 
-_EDITABLE_STATUSES = ("CREATED", "COLLECTING_PREFERENCES", "GENERATION_FAILED")
+_EDITABLE_STATUSES = (
+    TripStatus.CREATED,
+    TripStatus.COLLECTING_PREFERENCES,
+    TripStatus.GENERATION_FAILED,
+)
+
+
+def _as_utc(dt: datetime) -> datetime:
+    # SQLite hands back naive datetimes; Postgres/pydantic give aware ones.
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 async def update_trip(
@@ -279,18 +289,26 @@ async def update_trip(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot edit a trip with status '{trip.status}'",
         )
-    if payload.title is not None:
-        trip.title = payload.title
-    if payload.destination is not None:
-        trip.destination = payload.destination
-    if payload.proposed_start_date is not None:
-        trip.proposed_start_date = payload.proposed_start_date
-    if payload.proposed_end_date is not None:
-        trip.proposed_end_date = payload.proposed_end_date
-    if payload.num_options is not None:
-        trip.num_options = payload.num_options
-    if payload.notes is not None:
-        trip.notes = payload.notes
+    # exclude_none keeps the previous semantics: None means "leave unchanged"
+    # (a field cannot be cleared via PATCH).
+    changes = payload.model_dump(exclude_none=True)
+    merged = {
+        f: changes.get(f, getattr(trip, f))
+        for f in ("proposed_start_date", "proposed_end_date", "num_options")
+    }
+    start, end = merged["proposed_start_date"], merged["proposed_end_date"]
+    if start is not None and end is not None:
+        n = max_trip_days(merged["num_options"])
+        if (_as_utc(end) - _as_utc(start)).days > n:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    f"Trip duration exceeds the maximum of {n} days "
+                    f"for {merged['num_options']} itinerary options"
+                ),
+            )
+    for field, value in changes.items():
+        setattr(trip, field, value)
     await db.commit()
     await db.refresh(trip)
     return trip
@@ -335,28 +353,41 @@ async def list_participants_for_trip(
 
 async def delete_trip(trip_id: int, user_id: int, db: AsyncSession) -> None:
     trip = await get_trip(trip_id, user_id, db)
-    if trip.status == "GENERATING":
+    if trip.status == TripStatus.GENERATING:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot delete a trip while generation is in progress",
         )
-
-    # Delete child rows in FK-safe order
-    await db.execute(delete(Vote).where(Vote.trip_id == trip_id))
-    await db.execute(delete(Preference).where(Preference.trip_id == trip_id))
-    # ai_call_logs is an evaluation dataset: keep rows, detach them from the trip.
-    await db.execute(
-        update(AICallLog).where(AICallLog.trip_id == trip_id).values(trip_id=None)
-    )
-
-    # Break circular FK (trip.winner_itinerary_id -> itineraries.id) before deleting itineraries
-    trip.winner_itinerary_id = None
-    await db.flush()
-
-    await db.execute(delete(Itinerary).where(Itinerary.trip_id == trip_id))
-    await db.execute(delete(Participant).where(Participant.trip_id == trip_id))
-    await db.delete(trip)
+    # FK ON DELETE CASCADE removes children; ai_call_logs.trip_id is SET NULL.
+    await db.execute(delete(Trip).where(Trip.id == trip_id))
     await db.commit()
+
+
+async def trigger_generation(
+    trip_id: int,
+    user_id: int,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> dict:
+    trip = await db.get(Trip, trip_id)
+    if trip is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found"
+        )
+    if trip.creator_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        )
+    # Commit status change before returning so pollers see GENERATING immediately
+    if not await start_generation(db, trip_id, _EDITABLE_STATUSES):
+        await db.refresh(trip)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot generate from status '{trip.status}'",
+        )
+    background_tasks.add_task(generation.run_generation, trip_id, session_factory)
+    return {"status": "accepted", "trip_id": trip_id}
 
 
 async def list_itineraries_for_trip(
