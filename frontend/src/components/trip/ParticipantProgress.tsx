@@ -11,11 +11,9 @@ function getInitialsFromString(value: string): string {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
-function getInitials(name: string | null, emailLocal: string, id: number): string {
-  if (name) return getInitialsFromString(name);
-  const fromEmail = getInitialsFromString(emailLocal);
-  if (fromEmail) return fromEmail;
-  return `P${id.toString()}`;
+function getInitials(name: string | null, id: number): string {
+  const fromName = name ? getInitialsFromString(name) : "";
+  return fromName || `P${id.toString()}`;
 }
 
 export function ParticipantProgress({ participants }: ParticipantProgressProps) {
@@ -38,7 +36,7 @@ export function ParticipantProgress({ participants }: ParticipantProgressProps) 
                 : "bg-muted text-muted-foreground ring-1 ring-border"
             }`}
           >
-            {getInitials(p.name, p.email_local, p.id)}
+            {getInitials(p.name, p.id)}
           </div>
         ))}
       </div>
