@@ -40,17 +40,6 @@ class TestExtractJson:
         raw = 'text {"a": {"b": 1}} text'
         assert extract_json(raw) == {"a": {"b": 1}}
 
-    def test_parse_error_carries_raw_text(self) -> None:
-        raw = "not json"
-        with pytest.raises(AIParseError) as exc_info:
-            extract_json(raw)
-        assert exc_info.value.raw_text == raw
-
-    def test_none_raw_text_on_empty_error(self) -> None:
-        with pytest.raises(AIParseError) as exc_info:
-            extract_json(None)
-        assert exc_info.value.raw_text is None
-
 
 class TestAIInputError:
     def test_is_subclass_of_ai_parse_error(self) -> None:

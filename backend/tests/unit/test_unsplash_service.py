@@ -1,8 +1,6 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from app.services.unsplash import (
     MAX_RPH,
     WINDOW_SECONDS,
@@ -13,14 +11,12 @@ from app.services.unsplash import (
 # --- Rate limiter ---
 
 
-@pytest.mark.asyncio
 async def test_rate_limiter_50_succeed() -> None:
     limiter = UnsplashRateLimiter()
     results = [await limiter.try_consume() for _ in range(MAX_RPH)]
     assert all(results)
 
 
-@pytest.mark.asyncio
 async def test_rate_limiter_51st_fails() -> None:
     limiter = UnsplashRateLimiter()
     for _ in range(MAX_RPH):
@@ -28,7 +24,6 @@ async def test_rate_limiter_51st_fails() -> None:
     assert not await limiter.try_consume()
 
 
-@pytest.mark.asyncio
 async def test_rate_limiter_evicts_old_entries() -> None:
     limiter = UnsplashRateLimiter()
     base_time = 1000.0
@@ -46,7 +41,6 @@ async def test_rate_limiter_evicts_old_entries() -> None:
         assert await limiter.try_consume()
 
 
-@pytest.mark.asyncio
 async def test_concurrent_consumes_exactly_50_succeed() -> None:
     limiter = UnsplashRateLimiter()
     results = await asyncio.gather(
@@ -67,7 +61,6 @@ def _make_mock_response(urls: list[str], status: int = 200) -> MagicMock:
     return resp
 
 
-@pytest.mark.asyncio
 async def test_empty_key_returns_empty_no_rate_limit() -> None:
     limiter = UnsplashRateLimiter()
     with (
@@ -81,7 +74,6 @@ async def test_empty_key_returns_empty_no_rate_limit() -> None:
     assert len(limiter._requests) == 0
 
 
-@pytest.mark.asyncio
 async def test_fetch_returns_image_urls() -> None:
     mock_resp = _make_mock_response(
         ["https://images.unsplash.com/a.jpg", "https://images.unsplash.com/b.jpg"]
@@ -104,7 +96,6 @@ async def test_fetch_returns_image_urls() -> None:
     ]
 
 
-@pytest.mark.asyncio
 async def test_cache_prevents_second_fetch() -> None:
     import app.services.unsplash as svc_module
 
@@ -136,7 +127,6 @@ async def test_cache_prevents_second_fetch() -> None:
     assert call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_unsplash_4xx_returns_empty() -> None:
     mock_resp = MagicMock()
     mock_resp.is_success = False
@@ -156,7 +146,6 @@ async def test_unsplash_4xx_returns_empty() -> None:
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_over_rate_limit_returns_empty() -> None:
     import app.services.unsplash as svc_module
 

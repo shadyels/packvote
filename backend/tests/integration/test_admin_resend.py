@@ -1,9 +1,6 @@
 """Integration tests for admin email resend endpoints."""
 
-import pytest
 from httpx import AsyncClient
-
-pytestmark = pytest.mark.anyio
 
 
 async def _register_and_login(client: AsyncClient, email: str) -> str:

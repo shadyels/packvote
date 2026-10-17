@@ -275,7 +275,7 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
     calls: list[AICallLog] = []
     t_start = time.monotonic()
     try:
-        ai_response, provider_name = await ai_service.generate_itineraries(
+        ai_response = await ai_service.generate_itineraries(
             prompt=prompt,
             num_options=trip.num_options,
             calls=calls,
@@ -310,7 +310,7 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
             highlights=option.highlights,
             prompt_version_id=template.id,
             model_used=get_settings().DEFAULT_AI_MODEL,
-            provider=provider_name,
+            provider=get_settings().AI_PROVIDER_NAME,
             generation_latency_ms=latency_ms,
         )
         db.add(itinerary)
@@ -329,7 +329,7 @@ async def _do_generation(trip_id: int, db: AsyncSession) -> None:
         "Generation complete for trip %d: %d options, provider=%s, latency=%dms",
         trip_id,
         len(ai_response.options),
-        provider_name,
+        get_settings().AI_PROVIDER_NAME,
         latency_ms,
     )
 

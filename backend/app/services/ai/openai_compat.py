@@ -8,7 +8,6 @@ from pydantic import ValidationError
 
 from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import AIGenerationResponse
-from app.services.ai.base import AIProvider
 from app.services.ai.json_utils import AIInputError, AIParseError, extract_json
 from app.services.ai.rate_limiter import get_limiter
 
@@ -24,7 +23,7 @@ def _split_prompt(prompt: str) -> tuple[str, str]:
     return system, user
 
 
-class OpenAICompatProvider(AIProvider):
+class OpenAICompatProvider:
     """Inference provider for any OpenAI-compatible chat-completions endpoint.
 
     Gemini, OpenRouter, Mistral, Groq and Cerebras all expose this API shape, so
@@ -67,7 +66,7 @@ class OpenAICompatProvider(AIProvider):
         reasoning_effort: str = "none",
         *,
         calls: list[AICallLog] | None = None,
-    ) -> tuple[AIGenerationResponse, str]:
+    ) -> AIGenerationResponse:
         system_msg, user_msg = _split_prompt(prompt)
         estimated_tokens = (len(system_msg) + len(user_msg)) // 4 + MAX_OUTPUT_TOKENS
         limiter = get_limiter()
@@ -134,7 +133,7 @@ class OpenAICompatProvider(AIProvider):
             log.error_message = str(exc)
             raise
         log.response_valid = True
-        return response, self.provider_name
+        return response
 
     def _parse_response(
         self, raw_text: str | None, num_options: int
@@ -173,23 +172,9 @@ class OpenAICompatProvider(AIProvider):
                 exc,
                 raw_text,
             )
-            raise AIParseError(str(exc), raw_text=raw_text) from exc
+            raise AIParseError(str(exc)) from exc
         if len(response.options) != num_options:
             raise ValueError(
                 f"AI returned {len(response.options)} options, expected {num_options}"
             )
         return response
-
-    async def generate_followup_survey(
-        self,
-        prompt: str,
-        model: str,
-    ) -> list[str]:
-        raise NotImplementedError
-
-    async def organize_preferences(
-        self,
-        prompt: str,
-        model: str,
-    ) -> dict:
-        raise NotImplementedError

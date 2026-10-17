@@ -12,14 +12,7 @@ import re
 
 
 class AIParseError(Exception):
-    """Raised when an AI response cannot be parsed as valid JSON.
-
-    Carries the raw response text so callers can log it for debugging.
-    """
-
-    def __init__(self, message: str, raw_text: str | None = None) -> None:
-        super().__init__(message)
-        self.raw_text = raw_text
+    """Raised when an AI response cannot be parsed as valid JSON."""
 
 
 class AIInputError(AIParseError):
@@ -51,7 +44,7 @@ def extract_json(raw: str | None) -> dict:
         AIParseError: If no valid JSON object can be extracted.
     """
     if not raw:
-        raise AIParseError("AI returned empty/null content", raw_text=raw)
+        raise AIParseError("AI returned empty/null content")
 
     # Attempt 1: direct parse (fastest path, handles well-behaved models)
     try:
@@ -77,6 +70,5 @@ def extract_json(raw: str | None) -> dict:
             pass
 
     raise AIParseError(
-        f"Could not extract JSON from AI response. First 200 chars: {raw[:200]!r}",
-        raw_text=raw,
+        f"Could not extract JSON from AI response. First 200 chars: {raw[:200]!r}"
     )

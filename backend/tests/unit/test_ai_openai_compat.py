@@ -159,17 +159,16 @@ class TestOpenAICompatProviderGenerate:
         ):
             yield
 
-    async def test_success_returns_response_and_provider_name(self) -> None:
+    async def test_success_returns_response(self) -> None:
         provider = _make_provider()
         response_json = _make_valid_response_json(num_options=1)
         mock_client = _make_mock_client(response_json)
 
         with patch.object(provider, "_make_client", return_value=mock_client):
-            response, provider_name = await provider.generate_itineraries(
+            response = await provider.generate_itineraries(
                 "[SYSTEM]\nSystem\n[USER]\nUser", 1, "gemini-2.5-flash"
             )
 
-        assert provider_name == "test-provider"
         assert isinstance(response, AIGenerationResponse)
         assert len(response.options) == 1
         assert response.options[0].destination_name == "Paris"
@@ -323,7 +322,7 @@ class TestOpenAICompatProviderGenerate:
         mock_client = _make_mock_client(fenced)
 
         with patch.object(provider, "_make_client", return_value=mock_client):
-            response, provider_name = await provider.generate_itineraries(
+            response = await provider.generate_itineraries(
                 "[SYSTEM]\nS\n[USER]\nU", 1, "model"
             )
 

@@ -75,7 +75,7 @@ async def get_participant_trip_view(
 
     # Itineraries for current iteration (only relevant during/after voting)
     itineraries: list[ItineraryModel] = []
-    show_itinerary_statuses = {"VOTING", "ITERATING", "FINALIZED"}
+    show_itinerary_statuses = {"VOTING", "FINALIZED"}
     if trip.status in show_itinerary_statuses:
         itin_result = await db.execute(
             select(ItineraryModel).where(

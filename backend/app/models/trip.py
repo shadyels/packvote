@@ -25,7 +25,7 @@ class Trip(Base):
     num_options: Mapped[int] = mapped_column(Integer, default=3)  # 2–5
     status: Mapped[str] = mapped_column(
         String(50), default="CREATED"
-    )  # CREATED | COLLECTING_PREFERENCES | GENERATING | GENERATION_FAILED | VOTING | ITERATING | FINALIZED
+    )  # CREATED | COLLECTING_PREFERENCES | GENERATING | GENERATION_FAILED | VOTING | FINALIZED
     max_iterations: Mapped[int] = mapped_column(Integer, default=10)
     current_iteration: Mapped[int] = mapped_column(Integer, default=0)
     winner_itinerary_id: Mapped[int | None] = mapped_column(

@@ -12,7 +12,6 @@ import json
 
 import pytest
 
-from app.core.config import get_settings
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.json_utils import AIInputError
 from app.services.ai.service import AIService
@@ -56,20 +55,19 @@ def _build_minimal_prompt(
 
 
 @pytest.fixture(scope="module")
-async def ai_response() -> tuple[AIGenerationResponse, str]:
+async def ai_response() -> AIGenerationResponse:
     """Single live API call reused across all happy-path tests."""
     service = AIService.from_settings()
     prompt = _build_minimal_prompt(num_options=1)
-    response, provider = await service.generate_itineraries(prompt, num_options=1)
+    response = await service.generate_itineraries(prompt, num_options=1)
 
     # Print raw AI output so it's visible in pytest -s output
     print("\n\n=== AI RESPONSE ===")
-    print(f"Provider : {provider}")
     print(f"Destination: {response.options[0].destination_name}")
     print(json.dumps(response.options[0].model_dump(), indent=2, ensure_ascii=False))
     print("==============================\n")
 
-    return response, provider
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -80,18 +78,17 @@ async def ai_response() -> tuple[AIGenerationResponse, str]:
 @pytest.mark.live
 class TestProviderLive:
     async def test_generate_returns_valid_response(
-        self, ai_response: tuple[AIGenerationResponse, str]
+        self, ai_response: AIGenerationResponse
     ) -> None:
         """Calls the real provider API — requires AI_API_KEY in .env."""
-        response, provider = ai_response
+        response = ai_response
         assert isinstance(response, AIGenerationResponse)
         assert len(response.options) == 1
-        assert provider == get_settings().AI_PROVIDER_NAME
 
     async def test_each_option_has_required_fields(
-        self, ai_response: tuple[AIGenerationResponse, str]
+        self, ai_response: AIGenerationResponse
     ) -> None:
-        response, _ = ai_response
+        response = ai_response
         for option in response.options:
             assert option.destination_name
             assert option.destination_description
@@ -102,9 +99,9 @@ class TestProviderLive:
             assert len(option.daily_itinerary) >= 1
 
     async def test_each_day_has_activities(
-        self, ai_response: tuple[AIGenerationResponse, str]
+        self, ai_response: AIGenerationResponse
     ) -> None:
-        response, _ = ai_response
+        response = ai_response
         for option in response.options:
             for day in option.daily_itinerary:
                 assert day.day_number >= 1
@@ -123,10 +120,10 @@ class TestProviderLive:
 @pytest.mark.live
 class TestPromptV3Compliance:
     async def test_each_day_has_exactly_four_activities(
-        self, ai_response: tuple[AIGenerationResponse, str]
+        self, ai_response: AIGenerationResponse
     ) -> None:
         """V3 prompt instructs: each day must have exactly 4 activities."""
-        response, _ = ai_response
+        response = ai_response
         option = response.options[0]
         assert len(option.daily_itinerary) == 5, (
             f"Expected 5 days, got {len(option.daily_itinerary)}"
@@ -138,10 +135,10 @@ class TestPromptV3Compliance:
             )
 
     async def test_option_title_is_distinct_from_destination(
-        self, ai_response: tuple[AIGenerationResponse, str]
+        self, ai_response: AIGenerationResponse
     ) -> None:
         """V3 prompt instructs: option_title must not repeat the destination name."""
-        response, _ = ai_response
+        response = ai_response
         option = response.options[0]
         assert option.option_title, "option_title should be non-empty"
         assert option.option_title.lower() != option.destination_name.lower(), (
@@ -150,7 +147,7 @@ class TestPromptV3Compliance:
         )
 
     async def test_activity_titles_avoid_banned_words(
-        self, ai_response: tuple[AIGenerationResponse, str]
+        self, ai_response: AIGenerationResponse
     ) -> None:
         """V3 prompt bans AI-sounding filler words."""
         banned = {
@@ -166,7 +163,7 @@ class TestPromptV3Compliance:
             "indulge",
             "immerse yourself",
         }
-        response, _ = ai_response
+        response = ai_response
         violations: list[str] = []
         for option in response.options:
             for day in option.daily_itinerary:

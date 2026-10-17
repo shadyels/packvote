@@ -67,8 +67,6 @@ async def _send_for_status(
         if trip.current_iteration <= 1:
             return await email_service.send_voting_notification(**kwargs)
         return await email_service.send_new_iteration_notification(**kwargs)
-    if trip.status == "ITERATING":
-        return await email_service.send_new_iteration_notification(**kwargs)
     if trip.status == "FINALIZED":
         return await email_service.send_finalized_notification(
             **kwargs, destination_name=destination_name or ""

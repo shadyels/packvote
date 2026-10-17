@@ -105,11 +105,11 @@ def _make_itinerary_option(destination: str = "Barcelona") -> ItineraryOption:
     )
 
 
-def _mock_ai_response(num_options: int = 3) -> tuple[AIGenerationResponse, str]:
+def _mock_ai_response(num_options: int = 3) -> AIGenerationResponse:
     options = [
         _make_itinerary_option(f"Destination {i + 1}") for i in range(num_options)
     ]
-    return AIGenerationResponse(options=options), "gemini"
+    return AIGenerationResponse(options=options)
 
 
 # ---------------------------------------------------------------------------

@@ -15,14 +15,12 @@ from app.services.email.rate_limiter import (
 )
 
 
-@pytest.mark.asyncio
 async def test_300_emails_all_accepted() -> None:
     limiter = BrevoRateLimiter()
     results = [await limiter.try_consume() for _ in range(MAX_EPD)]
     assert all(results)
 
 
-@pytest.mark.asyncio
 async def test_301st_email_rejected() -> None:
     limiter = BrevoRateLimiter()
     for _ in range(MAX_EPD):
@@ -30,7 +28,6 @@ async def test_301st_email_rejected() -> None:
     assert not await limiter.try_consume()
 
 
-@pytest.mark.asyncio
 async def test_sliding_window_evicts_old_entries() -> None:
     limiter = BrevoRateLimiter()
     base_time = 1_000_000.0
@@ -50,7 +47,6 @@ async def test_sliding_window_evicts_old_entries() -> None:
         assert await limiter.try_consume()
 
 
-@pytest.mark.asyncio
 async def test_sliding_window_not_reset_before_expiry() -> None:
     limiter = BrevoRateLimiter()
     base_time = 1_000_000.0
@@ -69,7 +65,6 @@ async def test_sliding_window_not_reset_before_expiry() -> None:
         assert not await limiter.try_consume()
 
 
-@pytest.mark.asyncio
 async def test_concurrent_consumes_exactly_300_succeed() -> None:
     limiter = BrevoRateLimiter()
     results = await asyncio.gather(
@@ -93,7 +88,6 @@ def email_svc() -> EmailService:
     )
 
 
-@pytest.mark.asyncio
 async def test_send_returns_false_when_limiter_exhausted(
     email_svc: EmailService,
 ) -> None:
@@ -115,7 +109,6 @@ async def test_send_returns_false_when_limiter_exhausted(
     assert result is False
 
 
-@pytest.mark.asyncio
 async def test_send_logs_warning_when_rate_limited(
     email_svc: EmailService,
     caplog: pytest.LogCaptureFixture,
@@ -135,7 +128,6 @@ async def test_send_logs_warning_when_rate_limited(
     assert any("rate limit" in rec.message.lower() for rec in caplog.records)
 
 
-@pytest.mark.asyncio
 async def test_send_succeeds_when_limiter_allows(email_svc: EmailService) -> None:
     mock_resp = MagicMock()
     mock_resp.status_code = 201

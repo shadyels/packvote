@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt
-from jose import jwt
+import jwt
 
 from app.core.config import get_settings
 
@@ -28,4 +28,9 @@ def create_access_token(subject: Any, expires_delta: timedelta | None = None) ->
 
 def decode_access_token(token: str) -> dict[str, Any]:
     settings = get_settings()
-    return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+    return jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[ALGORITHM],
+        options={"require": ["exp", "sub"]},
+    )

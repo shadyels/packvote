@@ -44,9 +44,9 @@ class TestJWT:
         assert isinstance(create_access_token(subject=1), str)
 
     def test_decode_invalid_token_raises(self):
-        from jose import JWTError
+        from jwt import PyJWTError
 
-        with pytest.raises(JWTError):
+        with pytest.raises(PyJWTError):
             decode_access_token("not.a.valid.token")
 
 

@@ -47,7 +47,7 @@ async def submit_participant_vote(
         rankings=rankings,
         participant_id=participant.id,
     )
-    await _maybe_auto_tally(trip_id, trip.current_iteration, db)
+    await _maybe_auto_tally(trip, db)
     return vote
 
 
@@ -85,7 +85,7 @@ async def submit_admin_vote(
         rankings=rankings,
         participant_id=creator_participant.id,
     )
-    await _maybe_auto_tally(trip_id, trip.current_iteration, db)
+    await _maybe_auto_tally(trip, db)
     return vote
 
 
@@ -130,7 +130,7 @@ async def pick_winner(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
         )
-    if trip.status not in ("VOTING", "ITERATING"):
+    if trip.status != "VOTING":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot pick winner from status '{trip.status}'",
@@ -273,49 +273,39 @@ async def _upsert_vote(
     return vote
 
 
-async def _maybe_auto_tally(
-    trip_id: int,
-    iteration_number: int,
-    db: AsyncSession,
-) -> None:
-    """Run tally automatically if all eligible voters have submitted."""
+async def _maybe_auto_tally(trip: Trip, db: AsyncSession) -> None:
+    """Run tally automatically if all eligible voters have submitted.
+
+    Callers guarantee ``trip`` is in VOTING (via ``_get_voting_trip``), and a
+    VOTING trip never has a winner set, so it is always finalizable here.
+    """
     participant_count_result = await db.execute(
-        select(func.count(Participant.id)).where(Participant.trip_id == trip_id)
+        select(func.count(Participant.id)).where(Participant.trip_id == trip.id)
     )
     participant_count = participant_count_result.scalar_one()
 
-    eligible = participant_count
-
     vote_count_result = await db.execute(
         select(func.count(Vote.id)).where(
-            Vote.trip_id == trip_id,
-            Vote.iteration_number == iteration_number,
+            Vote.trip_id == trip.id,
+            Vote.iteration_number == trip.current_iteration,
         )
     )
     vote_count = vote_count_result.scalar_one()
 
-    if vote_count < eligible:
+    if vote_count < participant_count:
         return
 
-    trip_result = await db.execute(select(Trip).where(Trip.id == trip_id))
-    trip = trip_result.scalar_one_or_none()
-    should_finalize = (
-        trip is not None
-        and trip.status == "VOTING"
-        and trip.winner_itinerary_id is None
-    )
-
     results = await _compute_and_persist_results(
-        trip_id, iteration_number, db, commit=not should_finalize
+        trip.id, trip.current_iteration, db, commit=False
     )
 
-    if should_finalize and results.winner_id is not None:
+    if results.winner_id is not None:
         trip.winner_itinerary_id = results.winner_id
         trip.status = "FINALIZED"
         await db.commit()
         await db.refresh(trip)
         await _send_finalized_emails(trip, results.winner_id, db)
-    elif should_finalize:
+    else:
         # Tie — rounds were flushed but not committed; commit now without finalizing
         await db.commit()
 

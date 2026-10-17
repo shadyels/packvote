@@ -2,11 +2,9 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
 async def test_unsplash_photo_returns_images(client: AsyncClient) -> None:
     mock_resp = MagicMock()
     mock_resp.is_success = True
@@ -39,7 +37,6 @@ async def test_unsplash_photo_returns_images(client: AsyncClient) -> None:
     assert len(body["images"]) == 2
 
 
-@pytest.mark.asyncio
 async def test_unsplash_photo_no_key_returns_empty(client: AsyncClient) -> None:
     with patch("app.services.unsplash.get_settings") as mock_settings:
         mock_settings.return_value.UNSPLASH_ACCESS_KEY = ""
@@ -49,7 +46,6 @@ async def test_unsplash_photo_no_key_returns_empty(client: AsyncClient) -> None:
     assert response.json() == {"images": []}
 
 
-@pytest.mark.asyncio
 async def test_unsplash_photo_count_clamped(client: AsyncClient) -> None:
     response = await client.get("/unsplash/photo?destination=Rome&count=99")
     assert response.status_code == 422  # FastAPI validation rejects count > 10

@@ -15,7 +15,6 @@ from app.services.ai.rate_limiter import (
 )
 
 
-@pytest.mark.asyncio
 async def test_fresh_limiter_accepts_small_request() -> None:
     limiter = GlobalRateLimiter()
     reservation = await limiter.reserve(1000)
@@ -23,7 +22,6 @@ async def test_fresh_limiter_accepts_small_request() -> None:
     assert reservation.timestamp > 0
 
 
-@pytest.mark.asyncio
 async def test_rpm_gate_1000th_accepted_1001st_rejected() -> None:
     limiter = GlobalRateLimiter()
     for _ in range(MAX_RPM):
@@ -35,7 +33,6 @@ async def test_rpm_gate_1000th_accepted_1001st_rejected() -> None:
     assert exc_info.value.retry_after_seconds >= 0.0
 
 
-@pytest.mark.asyncio
 async def test_tpm_gate_rejects_when_exceeded() -> None:
     limiter = GlobalRateLimiter()
     # Fill the TPM bucket in MAX_RPM-1 chunks so the RPM gate never fires first.
@@ -51,7 +48,6 @@ async def test_tpm_gate_rejects_when_exceeded() -> None:
     assert exc_info.value.retry_after_seconds >= 0.0
 
 
-@pytest.mark.asyncio
 async def test_context_length_rejects_oversized_prompt() -> None:
     limiter = GlobalRateLimiter()
     with pytest.raises(LocalRateLimitError) as exc_info:
@@ -60,7 +56,6 @@ async def test_context_length_rejects_oversized_prompt() -> None:
     assert exc_info.value.retry_after_seconds == 0.0
 
 
-@pytest.mark.asyncio
 async def test_context_length_rejected_before_lock() -> None:
     # Confirm context_length check is pre-lock: limiter state should be unchanged
     limiter = GlobalRateLimiter()
@@ -71,7 +66,6 @@ async def test_context_length_rejected_before_lock() -> None:
     assert reservation.estimated_tokens == 1000
 
 
-@pytest.mark.asyncio
 async def test_commit_lowers_estimate_frees_token_room() -> None:
     limiter = GlobalRateLimiter()
     # Reserve 3/4 of the TPM budget across three optimistic estimates.
@@ -91,7 +85,6 @@ async def test_commit_lowers_estimate_frees_token_room() -> None:
     assert r2.estimated_tokens == overflow
 
 
-@pytest.mark.asyncio
 async def test_concurrent_reservations_exactly_1000_succeed() -> None:
     limiter = GlobalRateLimiter()
     results = await asyncio.gather(
@@ -111,7 +104,6 @@ async def test_concurrent_reservations_exactly_1000_succeed() -> None:
     assert all(e.kind == "rpm" for e in failures)
 
 
-@pytest.mark.asyncio
 async def test_sliding_window_resets_after_60_seconds() -> None:
     limiter = GlobalRateLimiter()
     base_time = 1000.0
@@ -141,7 +133,6 @@ async def test_sliding_window_resets_after_60_seconds() -> None:
         assert exc_info.value.kind == "rpm"
 
 
-@pytest.mark.asyncio
 async def test_daily_request_limit() -> None:
     limiter = GlobalRateLimiter()
     base = 1000.0
@@ -157,7 +148,6 @@ async def test_daily_request_limit() -> None:
         assert exc_info.value.kind == "rpd"
 
 
-@pytest.mark.asyncio
 async def test_hourly_token_limit() -> None:
     limiter = GlobalRateLimiter()
     base = 1000.0

@@ -6,7 +6,6 @@ from openai import RateLimitError
 from app.core.config import get_settings
 from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import AIGenerationResponse
-from app.services.ai.base import AIProvider
 from app.services.ai.json_utils import AIInputError
 from app.services.ai.openai_compat import OpenAICompatProvider
 from app.services.ai.rate_limiter import LocalRateLimitError
@@ -24,7 +23,7 @@ class AIService:
     On total exhaustion re-raises the last exception.
     """
 
-    def __init__(self, provider: AIProvider) -> None:
+    def __init__(self, provider: OpenAICompatProvider) -> None:
         self.provider = provider
 
     @classmethod
@@ -43,21 +42,15 @@ class AIService:
         self,
         prompt: str,
         num_options: int,
-        model: str | None = None,
-        reasoning_effort: str | None = None,
         *,
         calls: list[AICallLog] | None = None,
-    ) -> tuple[AIGenerationResponse, str]:
+    ) -> AIGenerationResponse:
         """Generate itineraries with retry on failure.
 
-        Returns (response, provider_name). `calls` collects one AICallLog per
+        `calls` collects one AICallLog per
         provider attempt, across retries.
         """
         settings = get_settings()
-        resolved_model = model or settings.DEFAULT_AI_MODEL
-        resolved_reasoning_effort = (
-            reasoning_effort or settings.DEFAULT_REASONING_EFFORT
-        )
         last_exc: Exception | None = None
 
         max_attempts = len(RETRY_DELAYS)
@@ -66,8 +59,8 @@ class AIService:
                 return await self.provider.generate_itineraries(
                     prompt,
                     num_options,
-                    resolved_model,
-                    resolved_reasoning_effort,
+                    settings.DEFAULT_AI_MODEL,
+                    settings.DEFAULT_REASONING_EFFORT,
                     calls=calls,
                 )
             except (AIInputError, LocalRateLimitError):
@@ -91,12 +84,3 @@ class AIService:
                     await asyncio.sleep(delays[attempt])
 
         raise last_exc  # type: ignore[misc]
-
-    async def generate_followup_survey(
-        self,
-        prompt: str,
-        model: str | None = None,
-    ) -> list[str]:
-        settings = get_settings()
-        resolved_model = model or settings.DEFAULT_AI_MODEL
-        return await self.provider.generate_followup_survey(prompt, resolved_model)
