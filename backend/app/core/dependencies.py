@@ -86,9 +86,8 @@ async def get_results_trip(
         try:
             user = await _user_from_token(jwt_token, db)
         except HTTPException:
-            if (
-                participant is None
-            ):  # an invalid JWT is "absent" next to a participant token
+            # An invalid JWT counts as absent next to a participant token.
+            if participant is None:
                 raise
     if participant is None and user is None:
         raise HTTPException(
