@@ -13,7 +13,7 @@ ACTIVITY_TAG_MAX = 40
 ACTIVITY_TAGS_MAX_ITEMS = 20
 PARTICIPANT_EMAILS_MAX = 20
 PASSWORD_MIN = 8
-PASSWORD_MAX = 72  # bcrypt silently truncates past 72 bytes
+PASSWORD_MAX = 72  # bcrypt raises past 72 bytes; schemas check UTF-8 byte length
 RANKINGS_MAX = 50
 
 # Token budget constants for trip duration cap

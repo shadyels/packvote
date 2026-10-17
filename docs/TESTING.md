@@ -2,9 +2,23 @@
 
 ## Backend
 
-- Unit tests for all `services/` logic in `tests/unit/`
-- Integration tests in `tests/integration/` — smoke E2E coverage for auth, trip creation, and participant access, using in-memory SQLite + `MockEmailService`. CI gates on these collecting + passing (exit 5 if empty).
+- Unit tests for all `services/` logic in `tests/unit/`. Edge cases and parametrised validation live here.
+- Integration tests in `tests/integration/` — broad smoke coverage only: register/login/me round-trip, the voting lifecycle (auto-finalise, tie), admin email resend, and the Unsplash endpoint. Uses in-memory SQLite + `MockEmailService`. CI gates on these collecting + passing (exit 5 if empty).
 - AI tests: mocked by default; `@pytest.mark.live` for real API calls (manual only — uses real API credits)
+
+### Shared fixtures and helpers
+
+`backend/tests/conftest.py` (root) serves unit and integration tests:
+- `engine` — fresh in-memory `sqlite+aiosqlite` database per test, `StaticPool`, `PRAGMA foreign_keys=ON`. Tests cannot leak state into each other.
+- `db` (`AsyncSession`) and `client` (httpx `AsyncClient` over the ASGI app, `get_db` overridden).
+- `MockEmailService` / `mock_email` — overrides the email dependency; every `send_trip_email` call is recorded in `.sent`.
+- `mock_session_factory` — injects the test engine's session factory for background tasks.
+- Autouse: `_fast_bcrypt` (bcrypt cost factor 4) and `_reset_module_state` (clears the Unsplash cache and limiter, Brevo limiter, AI limiter and PIN throttle windows before and after each test).
+
+Other shared code:
+- `tests/factories.py` — ORM seed builders `make_user`, `make_trip`, `make_participant`, `make_itinerary`, and `seed_voting_trip` (a VOTING trip with creator, invitee and two itineraries). Each `make_*` adds the row to the session.
+- `tests/helpers.py` — URL constants, `register`, `login`, `register_and_login`, `auth_headers`, and `create_trip` (asserts 201).
+- `tests/unit/conftest.py` — `auth_headers` fixture (registers and logs in a fresh user).
 
 ```bash
 cd backend

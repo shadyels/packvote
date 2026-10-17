@@ -10,50 +10,55 @@ PackVote uses **Brevo** (formerly Sendinblue) for transactional email. The free 
 
 ### `EmailService` (`backend/app/services/email/brevo.py`)
 
-**Singleton:** Instantiated once in the app via `EmailService.from_settings()`.
+**Construction:** `EmailService.from_settings()` reads `BREVO_API_KEY`, `FRONTEND_URL` and `BREVO_FROM_EMAIL` via `get_settings()`. Route handlers get one from the `get_email_service` dependency (`app/core/dependencies.py`); background tasks call `from_settings()` directly. Tests override the dependency with the `mock_email` fixture.
 
 **Methods:**
-- `_send(to_email, subject, body) → bool` — Core transport. Async. Returns `False` if API key missing or rate limit exhausted.
-- `send_invitation(...)` — Invitation to submit preferences
-- `send_voting_notification(...)` — Voting round is open
-- `send_new_iteration_notification(...)` — New voting iteration ready
-- `send_password_reset(...)` — Password reset link (1-hour expiry)
-- `send_finalized_notification(...)` — Final itinerary confirmed
+- `send_trip_email(kind, *, to_email, participant_name, trip_title, trip_code, pin, token, destination_name="") → bool` — the single method for all trip emails. `kind` is looked up in `TRIP_EMAILS`, which holds each kind's subject, intro and link path.
+- `send_password_reset(to_email, full_name, reset_token) → bool` — separate from `TRIP_EMAILS`. Link is `/reset-password?token=…`; the body says it expires in 60 minutes.
+- `_send(to_email, subject, body) → bool` — core transport. Returns `False` if the API key is missing, the daily cap is used up, or the Brevo call fails.
 
-All public methods call `_send()` internally. **Callers must handle `False` return gracefully** (they do; see below).
+**Trip email kinds (`TRIP_EMAILS`):**
+
+| Kind | Link path | Sent when |
+|---|---|---|
+| `invitation` | `/join/{token}` | Trip created; admin resend for CREATED, COLLECTING_PREFERENCES, GENERATING, GENERATION_FAILED |
+| `voting` | `/trip/{token}/vote` | Generation completes for iteration 1 |
+| `new_iteration` | `/trip/{token}/vote` | Generation completes for iteration 2+; admin resend for VOTING after iteration 1 |
+| `finalized` | `/trip/{token}` | Trip finalised; admin resend for FINALIZED |
+
+Every trip email body has the same shape: greeting, intro, link, then `Or enter Trip Code: … PIN: …`. Golden tests pin subjects, bodies and links per kind.
+
+**Where sends happen:**
+- Invitations, finalized emails and password-reset emails run as FastAPI `BackgroundTasks`. They take plain values, never ORM objects, because the request session is closed by then.
+- Voting and new-iteration emails are sent at the end of `run_generation`, which is itself a background task.
+- Admin resend awaits its sends inline and returns `{sent, failed}`.
+- Recipients are sent concurrently with `asyncio.gather(..., return_exceptions=True)`.
+
+**Logging:** no recipient addresses and no Brevo response bodies are logged. A non-2xx response logs the HTTP status only. Caller logs use trip or participant IDs.
 
 ---
 
 ## Rate Limiting
 
-### `BrevoRateLimiter` (`backend/app/services/email/rate_limiter.py`)
+### Shared `SlidingWindow` (`backend/app/services/rate_limit.py`)
 
-**Pattern:** Mirrors `UnsplashRateLimiter` — sliding-window deque + asyncio.Lock + module-level singleton.
+**Pattern:** `SlidingWindow(max_events, window_s)` is a synchronous class with `allowed()`, `hit()` and `acquire()`. The methods do no I/O and no `await`, so each call is atomic on the single-threaded event loop. `acquire()` checks and records in one step; when full it returns `False` and records nothing. Use `acquire()` unless the check and the record are separated by no `await`.
 
-**Window:** 24-hour sliding window (86400 seconds)  
-**Capacity:** 300 emails/day (Brevo free tier)
+**Brevo instance:** module-level `_limiter = SlidingWindow(MAX_EPD, 86400)` in `brevo.py`.
 
-**API:**
-```python
-async def try_consume() -> bool
-```
-Returns `True` if the email can be sent. Returns `False` if the 300/day limit is exhausted (within the current 24-hour window).
-
-**Async-safe:** All calls protected by `asyncio.Lock`. Safe for concurrent `_send()` calls.
-
-**Eviction:** Old timestamps are automatically evicted as time advances (sliding window maintains only the last 24 hours of records).
+**Window:** 24-hour sliding window (86400 seconds)
+**Capacity:** `MAX_EPD = 300` emails/day (Brevo free tier)
 
 ### Integration in `_send()`
 
 ```python
 async def _send(self, to_email: str, subject: str, body: str) -> bool:
     if not self._api_key:
-        logger.error("BREVO_API_KEY is not set — email to %s not sent", to_email)
+        logger.error("BREVO_API_KEY is not set — email not sent")
         return False
-    if not await get_brevo_limiter().try_consume():
+    if not _limiter.acquire():
         logger.warning(
-            "Brevo daily rate limit reached (300/day) — email to %s dropped",
-            to_email,
+            "Brevo daily rate limit reached (%d/day) — email dropped", MAX_EPD
         )
         return False
     # ... HTTP request to Brevo API
@@ -61,20 +66,27 @@ async def _send(self, to_email: str, subject: str, body: str) -> bool:
 
 **Behavior when exhausted:**
 - `_send()` returns `False` immediately (no HTTP call made)
-- Warning is logged with email address
-- Callers see `False` and handle it gracefully (e.g., skip resend, accept the failure)
+- A warning is logged (no recipient address)
+- The caller sees `False`
 
 ---
 
 ## Caller Conventions
 
-All callers of `EmailService` methods (e.g., `send_invitation()`, `send_voting_notification()`) check the return value:
+Callers of `send_trip_email()` and `send_password_reset()` treat a `False` return as a failed send:
+- Admin resend counts it in `failed`.
+- Background senders (invitations, finalized, voting, password reset) log only raised exceptions, so a `False` return is not logged by the caller.
 
 ```python
-success = await email_service.send_invitation(...)
-if not success:
-    logger.warning("Failed to send invitation to %s", participant_email)
-    # Continue — don't retry, don't block
+sent = await email_service.send_trip_email(
+    "invitation",
+    to_email=participant.email,
+    participant_name=participant.name,
+    trip_title=trip.title,
+    trip_code=trip.trip_code,
+    pin=participant.pin,
+    token=participant.token,
+)
 ```
 
 **No retry logic.** The rate limiter's return value is terminal; retrying the same call in the same minute will still fail. Callers must accept the failure gracefully.
@@ -91,18 +103,13 @@ if not success:
 
 ## Testing
 
-### Unit Tests (`backend/tests/unit/test_brevo_rate_limiter.py`)
+### Unit Tests
 
-**5 rate limiter tests:**
-- Capacity test: 300 emails accepted, 301st rejected
-- Sliding window eviction: old entries expelled after 24 hours
-- Pre-expiry blocking: entries still block 1 second before expiry
-- Concurrent safety: `asyncio.gather()` of 320 calls yields exactly 300 successes
-
-**3 integration tests:**
-- `_send()` returns `False` when limiter exhausted
-- Warning logged when rate-limited
-- `_send()` succeeds when limiter allows (with mocked HTTP)
+- `backend/tests/unit/test_brevo_rate_limiter.py` — `_send()` returns `False` when the limiter is exhausted, logs a warning, and succeeds when the limiter allows (mocked HTTP).
+- `backend/tests/unit/test_sliding_window.py` — `SlidingWindow` acquire/allowed/hit semantics and expiry.
+- `backend/tests/unit/test_email_golden.py` — subject, body and link per `TRIP_EMAILS` kind.
+- `backend/tests/unit/test_email_service.py` — `EmailService` behaviour.
+- `backend/tests/unit/test_email_resend.py` — status → kind mapping for the resend endpoints.
 
 ### Running Tests
 
@@ -120,36 +127,29 @@ uv run pytest tests/unit/ -k "email or brevo" -v
 
 ## Monitoring & Debugging
 
-**Log level:** `logging.WARNING` when limit is hit.
+**Log level:** `logging.WARNING` when the daily cap is hit.
 
-**Check rate limiter state** (dev only):
+**Check the limiter state** (from `backend/`):
 ```python
-from app.services.email.rate_limiter import get_brevo_limiter
-limiter = get_brevo_limiter()
-print(f"Emails sent in window: {len(limiter._emails)}")  # 0–300
+from app.services.email import brevo
+
+print(brevo._limiter.allowed())  # False once MAX_EPD sends are in the last 24h
 ```
 
-**Manual test:**
+**Manual test** (from `backend/`; affects only the current process):
 ```python
-# Exhaust the limiter
-from app.services.email.rate_limiter import get_brevo_limiter, MAX_EPD
-import asyncio
+from app.services.email import brevo
 
-async def test():
-    limiter = get_brevo_limiter()
-    for i in range(MAX_EPD):
-        await limiter.try_consume()
-    result = await limiter.try_consume()  # Should be False
-    print(result)
-
-asyncio.run(test())
+for _ in range(brevo.MAX_EPD):
+    brevo._limiter.acquire()
+print(brevo._limiter.acquire())  # False
 ```
 
 ---
 
 ## Future Enhancements
 
-- **Distributed rate limiting:** If the app scales to multiple backend instances, move from in-process deque to a shared store (Redis, PostgreSQL) to enforce the limit across all instances.
+- **Distributed rate limiting:** undecided. The limiter is in-process per worker; behaviour across multiple backend instances is not designed.
 - **Metrics:** Track successful sends, failed sends, rate-limit hits per day for monitoring dashboard (Phase 3).
 - **Fallback provider:** If Brevo quotas need to grow, add a secondary provider (AWS SES, SendGrid) with logic to switch providers when one is exhausted.
 
@@ -157,8 +157,9 @@ asyncio.run(test())
 
 ## Related
 
-- `app/services/email/brevo.py` — EmailService implementation
-- `app/services/email/rate_limiter.py` — BrevoRateLimiter class
+- `app/services/email/brevo.py` — EmailService, `TRIP_EMAILS`, Brevo transport
+- `app/services/rate_limit.py` — SlidingWindow
+- `app/services/email_resend.py` — status → email kind mapping for admin resend
 - `tests/unit/test_brevo_rate_limiter.py` — Test suite
 - `CLAUDE.md` — Architecture quick reference
 - `REQUIREMENTS.md` — F9 Email Notifications requirement
