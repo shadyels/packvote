@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 import secrets
 import string
@@ -19,6 +20,8 @@ from app.services import generation
 from app.services.email.brevo import EmailService
 from app.services.generation import start_generation
 
+logger = logging.getLogger(__name__)
+
 _ALPHANUM = string.ascii_uppercase + string.digits
 
 
@@ -38,7 +41,7 @@ async def send_invitations(
     invitees: list[dict[str, str | None]],
 ) -> None:
     """Background task: best-effort invitation emails from snapshotted values."""
-    await asyncio.gather(
+    results = await asyncio.gather(
         *[
             email_service.send_trip_email(
                 "invitation",
@@ -53,6 +56,9 @@ async def send_invitations(
         ],
         return_exceptions=True,
     )
+    failures = sum(isinstance(r, BaseException) for r in results)
+    if failures:
+        logger.warning("%d invitation email(s) raised", failures)
 
 
 async def create_trip(
@@ -86,10 +92,15 @@ async def create_trip(
 
     await db.flush()
 
-    # Dedupe: drop the creator's email from the invite list
-    invite_emails = [
-        e for e in payload.participant_emails if e.lower() != creator.email.lower()
-    ]
+    # Dedupe case-insensitively (first spelling wins) and drop the creator's
+    # email: two rows for one address would both link to one user_id and
+    # violate uq_participants_trip_user.
+    creator_email = creator.email.lower()
+    unique: dict[str, str] = {}
+    for e in payload.participant_emails:
+        if e.lower() != creator_email:
+            unique.setdefault(e.lower(), e)
+    invite_emails = list(unique.values())
 
     # Batch lookup users by lowercased email to link user_id on participant rows
     lowered = [e.lower() for e in invite_emails]

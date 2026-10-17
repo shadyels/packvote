@@ -3,8 +3,11 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import admin, auth, participants, trips, unsplash, votes
 from app.core.config import get_settings
@@ -43,6 +46,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(_req: Request, exc: RequestValidationError) -> JSONResponse:
+    # Default handler echoes each error's `input`; a non-finite float there
+    # (JSON `Infinity`) is not JSON-serialisable and turned the 422 into a 500.
+    errors = [{k: v for k, v in e.items() if k != "input"} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+
 
 app.include_router(auth.router)
 app.include_router(trips.router)

@@ -818,3 +818,49 @@ class TestStartupRecovery:
     async def test_health_has_no_environment(self, client: AsyncClient):
         resp = await client.get("/health")
         assert resp.json() == {"status": "ok"}
+
+
+class TestDuplicateInvites:
+    @pytest.mark.parametrize(
+        "emails", [["Bob@x.com", "bob@x.com"], ["bob@x.com", "bob@x.com"]]
+    )
+    async def test_duplicate_invite_then_register_links_one_row(
+        self, client: AsyncClient, auth_headers, mock_email, db, emails
+    ):
+        from sqlalchemy import select
+
+        from app.models.participant import Participant
+
+        trip = await _create(client, auth_headers, emails)
+        assert len(mock_email.sent) == 1
+        await register(client, "bob@x.com")
+        rows = (
+            (
+                await db.execute(
+                    select(Participant).where(
+                        Participant.trip_id == trip["id"],
+                        Participant.user_id.is_not(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2  # creator + bob, no duplicate bob
+
+    async def test_duplicate_invite_for_registered_user_creates_trip(
+        self, client: AsyncClient, auth_headers, mock_email
+    ):
+        await register(client, "bob@x.com")
+        await _create(client, auth_headers, ["Bob@x.com", "bob@X.com"])
+        assert len(mock_email.sent) == 1
+
+
+async def _create(client: AsyncClient, headers, emails: list[str]) -> dict:
+    resp = await client.post(
+        TRIPS_URL,
+        json={"title": "T", "participant_emails": emails},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()

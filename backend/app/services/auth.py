@@ -41,16 +41,16 @@ async def register_user(db: AsyncSession, payload: UserCreate) -> User:
     db.add(user)
     try:
         await db.flush()
-        # Keep in sync with create_trip's user_id lookup (see CLAUDE.md).
-        await db.execute(
-            update(Participant)
-            .where(func.lower(Participant.email) == payload.email.lower())
-            .values(user_id=user.id)
-        )
-        await db.commit()
     except IntegrityError as err:  # concurrent duplicate registration
         await db.rollback()
         raise EmailTakenError from err
+    # Keep in sync with create_trip's user_id lookup (see CLAUDE.md).
+    await db.execute(
+        update(Participant)
+        .where(func.lower(Participant.email) == payload.email.lower())
+        .values(user_id=user.id)
+    )
+    await db.commit()
     await db.refresh(user)
     return user
 

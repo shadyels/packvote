@@ -381,3 +381,74 @@ class TestSecretKeyGuard:
         from app.core.config import Settings
 
         Settings(ENVIRONMENT="production", SECRET_KEY="x" * 32)
+
+
+class TestSecretKeyFailClosed:
+    def test_unset_environment_with_default_key_rejected(self, monkeypatch):
+        from pydantic import ValidationError
+
+        from app.core.config import Settings
+
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("SECRET_KEY", "change-me-in-production")
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None)
+
+    def test_production_31_char_key_rejected(self):
+        from pydantic import ValidationError
+
+        from app.core.config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(ENVIRONMENT="production", SECRET_KEY="x" * 31)
+
+    def test_production_32_char_key_ok(self):
+        from app.core.config import Settings
+
+        Settings(ENVIRONMENT="production", SECRET_KEY="y" * 32)
+
+
+class TestRegisterLinksParticipants:
+    async def test_register_race_on_user_insert_only_maps_409(
+        self, client: AsyncClient
+    ):
+        # Backfill errors must not masquerade as "email taken".
+        from unittest.mock import patch
+
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        with (
+            patch.object(
+                AsyncSession,
+                "commit",
+                side_effect=IntegrityError("s", {}, Exception()),
+            ),
+            pytest.raises(IntegrityError),
+        ):
+            await client.post(
+                REGISTER_URL, json={"email": "z@test.com", "password": "password12"}
+            )
+
+
+class TestPasswordByteLimit:
+    MULTIBYTE = "é" * 40  # 40 chars, 80 bytes
+
+    async def test_register_multibyte_over_72_bytes_422(self, client: AsyncClient):
+        resp = await client.post(
+            REGISTER_URL, json={"email": "mb@test.com", "password": self.MULTIBYTE}
+        )
+        assert resp.status_code == 422
+
+    async def test_login_multibyte_over_72_bytes_422(self, client: AsyncClient):
+        resp = await client.post(
+            LOGIN_URL, json={"email": "mb@test.com", "password": self.MULTIBYTE}
+        )
+        assert resp.status_code == 422
+
+    async def test_reset_confirm_multibyte_over_72_bytes_422(self, client: AsyncClient):
+        resp = await client.post(
+            "/auth/password-reset/confirm",
+            json={"token": "t", "new_password": self.MULTIBYTE},
+        )
+        assert resp.status_code == 422

@@ -449,7 +449,7 @@ class TestRunGeneration:
         ]
         assert len(ai_call_lines) == 2
 
-    async def test_failure_resets_status_to_collecting(
+    async def test_failure_sets_status_to_generation_failed(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
     ):
         from sqlalchemy import select

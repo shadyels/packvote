@@ -5,8 +5,9 @@ from collections import deque
 class SlidingWindow:
     """Allow at most `max_events` hits per rolling `window_s` seconds.
 
-    Synchronous with no awaits, so check+hit is atomic under single-threaded
-    asyncio; no lock needed.
+    Methods are synchronous, so each is atomic under single-threaded asyncio.
+    A separate allowed() then hit() is atomic only if the caller puts no await
+    between them; otherwise use acquire().
     """
 
     def __init__(self, max_events: int, window_s: float) -> None:

@@ -580,3 +580,24 @@ class TestAtomicLifecycle:
                 s["participant"].token, s["trip"].id, itin_ids, db, BackgroundTasks()
             )
         assert exc.value.status_code == 409
+
+
+class TestFinalizeIterationPin:
+    async def test_finalize_noop_when_iteration_moved_on(
+        self, db: AsyncSession, voting_setup
+    ) -> None:
+        from sqlalchemy import update
+
+        from app.models.trip import Trip
+        from app.services.voting.service import _finalize
+
+        s = voting_setup
+        await db.execute(
+            update(Trip)
+            .where(Trip.id == s["trip"].id)
+            .values(current_iteration=s["trip"].current_iteration + 1)
+            .execution_options(synchronize_session=False)
+        )
+        await db.commit()
+        won = await _finalize(s["trip"], s["itineraries"][0].id, db, BackgroundTasks())
+        assert won is False

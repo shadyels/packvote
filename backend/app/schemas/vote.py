@@ -20,7 +20,7 @@ class VoteSubmit(BaseModel):
 
 class VoteResponse(BaseModel):
     id: int
-    participant_id: int | None
+    participant_id: int
     trip_id: int
     iteration_number: int
     rankings: list[int]

@@ -251,7 +251,7 @@ async def _upsert_vote(
     trip_id: int,
     iteration_number: int,
     rankings: list[int],
-    participant_id: int | None,
+    participant_id: int,
 ) -> Vote:
     existing_result = await db.execute(
         select(Vote).where(
@@ -328,7 +328,11 @@ async def _finalize(
     """Atomically VOTING -> FINALIZED; queue emails only if this call won."""
     result = await db.execute(
         update(Trip)
-        .where(Trip.id == trip.id, Trip.status == TripStatus.VOTING)
+        .where(
+            Trip.id == trip.id,
+            Trip.status == TripStatus.VOTING,
+            Trip.current_iteration == trip.current_iteration,
+        )
         .values(status=TripStatus.FINALIZED, winner_itinerary_id=itinerary_id)
     )
     await db.commit()

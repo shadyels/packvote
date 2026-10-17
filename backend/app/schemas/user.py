@@ -8,15 +8,25 @@ from app.schemas._limits import NAME_MAX, PASSWORD_MAX, PASSWORD_MIN
 LowerEmail = Annotated[EmailStr, AfterValidator(lambda v: v.strip().lower())]
 
 
+def _check_bcrypt_bytes(v: str) -> str:
+    # bcrypt 5 raises on >72 BYTES; PASSWORD_MAX only counts characters.
+    if len(v.encode()) > PASSWORD_MAX:
+        raise ValueError(f"password must be at most {PASSWORD_MAX} bytes")
+    return v
+
+
+Password = Annotated[str, AfterValidator(_check_bcrypt_bytes)]
+
+
 class UserCreate(BaseModel):
     email: LowerEmail
-    password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
+    password: Password = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
     full_name: str | None = Field(default=None, max_length=NAME_MAX)
 
 
 class UserLogin(BaseModel):
     email: LowerEmail
-    password: str
+    password: Password
 
 
 class UserResponse(BaseModel):
@@ -39,7 +49,7 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordResetConfirm(BaseModel):
     token: str
-    new_password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
+    new_password: Password = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
 
 
 class MessageResponse(BaseModel):

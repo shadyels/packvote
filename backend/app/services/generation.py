@@ -6,9 +6,11 @@ This module is called as a FastAPI BackgroundTask. It opens its own DB session
 (the request-scoped session is already closed by the time the background task runs),
 fetches trip data, renders the prompt, calls the AI service with retry/fallback,
 persists Itinerary rows and one AICallLog row per provider attempt, then transitions
-the trip to VOTING.
+the trip to VOTING. It runs in three phases (read -> AI call -> write), each with its
+own short-lived session, so no DB connection is held during the AI call.
 
-On total failure the trip is reset to COLLECTING_PREFERENCES so the creator can retry.
+On total failure the trip is set to GENERATION_FAILED (with a user-facing error
+message) so the creator can retry.
 """
 
 from __future__ import annotations
@@ -290,8 +292,10 @@ async def recover_stuck_generations(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> int:
     """Mark trips left in GENERATING (server restarted mid-run) as failed."""
-    # ponytail: assumes a single worker process; with several, a restarting worker
-    # would fail another worker's live runs. Upgrade path: heartbeat/lease column.
+    # ponytail: Railway runs one uvicorn process, but during a zero-downtime
+    # deploy the new instance fails every in-flight generation on the old one,
+    # and the write-phase CAS then discards the old run's result, so the user
+    # must retry. Upgrade path: heartbeat/lease column.
     async with session_factory() as db:
         result = await db.execute(
             update(Trip)

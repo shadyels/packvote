@@ -1,5 +1,6 @@
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.itinerary import Itinerary as ItineraryModel
@@ -29,12 +30,6 @@ async def access_trip_by_code(
     ).scalar_one_or_none()
     if trip is None:
         raise invalid  # unknown codes are not recorded
-    window = _pin_windows.setdefault(trip.id, SlidingWindow(10, 86400))
-    if not window.allowed():
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many failed attempts. Try again later.",
-        )
     participant = (
         await db.execute(
             select(Participant).where(
@@ -42,6 +37,14 @@ async def access_trip_by_code(
             )
         )
     ).scalar_one_or_none()
+    # allowed() and hit() must run with no await between them (and after the
+    # query above), or a parallel burst all passes allowed() before any hit().
+    window = _pin_windows.setdefault(trip.id, SlidingWindow(10, 86400))
+    if not window.allowed():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed attempts. Try again later.",
+        )
     if participant is None:
         window.hit()
         raise invalid
@@ -170,7 +173,15 @@ async def submit_preferences(
             participant.name = stripped
     participant.preferences_submitted = True
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as err:
+        # Concurrent first submit lost the race on the unique participant_id.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Preferences were submitted concurrently; please retry",
+        ) from err
 
     # Auto-trigger generation if all participants have submitted
     await _maybe_trigger_generation(

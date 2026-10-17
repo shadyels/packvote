@@ -75,7 +75,21 @@ async def get_results_trip(
                 select(Participant).where(Participant.token == x_participant_token)
             )
         ).scalar_one_or_none()
-    user = await _user_from_token(jwt_token, db) if jwt_token is not None else None
+    if participant is not None and participant.trip_id == trip_id:
+        # Participant token alone grants access; a stale bearer JWT must not
+        # break it (the frontend sends both when both are stored).
+        trip = await db.get(Trip, trip_id)
+        if trip is not None:
+            return trip
+    user = None
+    if jwt_token is not None:
+        try:
+            user = await _user_from_token(jwt_token, db)
+        except HTTPException:
+            if (
+                participant is None
+            ):  # an invalid JWT is "absent" next to a participant token
+                raise
     if participant is None and user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

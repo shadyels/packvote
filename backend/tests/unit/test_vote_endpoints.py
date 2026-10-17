@@ -226,6 +226,26 @@ class TestResultsAuth:
         )
         assert resp.status_code == 200
 
+    async def test_valid_participant_token_with_garbage_bearer_200(
+        self, client, voting_context
+    ) -> None:
+        ctx = voting_context
+        resp = await client.get(
+            f"/votes/trips/{ctx['trip_id']}/results",
+            headers={
+                "X-Participant-Token": ctx["token"],
+                "Authorization": "Bearer garbage.not.jwt",
+            },
+        )
+        assert resp.status_code == 200
+
+    async def test_garbage_bearer_alone_401(self, client, voting_context) -> None:
+        resp = await client.get(
+            f"/votes/trips/{voting_context['trip_id']}/results",
+            headers={"Authorization": "Bearer garbage.not.jwt"},
+        )
+        assert resp.status_code == 401
+
     async def test_other_trips_participant_token_403(
         self, client, auth_headers, voting_context
     ) -> None:
