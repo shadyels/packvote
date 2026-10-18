@@ -36,8 +36,7 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 - `ENVIRONMENT` — defaults to `production` (fail-closed); leave it unset or set `production` on Railway. Set `development` only for local runs, which is the only setting that accepts the default `SECRET_KEY`
 
 **Frontend service:**
-- `VITE_API_URL` — Backend public domain. **Must be set before first build** — Vite bakes it in at build time.
-- `VITE_UNSPLASH_ACCESS_KEY` — Unsplash photos (optional; falls back to gradient)
+- `VITE_API_URL` — Backend public domain. **Must be set before first build** — Vite bakes it in at build time. This is the only frontend env var.
 
 ## Known Gotchas
 
@@ -61,3 +60,6 @@ Migrations were squashed into a single `0001_baseline` revision (`backend/alembi
 
 **7. Startup recovery assumes a single process**
 On startup, `recover_stuck_generations` marks every trip left in `GENERATING` as `GENERATION_FAILED`. This is correct for one uvicorn process. During a zero-downtime deploy, the new instance fails generations still running on the old one; the old run's write-phase CAS then discards its result, so the user must retry. Upgrade path (undecided): a heartbeat/lease column on the trip.
+
+**8. Trip dates can shift by a day on a non-UTC backend host (known issue, fix undecided)**
+Trip dates are stored as `timestamptz` and are set from date-only input. On a backend host whose timezone is not UTC, they can shift by a day. Observed with `Europe/Zurich`: 1 Mar was stored as 28 Feb 23:00Z, and re-saving the edit form shifted it again. A host running in UTC is unaffected; the production host's timezone has not been verified. The fix is undecided.

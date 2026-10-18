@@ -9,13 +9,13 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 ## Commands
 
 **Backend** (from `backend/`):
-- `uv run fastapi dev app/main.py` — dev server (port 8000)
+- `uv run uvicorn app.main:app --reload` — dev server (port 8000)
 - `uv run pytest` — all tests | `-m "not live"` skips AI live tests
 - `uv run ruff check . && uv run ruff format .` — lint + format
 
 **Frontend** (from `frontend/`):
 - `pnpm dev` — dev server
-- `pnpm test` — vitest watch
+- `pnpm test --run` — vitest, single run (bare `pnpm test` is watch mode)
 - `pnpm lint` — eslint zero-warnings
 - `pnpm build` — tsc + vite build
 
@@ -41,9 +41,9 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 ### Frontend
 - **Language:** TypeScript
 - **Framework:** React 18+ with Vite
-- **UI Library:** shadcn/ui (uses `@base-ui/react` primitives, NOT `@radix-ui`) + Tailwind CSS
+- **UI Library:** Tailwind CSS v4 (`@tailwindcss/vite`, CSS-first `@theme` tokens in `frontend/src/styles.css`) + `@base-ui/react` for Dialog and Tabs only. No shadcn/ui, no `@radix-ui`. Native `<input type="date">` and `<select>` elsewhere.
 - **Node Version:** 22 LTS
-- **Package Manager:** pnpm — build script allowlist via `pnpm.allowBuilds` in `package.json` (v11 API). Do NOT use deprecated `onlyBuiltDependencies`.
+- **Package Manager:** pnpm — build script allowlist via `allowBuilds` in `frontend/pnpm-workspace.yaml` (v11 API). Do NOT use deprecated `onlyBuiltDependencies`.
 
 ### Infrastructure
 - **Deployment:** Railway — builder is **Railpack** (do NOT use `builder = "nixpacks"`)
@@ -81,13 +81,14 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 
 ## Design System
 
-- **Background:** Offwhite `#F8F8F6` (`--background`)
-- **Card/Surface:** `#FDFCFA` (`--card`)
-- **Text:** Near-black `#171717` (`--foreground`)
-- **Brand accent:** Orange `#FF6B2C` — use `text-brand`, `bg-brand`, `hover:bg-brand-hover`
-- **Borders:** `#E5E5E3` (`--border`)
+- **Background:** `#fafafa` light / `#09090b` dark (`--color-background`)
+- **Card/Surface:** `#ffffff` light / `#131316` dark (`--color-surface`)
+- **Text:** `#18181b` light / `#fafafa` dark (`--color-foreground`)
+- **Accent:** Emerald `#047857` light / `#34D399` dark (`--color-accent`) — use `text-accent`, `bg-accent`. No orange.
+- **Borders:** `#e4e4e7` light / `#2a2a2f` dark (`--color-border`)
+- **Theme:** Light and dark follow `prefers-color-scheme` only (no toggle). Geist + Geist Mono.
 - **Responsive:** Fully mobile-responsive
-- **Images:** Unsplash API with gradient fallback
+- **Images:** None. No photos anywhere.
 - **Style:** Modern, captivating, travel app aesthetic
 
 ---
@@ -99,12 +100,11 @@ Read the relevant `docs/` file before working in any of these areas:
 | Area | Key constraint | Full details |
 |------|---------------|-------------|
 | **AI service** | Use `extract_json()`, never `json.loads()`. Keep `response_format` as `json_object` — `json_schema` would make the `{"error": {...}}` envelope unrepresentable. Pass `session_factory` (not `session`) to background tasks. Rate limiter enforces 6 limits (rpm/rph/rpd/tpm/tph/tpd) calibrated to Gemini's free tier; `LocalRateLimitError` skips retry. User-controlled fields injected into prompts must be wrapped in `<<<USER DATA>>>…<<<END USER DATA>>>` delimiters and passed through `sanitize_text()`. Trip duration is clamped to `max_trip_days(num_options)` in `_compute_trip_duration` — never let user-supplied dates exceed this cap. Generation runs in three phases (read session → AI call with no DB session open → write session guarded on `GENERATING`); every trigger claims the run via `start_generation()` (conditional UPDATE); `recover_stuck_generations` fails trips left in `GENERATING` at startup. | `docs/AI-ARCHITECTURE.md` |
-| **Voting** | Pure algorithm `ranked_choice.tally()`, DB ops + `compute_results()` in `service.py`. Results are computed from votes on every read (nothing stored). `GET /votes/trips/{id}/results` requires a participant token (`X-Participant-Token`) for the trip, or the JWT of the creator or a linked participant. Finalise is a conditional UPDATE pinned to `current_iteration`. | `docs/VOTING-ARCHITECTURE.md` |
-| **Frontend components** | `@base-ui/react` not `@radix-ui`. DatePicker trigger is `<button>`, not `<Button asChild>`. `Select.Value` needs explicit children to show a label (not raw value). Dashboard tabs use `?tab=` query param — not `useState`. | `docs/FRONTEND-ARCHITECTURE.md` |
+| **Voting** | Pure algorithm `ranked_choice.tally()`, DB ops + `compute_results()` in `service.py`. Results are computed from votes on every read (nothing stored). `GET /votes/trips/{id}/results` requires a participant token (`X-Participant-Token`) for the trip, or the JWT of the creator or a linked participant. Finalise is a conditional UPDATE pinned to `current_iteration`. The frontend never sends `X-Participant-Token`; participant results come from the trip-view payload. | `docs/VOTING-ARCHITECTURE.md` |
+| **Frontend components** | `@base-ui/react` for Dialog and Tabs only; native controls elsewhere. Tabs use the `?tab=` query param (Dashboard, TripDetail) — not `useState`. All server data goes through the single `useFetch` hook (`hooks/useFetch.ts`). `STATUS` and limits live in `lib/trip.ts`. A 401 on a JWT session call logs out globally via `lib/api.ts`. | `docs/FRONTEND-ARCHITECTURE.md` |
 | **Deployment** | `DATABASE_URL` needs `postgresql+asyncpg://` prefix. `VITE_API_URL` baked in at build time. | `docs/DEPLOYMENT.md` |
 | **Testing** | Unit in `tests/unit/`, integration uses SQLite+MockEmail, AI tests need `@pytest.mark.live`. | `docs/TESTING.md` |
 | **Email service** | Brevo free tier: 300 emails/day. Shared synchronous `SlidingWindow` (`app/services/rate_limit.py`: `allowed`/`hit`/`acquire`) enforces the cap; when exhausted `_send()` returns `False` with a warning and callers do not retry. Single `send_trip_email(kind)` in `services/email/brevo.py`, kinds from `TRIP_EMAILS`. Invitation, finalized, generation and password-reset emails go out via FastAPI BackgroundTasks; admin resend sends inline. Never log recipient addresses or Brevo bodies. | `docs/EMAIL-ARCHITECTURE.md` |
-| **Unsplash proxy** | `GET /unsplash/photo` (no auth). Key lives in backend `UNSPLASH_ACCESS_KEY` only — never in frontend env. In-process limiter (`MAX_RPH` = 50 req/hr, `SlidingWindow`) + 1hr cache (max 500 destinations) in `services/unsplash.py`. Over-limit returns `{images:[]}`, frontend renders gradient. | `backend/app/services/unsplash.py` |
 
 ### AI service split
 `services/generation.py` — orchestration entry point (`run_generation(trip_id, session_factory)`). Edit here for pipeline changes.
