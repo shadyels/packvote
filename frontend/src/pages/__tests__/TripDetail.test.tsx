@@ -17,6 +17,8 @@ const m = vi.hoisted(() => ({
   adminVote: vi.fn(),
   resendAll: vi.fn(),
   resendOne: vi.fn(),
+  update: vi.fn(),
+  newIter: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => {
@@ -35,7 +37,8 @@ vi.mock("@/lib/api", () => {
       triggerGeneration: m.generate,
       pickWinner: m.pickWinner,
       delete: m.del,
-      triggerNewIteration: vi.fn(),
+      triggerNewIteration: m.newIter,
+      update: m.update,
     },
     participants: { listByTrip: m.people },
     itineraries: { getByTrip: m.its },
@@ -121,6 +124,8 @@ beforeEach(() => {
   m.pickWinner.mockResolvedValue({ message: "ok" });
   m.del.mockResolvedValue(null);
   m.adminVote.mockResolvedValue({});
+  m.newIter.mockResolvedValue({ message: "ok" });
+  m.update.mockResolvedValue(trip("COLLECTING_PREFERENCES", { title: "Renamed" }));
 });
 
 afterEach(() => {
@@ -207,5 +212,46 @@ describe("TripDetail", () => {
     expect(m.get.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Building your options")).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Loading trip" })).not.toBeInTheDocument();
+  });
+
+  it("edits the trip in a dialog, then toasts and refetches", async () => {
+    renderAt();
+    await userEvent.click(await screen.findByRole("button", { name: "Edit trip" }));
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByLabelText(/^title/i);
+    expect(title).toHaveValue("Summer trip");
+    await userEvent.clear(title);
+    await userEvent.type(title, "Renamed");
+    const callsBefore = m.get.mock.calls.length;
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => {
+      expect(m.update).toHaveBeenCalledWith(7, expect.objectContaining({ title: "Renamed" }));
+      expect(toast.success).toHaveBeenCalledWith("Trip updated.");
+    });
+    await waitFor(() => {
+      expect(m.get.mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not offer Edit trip while voting", async () => {
+    m.get.mockResolvedValue(trip("VOTING"));
+    m.its.mockResolvedValue([itin(10, "Lisbon"), itin(11, "Rome")]);
+    renderAt();
+    await screen.findByRole("button", { name: "Finalize" });
+    expect(screen.queryByRole("button", { name: "Edit trip" })).not.toBeInTheDocument();
+  });
+
+  it("starts a new iteration while voting", async () => {
+    m.get.mockResolvedValue(trip("VOTING"));
+    m.its.mockResolvedValue([itin(10, "Lisbon"), itin(11, "Rome")]);
+    renderAt();
+    await userEvent.click(await screen.findByRole("button", { name: "Start new iteration" }));
+    expect(m.newIter).toHaveBeenCalledWith(7);
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith("New round started.");
+    });
   });
 });
