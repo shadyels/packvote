@@ -162,8 +162,6 @@ export const trips = {
 
 // Participants
 export const participants = {
-  getByToken: (token: string) => request<Participant>(`/participants/${token}`),
-
   accessByCode: (trip_code: string, pin: string) =>
     request<ParticipantAccessResponse>("/participants/access-by-code", {
       method: "POST",
