@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { auth, onUnauthorized } from "@/lib/api";
+import { ApiError, auth, onUnauthorized } from "@/lib/api";
 import type { User } from "@/types";
 
 interface AuthState {
@@ -35,8 +35,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then((user) => {
         setState({ user, isLoading: false, isAuthenticated: true });
       })
-      .catch(() => {
-        localStorage.removeItem("access_token");
+      .catch((err: unknown) => {
+        // Only a 401 means the token is bad; on network/5xx keep it so a reload can recover.
+        if (err instanceof ApiError && err.status === 401) localStorage.removeItem("access_token");
         setState({ user: null, isLoading: false, isAuthenticated: false });
       });
   }, []);

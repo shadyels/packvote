@@ -32,7 +32,7 @@ export default function Join() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-sm animate-slide-up px-4 py-12">
+    <div className="mx-auto w-full max-w-sm animate-slide-up py-4">
       <h1 className="text-2xl font-semibold tracking-tight">Join a trip</h1>
       <p className="mt-1 mb-6 text-sm text-muted-foreground">
         Enter the trip code and PIN from your invitation. Invited by email? Use the link in that
@@ -49,6 +49,7 @@ export default function Join() {
             <Input
               {...c}
               required
+              minLength={8}
               maxLength={8}
               autoComplete="off"
               autoCapitalize="characters"
@@ -66,6 +67,7 @@ export default function Join() {
               {...c}
               required
               inputMode="numeric"
+              minLength={4}
               maxLength={4}
               autoComplete="off"
               className="font-mono tracking-widest"
@@ -91,6 +93,6 @@ export default function Join() {
           Sign in
         </Link>
       </p>
-    </main>
+    </div>
   );
 }

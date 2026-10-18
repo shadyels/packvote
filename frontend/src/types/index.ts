@@ -29,7 +29,6 @@ export type TripStatus =
   | "GENERATING"
   | "GENERATION_FAILED"
   | "VOTING"
-  | "ITERATING"
   | "FINALIZED";
 
 export interface TripSummary {

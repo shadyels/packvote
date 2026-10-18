@@ -12,8 +12,6 @@ interface FetchResult<T> {
   error: string | null;
   /** True only until the first successful load (no data yet). */
   isLoading: boolean;
-  /** True during refetch/polling while `data` is still shown. */
-  isRefreshing: boolean;
   refetch: () => void;
 }
 
@@ -25,7 +23,6 @@ export function useFetch<T>(
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [tick, setTick] = useState(0);
 
   // Always call the latest closures without re-running the effect on every render.
@@ -56,8 +53,7 @@ export function useFetch<T>(
     const id = ++requestId.current;
 
     const run = () => {
-      if (hasData.current) setIsRefreshing(true);
-      else {
+      if (!hasData.current) {
         setIsLoading(true);
         setData(null);
         setError(null);
@@ -70,7 +66,6 @@ export function useFetch<T>(
           setData(result);
           setError(null);
           setIsLoading(false);
-          setIsRefreshing(false);
           if (pollMs && (pollWhileRef.current?.(result) ?? true)) {
             timer = setTimeout(run, pollMs);
           }
@@ -79,7 +74,6 @@ export function useFetch<T>(
           if (!active || id !== requestId.current) return;
           setError(err instanceof Error ? err.message : "Something went wrong");
           setIsLoading(false);
-          setIsRefreshing(false);
           // A failed poll keeps the last data and tries again next interval.
           if (pollMs && hasData.current) timer = setTimeout(run, pollMs);
         });
@@ -93,5 +87,5 @@ export function useFetch<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- caller-provided deps
   }, [...deps, tick, pollMs]);
 
-  return { data, error, isLoading, isRefreshing, refetch };
+  return { data, error, isLoading, refetch };
 }

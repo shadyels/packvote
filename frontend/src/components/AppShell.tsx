@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonClass } from "@/components/ui/Button";
 import { Toaster } from "@/components/ui/Toaster";
 
 const navLink =
@@ -43,10 +43,7 @@ export default function AppShell() {
                 <Link to="/join" className={navLink}>
                   Join a trip
                 </Link>
-                <Link
-                  to="/login"
-                  className="inline-flex h-9 items-center rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
-                >
+                <Link to="/login" className={buttonClass("primary", "sm")}>
                   Sign in
                 </Link>
               </>

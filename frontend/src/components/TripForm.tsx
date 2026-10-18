@@ -126,6 +126,7 @@ export function TripForm({ trip, onDone, onCancel }: TripFormProps) {
               {...c}
               type="date"
               value={start}
+              required={isEdit && !!dateOnly(trip.proposed_start_date)}
               min={isEdit ? undefined : todayISO()}
               onChange={(e) => {
                 setStart(e.target.value);
@@ -139,6 +140,7 @@ export function TripForm({ trip, onDone, onCancel }: TripFormProps) {
               {...c}
               type="date"
               value={end}
+              required={isEdit && !!dateOnly(trip.proposed_end_date)}
               min={start || (isEdit ? undefined : todayISO())}
               onChange={(e) => {
                 setEnd(e.target.value);

@@ -254,4 +254,57 @@ describe("TripDetail", () => {
       expect(toast.success).toHaveBeenCalledWith("New round started.");
     });
   });
+
+  it("renders API datetime dates instead of crashing", async () => {
+    m.get.mockResolvedValue(
+      trip("COLLECTING_PREFERENCES", {
+        proposed_start_date: "2025-06-01T00:00:00",
+        proposed_end_date: "2025-06-08T00:00:00",
+      })
+    );
+    renderAt();
+    expect(await screen.findByText(/2025.*–.*2025/)).toBeInTheDocument();
+  });
+
+  it("keeps the page when a poll fails and shows a non-blocking note", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    m.get.mockResolvedValueOnce(trip("GENERATING")).mockRejectedValue(new Error("offline"));
+    renderAt();
+    await screen.findByText("Building your options");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
+    expect(await screen.findByText(/Couldn.t refresh/)).toBeInTheDocument();
+    expect(screen.getByText("Building your options")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("clears the picked winner after a new round so a stale option cannot be finalized", async () => {
+    m.get.mockResolvedValueOnce(trip("VOTING"));
+    m.its.mockResolvedValueOnce([itin(10, "Lisbon"), itin(11, "Rome")]);
+    renderAt();
+    const select = await screen.findByLabelText("Winning option");
+    await userEvent.selectOptions(select, "11");
+    expect(screen.getByRole("button", { name: "Finalize" })).toBeEnabled();
+
+    m.get.mockResolvedValue(trip("VOTING", { current_iteration: 2 }));
+    m.its.mockResolvedValue([
+      itin(10, "Lisbon"),
+      itin(11, "Rome"),
+      { ...itin(20, "Oslo"), iteration_number: 2 },
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Start new iteration" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Winning option")).toHaveValue("");
+    });
+    expect(screen.getByRole("button", { name: "Finalize" })).toBeDisabled();
+  });
+
+  it("hides the new-iteration control at the iteration cap", async () => {
+    m.get.mockResolvedValue(trip("VOTING", { current_iteration: 3 }));
+    m.its.mockResolvedValue([{ ...itin(10, "Lisbon"), iteration_number: 3 }]);
+    renderAt();
+    await screen.findByRole("button", { name: "Finalize" });
+    expect(screen.queryByRole("button", { name: "Start new iteration" })).not.toBeInTheDocument();
+  });
 });

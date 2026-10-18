@@ -27,7 +27,7 @@ export function Dialog({
   return (
     <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
       <BaseDialog.Portal>
-        <BaseDialog.Backdrop className="fixed inset-0 bg-black/40 transition-opacity duration-200 data-ending-style:opacity-0 data-ending-style:duration-150 data-starting-style:opacity-0" />
+        <BaseDialog.Backdrop className="fixed inset-0 bg-overlay transition-opacity duration-200 data-ending-style:opacity-0 data-ending-style:duration-150 data-starting-style:opacity-0" />
         <BaseDialog.Popup
           className={cn(
             "fixed inset-x-0 bottom-0 max-h-[90dvh] overflow-y-auto rounded-t-2xl border-t bg-surface p-5 shadow-xl transition-[transform,opacity] duration-200 data-ending-style:translate-y-full data-ending-style:duration-150 data-starting-style:translate-y-full",

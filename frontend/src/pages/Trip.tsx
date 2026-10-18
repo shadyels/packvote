@@ -78,7 +78,7 @@ export default function Trip() {
   );
   const ballotRef = useRef<HTMLElement>(null);
   const focusBallot = location.pathname.endsWith("/vote");
-  const ballotShown = data?.trip.status === "VOTING" || data?.trip.status === "ITERATING";
+  const ballotShown = data?.trip.status === "VOTING";
 
   useEffect(() => {
     if (focusBallot && ballotShown) ballotRef.current?.focus();
@@ -86,14 +86,14 @@ export default function Trip() {
 
   if (isLoading)
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
+      <div className="mx-auto w-full max-w-3xl">
         <Skeletons />
-      </main>
+      </div>
     );
 
   if (!data) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
+      <div className="mx-auto w-full max-w-3xl py-4 text-center">
         <p role="alert" className="text-sm text-danger">
           {error ?? "Could not load this trip."}
         </p>
@@ -103,7 +103,7 @@ export default function Trip() {
         >
           Back to join page
         </Link>
-      </main>
+      </div>
     );
   }
 
@@ -123,7 +123,7 @@ export default function Trip() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl animate-fade-in flex-col gap-6 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-3xl animate-fade-in flex-col gap-6">
       {state?.from === "dashboard-invited" && (
         <Link
           to="/dashboard?tab=invited"
@@ -139,13 +139,13 @@ export default function Trip() {
           <h1 className="text-2xl font-semibold tracking-tight">{trip.title}</h1>
           <Badge tone={STATUS[trip.status].tone}>{STATUS[trip.status].label}</Badge>
         </div>
-        <p className="text-muted-foreground">{trip.destination ?? "Destination TBD"}</p>
+        <p className="text-muted-foreground">{trip.destination || "Destination TBD"}</p>
         <Progress list={others} />
       </header>
 
       {(trip.status === "CREATED" || trip.status === "COLLECTING_PREFERENCES") && (
         <>
-          {(trip.destination ?? dates ?? trip.notes) && (
+          {(trip.destination || dates || trip.notes) && (
             <section className="rounded-xl border bg-surface p-4">
               <h2 className="mb-2 text-sm font-semibold">Organizer&apos;s proposal</h2>
               <dl className="flex flex-col gap-1 text-sm">
@@ -239,6 +239,6 @@ export default function Trip() {
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }

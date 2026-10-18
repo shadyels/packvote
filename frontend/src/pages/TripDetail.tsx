@@ -24,7 +24,7 @@ const TABS = ["overview", "participants", "options", "results"] as const;
 type Tab = (typeof TABS)[number];
 
 const POLL_MS = 5000;
-const HAS_RESULTS = ["VOTING", "ITERATING", "FINALIZED"];
+const HAS_RESULTS = ["VOTING", "FINALIZED"];
 
 interface Data {
   trip: Trip;
@@ -89,7 +89,7 @@ export default function TripDetail() {
     );
   }
 
-  if (error || !data) {
+  if (!data) {
     return (
       <div className="flex flex-col items-start gap-4">
         <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
@@ -110,13 +110,14 @@ export default function TripDetail() {
 
   const { trip, people, options, results } = data;
   const status = trip.status;
-  const isVotingPhase = status === "VOTING" || status === "ITERATING";
+  const isVotingPhase = status === "VOTING";
   const current = options.filter((o) => o.iteration_number === trip.current_iteration);
   const me = people.find((p) => p.email === user?.email);
   const done = people.filter((p) =>
     isVotingPhase ? p.has_voted_current_iteration : p.preferences_submitted
   ).length;
   const dates = formatDateRange(trip.proposed_start_date, trip.proposed_end_date);
+  const pickValid = current.some((o) => String(o.id) === pick);
 
   // One shared busy flag: the running action shows a spinner, every other action is disabled.
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
@@ -130,36 +131,41 @@ export default function TripDetail() {
     }
   };
 
-  const generate = () =>
+  const act = (key: string, call: () => Promise<unknown>, okMsg: string, failMsg: string) =>
     run(
-      "generate",
+      key,
       async () => {
-        await trips.triggerGeneration(trip.id);
-        toast.success("Generation started — options will appear shortly.");
+        await call();
+        toast.success(okMsg);
         refetch();
       },
+      failMsg
+    );
+
+  const generate = () =>
+    act(
+      "generate",
+      () => trips.triggerGeneration(trip.id),
+      "Generation started — options will appear shortly.",
       "Could not start generation."
     );
 
   const finalize = () =>
-    run(
+    act(
       "finalize",
-      async () => {
-        await trips.pickWinner(trip.id, Number(pick));
-        toast.success("Winner selected — trip finalized!");
-        refetch();
-      },
+      () => trips.pickWinner(trip.id, Number(pick)),
+      "Winner selected — trip finalized!",
       "Could not finalize the trip."
     );
 
   const newRound = () =>
-    run(
+    act(
       "round",
       async () => {
         await trips.triggerNewIteration(trip.id);
-        toast.success("New round started.");
-        refetch();
+        setPick("");
       },
+      "New round started.",
       "Could not start a new round."
     );
 
@@ -216,6 +222,11 @@ export default function TripDetail() {
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
         <span>{trip.destination || "Surprise me"}</span>
+        {error && (
+          <span role="status" className="text-warning">
+            Couldn&apos;t refresh. Showing the last loaded data.
+          </span>
+        )}
         <button
           type="button"
           aria-label={`Copy trip code ${trip.trip_code}`}
@@ -321,7 +332,7 @@ export default function TripDetail() {
 
           {isVotingPhase && (
             <section aria-label="Finish voting" className="flex flex-col gap-4">
-              {status === "VOTING" && current.length > 0 && me && (
+              {current.length > 0 && me && (
                 <div className="rounded-xl border bg-surface p-4">
                   <h2 className="text-sm font-semibold">Your vote</h2>
                   {me.has_voted_current_iteration ? (
@@ -340,13 +351,10 @@ export default function TripDetail() {
                         options={current}
                         submitLabel="Submit vote"
                         onSubmit={(ids) =>
-                          run(
+                          act(
                             "vote",
-                            async () => {
-                              await votes.adminVote(trip.id, ids);
-                              toast.success("Vote submitted!");
-                              refetch();
-                            },
+                            () => votes.adminVote(trip.id, ids),
+                            "Vote submitted!",
                             "Could not submit your vote."
                           )
                         }
@@ -379,7 +387,7 @@ export default function TripDetail() {
                   <Button
                     className="sm:shrink-0"
                     loading={busy === "finalize"}
-                    disabled={busy !== null || !pick}
+                    disabled={busy !== null || !pickValid}
                     onClick={() => {
                       void finalize();
                     }}
@@ -389,7 +397,7 @@ export default function TripDetail() {
                 </div>
               </div>
 
-              {status === "VOTING" && (
+              {trip.current_iteration < trip.max_iterations && (
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     variant="secondary"

@@ -24,10 +24,9 @@ describe("useFetch", () => {
     });
     expect(result.current.data).toBe("a");
     expect(result.current.error).toBeNull();
-    expect(result.current.isRefreshing).toBe(false);
   });
 
-  it("refetch keeps data and flags isRefreshing without flashing isLoading", async () => {
+  it("refetch keeps data without flashing isLoading", async () => {
     const second = deferred<string>();
     const fetcher = vi.fn().mockResolvedValueOnce("a").mockReturnValueOnce(second.promise);
     const { result } = renderHook(() => useFetch(fetcher, []));
@@ -38,9 +37,7 @@ describe("useFetch", () => {
     act(() => {
       result.current.refetch();
     });
-    await waitFor(() => {
-      expect(result.current.isRefreshing).toBe(true);
-    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.data).toBe("a");
 
@@ -49,7 +46,6 @@ describe("useFetch", () => {
       await second.promise;
     });
     expect(result.current.data).toBe("b");
-    expect(result.current.isRefreshing).toBe(false);
   });
 
   it("reports errors, keeps stale data on a failed refetch, and clears the error on success", async () => {

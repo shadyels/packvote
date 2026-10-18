@@ -3,9 +3,7 @@ import { Tabs as BaseTabs } from "@base-ui/react/tabs";
 import { cn } from "@/lib/trip";
 
 /** Controlled: <Tabs value onValueChange> — onValueChange receives the tab `value`. */
-export function Tabs(props: ComponentProps<typeof BaseTabs.Root>) {
-  return <BaseTabs.Root {...props} />;
-}
+export const Tabs = BaseTabs.Root;
 
 export function TabsList({ className, ...props }: ComponentProps<typeof BaseTabs.List>) {
   return (

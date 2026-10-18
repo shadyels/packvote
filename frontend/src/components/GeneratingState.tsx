@@ -45,7 +45,7 @@ export function GeneratingState({ status, error, onRetry, retrying }: Generating
         <p className="text-sm text-foreground">
           {onRetry
             ? (error ?? "Something went wrong while generating itineraries.")
-            : "The organizer has been notified and can retry. Check back soon."}
+            : "The organizer can retry generation. Check back soon."}
         </p>
         {onRetry && (
           <Button className="self-start" loading={retrying} onClick={onRetry}>

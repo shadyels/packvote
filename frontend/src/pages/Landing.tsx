@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Ballot } from "@/components/Ballot";
 import { TripRow } from "@/components/TripRow";
 import { useAuth } from "@/hooks/useAuth";
-import { cn } from "@/lib/trip";
+import { buttonClass } from "@/components/ui/Button";
 import type { Itinerary, TripSummary } from "@/types";
 
 const SAMPLE_TRIP: TripSummary = {
@@ -50,10 +50,8 @@ const STEPS = [
   ["Finalize", "The organizer locks in the winner and everyone is notified."],
 ] as const;
 
-const linkBase =
-  "inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-medium transition-[transform,opacity,background-color] duration-150 active:scale-[0.98]";
-const primaryLink = cn(linkBase, "bg-accent text-accent-foreground hover:opacity-90");
-const secondaryLink = cn(linkBase, "border border-border bg-surface hover:bg-muted");
+const primaryLink = buttonClass("primary");
+const secondaryLink = buttonClass("secondary");
 
 // React 18 typings have no `inert`; the string form lands in the DOM as a boolean attribute.
 const inertProps = { inert: "" };
@@ -82,7 +80,7 @@ function Ctas() {
 
 export default function Landing() {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-20 px-4 py-12 sm:py-20">
+    <div className="mx-auto flex w-full flex-col gap-20 py-4 sm:py-12">
       <section className="grid items-center gap-10 lg:grid-cols-2" aria-labelledby="hero">
         <div className="flex animate-slide-up flex-col items-start gap-6">
           <h1 id="hero" className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">

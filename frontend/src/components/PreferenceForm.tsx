@@ -65,8 +65,10 @@ export function PreferenceForm({
       next.tags = `Too many activity tags — max ${ACTIVITY_TAGS_MAX_ITEMS.toString()}.`;
     else if (long)
       next.tags = `Tag "${long.slice(0, 20)}…" is too long — max ${ACTIVITY_TAG_MAX.toString()} characters.`;
+    if (budgetMin && budgetMax && Number(budgetMin) > Number(budgetMax))
+      next.form = "Minimum budget can't exceed the maximum.";
     setErrors(next);
-    if (next.dates || next.tags) return;
+    if (next.dates || next.tags || next.form) return;
 
     setSubmitting(true);
     try {

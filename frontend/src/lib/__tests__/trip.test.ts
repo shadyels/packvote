@@ -16,13 +16,12 @@ const ALL_STATUSES: TripStatus[] = [
   "GENERATING",
   "GENERATION_FAILED",
   "VOTING",
-  "ITERATING",
   "FINALIZED",
 ];
 
 describe("STATUS", () => {
-  it("covers all 7 trip statuses with a label and tone", () => {
-    expect(Object.keys(STATUS)).toHaveLength(7);
+  it("covers all 6 trip statuses with a label and tone", () => {
+    expect(Object.keys(STATUS)).toHaveLength(6);
     for (const status of ALL_STATUSES) {
       expect(STATUS[status].label.length).toBeGreaterThan(0);
       expect(STATUS[status].tone.length).toBeGreaterThan(0);
@@ -35,7 +34,6 @@ describe("STATUS", () => {
     ["GENERATING", "Generating"],
     ["GENERATION_FAILED", "Failed"],
     ["VOTING", "Voting"],
-    ["ITERATING", "Iterating"],
     ["FINALIZED", "Finalized"],
   ] as [TripStatus, string][])("%s has label %s", (status, label) => {
     expect(STATUS[status].label).toBe(label);
@@ -81,6 +79,14 @@ describe("dates", () => {
     expect(d.getMonth()).toBe(5);
     expect(d.getDate()).toBe(1);
     expect(toISODate(d)).toBe("2025-06-01");
+  });
+
+  it("parses API datetimes (with or without Z) as the same calendar date", () => {
+    for (const iso of ["2025-06-01T00:00:00", "2025-06-01T00:00:00Z"]) {
+      expect(toISODate(parseDate(iso))).toBe("2025-06-01");
+    }
+    expect(daysBetween("2025-06-01T00:00:00", "2025-06-08T00:00:00")).toBe(7);
+    expect(formatDateRange("2025-06-01T00:00:00", "2025-06-08T00:00:00")).toContain(" – ");
   });
 
   it("daysBetween counts calendar days (also across DST)", () => {

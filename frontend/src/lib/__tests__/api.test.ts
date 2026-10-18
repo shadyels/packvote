@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { auth, participants, votes, ApiError, onUnauthorized } from "../api";
+import { auth, participants, ApiError, onUnauthorized } from "../api";
 
 // ---------------------------------------------------------------------------
 // Mock fetch globally
@@ -127,28 +127,27 @@ describe("API client", () => {
     });
   });
 
-  describe("votes.getResults", () => {
-    it("omits query string when iteration is not provided", async () => {
-      mockFetch.mockResolvedValueOnce(okResponse({}));
-      await votes.getResults(42);
-      const [url] = mockFetch.mock.calls[0] as [string];
-      expect(url).not.toContain("iteration");
+  describe("error messages", () => {
+    it("joins Pydantic 422 detail arrays into a readable message", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        statusText: "Unprocessable Entity",
+        json: () => Promise.resolve({ detail: [{ msg: "String too short" }, { msg: "Bad pin" }] }),
+      });
+      await expect(participants.accessByCode("A", "1")).rejects.toMatchObject({
+        message: "String too short; Bad pin",
+      });
     });
 
-    it("appends ?iteration=N when iteration is provided", async () => {
-      mockFetch.mockResolvedValueOnce(okResponse({}));
-      await votes.getResults(42, 3);
-      const [url] = mockFetch.mock.calls[0] as [string];
-      expect(url).toContain("?iteration=3");
-    });
-  });
-  describe("votes.getResults participant token", () => {
-    it("sends X-Participant-Token when provided", async () => {
-      mockFetch.mockResolvedValueOnce(okResponse({}));
-      await votes.getResults(42, undefined, "part-tok");
-      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
-      const headers = opts.headers as Record<string, string>;
-      expect(headers["X-Participant-Token"]).toBe("part-tok");
+    it("falls back to the status text when the body has no detail", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Server Error",
+        json: () => Promise.reject(new Error("not json")),
+      });
+      await expect(auth.me()).rejects.toMatchObject({ message: "Server Error" });
     });
   });
 
@@ -186,10 +185,13 @@ describe("API client", () => {
       expect(listener).not.toHaveBeenCalled();
     });
 
-    it("does not fire for a participant-token call", async () => {
-      localStorage.setItem("access_token", "stale");
-      mockFetch.mockResolvedValueOnce(errorResponse(401, "Could not validate credentials"));
-      await expect(votes.getResults(1, undefined, "part-tok")).rejects.toBeInstanceOf(ApiError);
+    it("does not fire when the session changed while the call was in flight", async () => {
+      localStorage.setItem("access_token", "old");
+      mockFetch.mockImplementationOnce(() => {
+        localStorage.setItem("access_token", "new");
+        return Promise.resolve(errorResponse(401, "Could not validate credentials"));
+      });
+      await expect(auth.me()).rejects.toBeInstanceOf(ApiError);
       expect(listener).not.toHaveBeenCalled();
     });
 

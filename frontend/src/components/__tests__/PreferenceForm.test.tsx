@@ -36,6 +36,15 @@ describe("PreferenceForm", () => {
     expect(submit).not.toHaveBeenCalled();
   });
 
+  it("rejects a minimum budget above the maximum without calling the API", async () => {
+    setup();
+    await userEvent.type(screen.getByLabelText("Budget min"), "900");
+    await userEvent.type(screen.getByLabelText("Budget max"), "100");
+    await send();
+    expect(await screen.findByText(/Minimum budget can't exceed the maximum/)).toBeInTheDocument();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
   it("accepts exactly 20 tags", async () => {
     setup();
     const tags = Array.from({ length: 20 }, (_, i) => `t${i.toString()}`).join(",");

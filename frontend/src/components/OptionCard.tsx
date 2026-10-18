@@ -25,9 +25,11 @@ export function OptionCard({ option, votes, winner = false, dimmed = false }: Op
   const days = option.daily_itinerary;
   const current = day === null ? undefined : days[day];
 
+  const isOpen = day !== null;
   useEffect(() => {
-    if (day === null) return;
+    if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.metaKey || e.ctrlKey) return; // Alt+Left is browser Back
       if (e.key === "ArrowLeft") setDay((d) => (d === null ? d : Math.max(0, d - 1)));
       if (e.key === "ArrowRight")
         setDay((d) => (d === null ? d : Math.min(days.length - 1, d + 1)));
@@ -36,7 +38,7 @@ export function OptionCard({ option, votes, winner = false, dimmed = false }: Op
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [day === null, days.length]); // eslint-disable-line react-hooks/exhaustive-deps -- only open/closed matters
+  }, [isOpen, days.length]);
 
   return (
     <article

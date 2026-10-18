@@ -18,7 +18,6 @@ export const STATUS: Record<TripStatus, { label: string; tone: Tone }> = {
   GENERATING: { label: "Generating", tone: "warning" },
   GENERATION_FAILED: { label: "Failed", tone: "danger" },
   VOTING: { label: "Voting", tone: "accent" },
-  ITERATING: { label: "Iterating", tone: "accent" },
   FINALIZED: { label: "Finalized", tone: "success" },
 };
 
@@ -57,7 +56,8 @@ export function maxTripDays(numOptions: number): number {
 const MS_PER_DAY = 86_400_000;
 
 export function parseDate(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
+  // slice: the organizer API sends datetimes ("2025-06-01T00:00:00"), participant API plain dates.
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
@@ -70,13 +70,15 @@ export function todayISO(): string {
   return toISODate(new Date());
 }
 
+const dateFormat = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+});
+
 /** "Jun 1, 2025" */
 export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(parseDate(iso));
+  return dateFormat.format(parseDate(iso));
 }
 
 /** "Jun 1" */
@@ -96,11 +98,7 @@ export function formatDateRange(start: string | null, end: string | null): strin
 
 /** Full timestamp (e.g. created_at) as a short local date. */
 export function formatTimestamp(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(iso));
+  return dateFormat.format(new Date(iso));
 }
 
 /** Whole days from start to end (end - start), by calendar date. */

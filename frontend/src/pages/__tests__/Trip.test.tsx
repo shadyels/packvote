@@ -98,7 +98,7 @@ describe("Trip", () => {
   it("shows the participant failure message", async () => {
     mockView.mockResolvedValue(view("GENERATION_FAILED"));
     renderTrip();
-    expect(await screen.findByText(/organizer has been notified/i)).toBeInTheDocument();
+    expect(await screen.findByText(/organizer can retry generation/i)).toBeInTheDocument();
   });
 
   it("submits the ordered ids when voting", async () => {
@@ -115,10 +115,19 @@ describe("Trip", () => {
 
   it("labels re-votes as updates", async () => {
     mockView.mockResolvedValue(
-      view("ITERATING", { itineraries: [itin(1, "Alpha")], has_voted: true })
+      view("VOTING", { itineraries: [itin(1, "Alpha")], has_voted: true })
     );
     renderTrip();
     expect(await screen.findByRole("button", { name: "Update vote" })).toBeInTheDocument();
+  });
+
+  it("treats a cleared (empty) destination as unset", async () => {
+    const v = view("COLLECTING_PREFERENCES");
+    v.trip.destination = "";
+    mockView.mockResolvedValue(v);
+    renderTrip();
+    expect(await screen.findByText("Destination TBD")).toBeInTheDocument();
+    expect(screen.queryByText("Organizer's proposal")).not.toBeInTheDocument();
   });
 
   it("shows the winner when finalized", async () => {

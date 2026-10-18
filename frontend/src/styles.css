@@ -23,6 +23,7 @@
   --color-warning-subtle: #fffbeb;
   --color-success: #15803d;
   --color-success-subtle: #f0fdf4;
+  --color-overlay: #00000066;
 
   --font-sans:
     "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
@@ -71,6 +72,7 @@
     --color-warning-subtle: #2b2109;
     --color-success: #4ade80;
     --color-success-subtle: #0f2a18;
+    --color-overlay: #000000b3;
   }
 }
 

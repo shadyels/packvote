@@ -36,8 +36,6 @@ export function onUnauthorized(listener: () => void): () => void {
   };
 }
 
-const PARTICIPANT_TOKEN_HEADER = "X-Participant-Token";
-
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("access_token");
   const headers: Record<string, string> = {
@@ -51,20 +49,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({ detail: res.statusText }))) as {
-      detail: string;
-    };
-    // Login/register/reset 401s are bad credentials, and participant-token calls are not session calls.
+    const body = (await res.json().catch(() => ({}))) as { detail?: unknown };
+    // FastAPI: `detail` is a string for HTTPException, an array of {msg} for 422 validation.
+    const { detail } = body;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : Array.isArray(detail)
+          ? (detail as { msg?: string }[])
+              .map((d) => d.msg ?? "")
+              .filter(Boolean)
+              .join("; ") || "Invalid input."
+          : res.statusText || "Request failed";
+    // Login/register/reset 401s are bad credentials. Skip if the session changed while in flight.
     const isSessionCall =
       token !== null &&
-      !(PARTICIPANT_TOKEN_HEADER in headers) &&
+      localStorage.getItem("access_token") === token &&
       (!path.startsWith("/auth/") || path === "/auth/me");
     if (res.status === 401 && isSessionCall) {
       unauthorizedListeners.forEach((listener) => {
         listener();
       });
     }
-    throw new ApiError(res.status, body.detail);
+    throw new ApiError(res.status, message);
   }
 
   if (res.status === 204) return null as T;
@@ -201,12 +208,8 @@ export const votes = {
       body: JSON.stringify({ rankings }),
     }),
 
-  getResults: (tripId: number, iteration?: number, participantToken?: string) => {
-    const qs = iteration !== undefined ? `?iteration=${iteration.toString()}` : "";
-    return request<VotingResults>(`/votes/trips/${tripId.toString()}/results${qs}`, {
-      headers: participantToken ? { [PARTICIPANT_TOKEN_HEADER]: participantToken } : undefined,
-    });
-  },
+  getResults: (tripId: number) =>
+    request<VotingResults>(`/votes/trips/${tripId.toString()}/results`),
 };
 
 // Itineraries
