@@ -42,6 +42,7 @@ describe("PreferenceForm", () => {
     await userEvent.type(screen.getByLabelText("Budget max"), "100");
     await send();
     expect(await screen.findByText(/Minimum budget can't exceed the maximum/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Budget max")).toHaveAttribute("aria-invalid", "true");
     expect(submit).not.toHaveBeenCalled();
   });
 

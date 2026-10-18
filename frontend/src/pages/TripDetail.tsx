@@ -26,13 +26,12 @@ type Tab = (typeof TABS)[number];
 const GENERATING_POLL_MS = 5000;
 const WAITING_POLL_MS = 15000;
 const WAITING_STATUSES = ["CREATED", "COLLECTING_PREFERENCES", "VOTING"];
+const HAS_RESULTS = ["VOTING", "FINALIZED"];
 
 function pollDelay({ trip }: Data): number | null {
   if (trip.status === "GENERATING") return GENERATING_POLL_MS;
   return WAITING_STATUSES.includes(trip.status) ? WAITING_POLL_MS : null;
 }
-const HAS_RESULTS = ["VOTING", "FINALIZED"];
-
 interface Data {
   trip: Trip;
   people: Participant[];
@@ -40,23 +39,15 @@ interface Data {
   results: VotingResults | null;
 }
 
+// Any failed sub-request rejects the whole load, so a poll keeps the last good data.
 async function load(tripId: number): Promise<Data> {
-  const [trip, people, options] = await Promise.allSettled([
+  const [trip, people, options] = await Promise.all([
     trips.get(tripId),
     participants.listByTrip(tripId),
     itineraries.getByTrip(tripId),
   ]);
-  // Participants and itineraries degrade to empty; the trip itself is required.
-  if (trip.status === "rejected") throw trip.reason;
-  const results = HAS_RESULTS.includes(trip.value.status)
-    ? await votes.getResults(tripId).catch(() => null)
-    : null;
-  return {
-    trip: trip.value,
-    people: people.status === "fulfilled" ? people.value : [],
-    options: options.status === "fulfilled" ? options.value : [],
-    results,
-  };
+  const results = HAS_RESULTS.includes(trip.status) ? await votes.getResults(tripId) : null;
+  return { trip, people, options, results };
 }
 
 const errMsg = (err: unknown, fallback: string) =>
@@ -80,6 +71,7 @@ export default function TripDetail() {
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [pick, setPick] = useState("");
 
   if (isLoading) {
@@ -121,7 +113,7 @@ export default function TripDetail() {
     isVotingPhase ? p.has_voted_current_iteration : p.preferences_submitted
   ).length;
   const dates = formatDateRange(trip.proposed_start_date, trip.proposed_end_date);
-  const pickValid = current.some((o) => String(o.id) === pick);
+  const picked = current.find((o) => String(o.id) === pick);
 
   // One shared busy flag: the running action shows a spinner, every other action is disabled.
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
@@ -154,13 +146,15 @@ export default function TripDetail() {
       "Could not start generation."
     );
 
-  const finalize = () =>
-    act(
+  const finalize = async () => {
+    setFinalizing(false);
+    await act(
       "finalize",
       () => trips.pickWinner(trip.id, Number(pick)),
-      "Winner selected — trip finalized!",
+      "Winner selected — trip finalized",
       "Could not finalize the trip."
     );
+  };
 
   const newRound = () =>
     act(
@@ -253,7 +247,10 @@ export default function TripDetail() {
       >
         <TabsList>
           <TabsTab value="overview">Overview</TabsTab>
-          <TabsTab value="participants">Participants ({people.length})</TabsTab>
+          <TabsTab value="participants" aria-label={`Participants (${people.length.toString()})`}>
+            <span className="sm:hidden">People ({people.length})</span>
+            <span className="hidden sm:inline">Participants ({people.length})</span>
+          </TabsTab>
           <TabsTab value="options">Options ({options.length})</TabsTab>
           <TabsTab value="results">Results</TabsTab>
         </TabsList>
@@ -313,7 +310,7 @@ export default function TripDetail() {
           {status === "GENERATING" && <GeneratingState status="generating" />}
 
           {status === "GENERATION_FAILED" && (
-            <div className="flex flex-col items-start gap-3">
+            <div className="flex flex-col gap-3">
               <GeneratingState
                 status="failed"
                 error={trip.generation_error}
@@ -324,6 +321,7 @@ export default function TripDetail() {
               />
               <Button
                 variant="secondary"
+                className="self-start"
                 disabled={busy !== null}
                 onClick={() => {
                   setEditing(true);
@@ -358,7 +356,7 @@ export default function TripDetail() {
                           act(
                             "vote",
                             () => votes.adminVote(trip.id, ids),
-                            "Vote submitted!",
+                            "Vote submitted",
                             "Could not submit your vote."
                           )
                         }
@@ -391,9 +389,9 @@ export default function TripDetail() {
                   <Button
                     className="sm:shrink-0"
                     loading={busy === "finalize"}
-                    disabled={busy !== null || !pickValid}
+                    disabled={busy !== null || !picked}
                     onClick={() => {
-                      void finalize();
+                      setFinalizing(true);
                     }}
                   >
                     Finalize
@@ -578,6 +576,31 @@ export default function TripDetail() {
             refetch();
           }}
         />
+      </Dialog>
+
+      <Dialog
+        open={finalizing && !!picked}
+        onOpenChange={setFinalizing}
+        title={`Finalize "${picked ? optionTitle(picked) : ""}"?`}
+        description="This ends voting for everyone and can't be undone."
+      >
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setFinalizing(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              void finalize();
+            }}
+          >
+            Confirm
+          </Button>
+        </div>
       </Dialog>
 
       <Dialog

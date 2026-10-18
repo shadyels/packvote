@@ -88,6 +88,26 @@ describe("API client", () => {
     });
   });
 
+  describe("malformed error bodies", () => {
+    it.each([null, { detail: [null, { msg: "bad" }] }])(
+      "still throws ApiError (and signals 401) for body %j",
+      async (body) => {
+        const listener = vi.fn();
+        const off = onUnauthorized(listener);
+        localStorage.setItem("access_token", "stale");
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          statusText: "Unauthorized",
+          json: () => Promise.resolve(body),
+        });
+        await expect(auth.me()).rejects.toBeInstanceOf(ApiError);
+        expect(listener).toHaveBeenCalledTimes(1);
+        off();
+      }
+    );
+  });
+
   describe("auth.login", () => {
     it("sends correct JSON payload", async () => {
       mockFetch.mockResolvedValueOnce(okResponse({ access_token: "tok", token_type: "bearer" }));

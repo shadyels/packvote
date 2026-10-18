@@ -138,6 +138,19 @@ describe("Trip", () => {
     expect(await screen.findByText("Your group has a winner")).toBeInTheDocument();
   });
 
+  it("falls back to the winner's destination in the header when the trip has none", async () => {
+    const v = view("FINALIZED", {
+      itineraries: [{ ...itin(1, "Island week"), destination_name: "Naxos, Greece" }],
+    });
+    v.trip.winner_itinerary_id = 1;
+    mockView.mockResolvedValue(v);
+    renderTrip();
+    await screen.findByText("Your group has a winner");
+    expect(screen.queryByText("Destination TBD")).not.toBeInTheDocument();
+    // Once in the header, once in the winner card.
+    expect(screen.getAllByText("Naxos, Greece")).toHaveLength(2);
+  });
+
   it("polls while generating without dropping content", async () => {
     vi.useFakeTimers();
     mockView

@@ -7,6 +7,8 @@ import {
   closestCenter,
   useSensor,
   useSensors,
+  type Announcements,
+  type UniqueIdentifier,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -166,12 +168,26 @@ export function Ballot({ options, onSubmit, submitLabel }: BallotProps) {
     apply(arrayMove(ids, from, to), id);
   };
 
+  // dnd-kit's default live region speaks raw ids; speak option titles and ranks instead.
+  const name = (id: UniqueIdentifier) => optionTitle(byId.get(Number(id)) as Itinerary);
+  const rankOf = (id: UniqueIdentifier) => `position ${(ids.indexOf(Number(id)) + 1).toString()}`;
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `Picked up ${name(active.id)}, currently ${rankOf(active.id)}.`,
+    onDragOver: ({ active, over }) =>
+      over ? `${name(active.id)} is over ${rankOf(over.id)}.` : undefined,
+    onDragEnd: ({ active, over }) =>
+      over
+        ? `${name(active.id)} dropped at ${rankOf(over.id)}.`
+        : `${name(active.id)} dropped, order unchanged.`,
+    onDragCancel: ({ active }) => `Cancelled. ${name(active.id)} stays at ${rankOf(active.id)}.`,
+  };
+
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
-    apply(
-      arrayMove(ids, ids.indexOf(Number(active.id)), ids.indexOf(Number(over.id))),
-      Number(active.id)
-    );
+    setOrder({
+      key: optionKey,
+      ids: arrayMove(ids, ids.indexOf(Number(active.id)), ids.indexOf(Number(over.id))),
+    });
   };
 
   const submit = async () => {
@@ -192,6 +208,7 @@ export function Ballot({ options, onSubmit, submitLabel }: BallotProps) {
         id={dndId}
         sensors={sensors}
         collisionDetection={closestCenter}
+        accessibility={{ announcements }}
         onDragEnd={onDragEnd}
       >
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>

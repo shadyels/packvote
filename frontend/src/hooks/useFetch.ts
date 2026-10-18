@@ -38,6 +38,8 @@ export function useFetch<T>(
   const lastDelay = useRef<number | null>(null);
 
   const refetch = useCallback(() => {
+    // Invalidate in-flight responses now; the effect only bumps the id after commit.
+    requestId.current++;
     setTick((t) => t + 1);
   }, []);
 

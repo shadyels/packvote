@@ -49,15 +49,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { detail?: unknown };
+    const body = (await res.json().catch(() => null)) as { detail?: unknown } | null;
     // FastAPI: `detail` is a string for HTTPException, an array of {msg} for 422 validation.
-    const { detail } = body;
+    const detail = body?.detail;
     const message =
       typeof detail === "string"
         ? detail
         : Array.isArray(detail)
-          ? (detail as { msg?: string }[])
-              .map((d) => d.msg ?? "")
+          ? (detail as ({ msg?: string } | null)[])
+              .map((d) => d?.msg ?? "")
               .filter(Boolean)
               .join("; ") || "Invalid input."
           : res.statusText || "Request failed";

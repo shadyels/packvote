@@ -17,6 +17,12 @@ export default function AppShell() {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-accent"
+      >
+        Skip to content
+      </a>
       <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
         <nav
           aria-label="Main"
@@ -51,7 +57,11 @@ export default function AppShell() {
           </div>
         </nav>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 outline-none"
+      >
         <Outlet />
       </main>
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">

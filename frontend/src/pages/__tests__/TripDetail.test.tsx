@@ -181,7 +181,22 @@ describe("TripDetail", () => {
     renderAt();
     await userEvent.selectOptions(await screen.findByLabelText("Winning option"), "11");
     await userEvent.click(screen.getByRole("button", { name: "Finalize" }));
+    expect(m.pickWinner).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog", { name: /Finalize "Rome"\?/ });
+    expect(within(dialog).getByText(/can't be undone/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     expect(m.pickWinner).toHaveBeenCalledWith(7, 11);
+  });
+
+  it("does not finalize when the confirmation is cancelled", async () => {
+    m.get.mockResolvedValue(trip("VOTING"));
+    m.its.mockResolvedValue([itin(10, "Lisbon"), itin(11, "Rome")]);
+    renderAt();
+    await userEvent.selectOptions(await screen.findByLabelText("Winning option"), "11");
+    await userEvent.click(screen.getByRole("button", { name: "Finalize" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(m.pickWinner).not.toHaveBeenCalled();
   });
 
   it("deletes after confirming and navigates to the dashboard", async () => {
@@ -306,6 +321,22 @@ describe("TripDetail", () => {
     expect(await screen.findByText(/Couldn.t refresh/)).toBeInTheDocument();
     expect(screen.getByText("Building your options")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the ballot and options when a poll's sub-request fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    m.get.mockResolvedValue(trip("VOTING"));
+    m.its
+      .mockResolvedValueOnce([itin(10, "Lisbon"), itin(11, "Rome")])
+      .mockRejectedValue(new Error("502"));
+    renderAt();
+    await screen.findByRole("button", { name: "Submit vote" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15100);
+    });
+    expect(await screen.findByText(/Couldn.t refresh/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit vote" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Rome" })).toBeInTheDocument();
   });
 
   it("clears the picked winner after a new round so a stale option cannot be finalized", async () => {

@@ -139,7 +139,9 @@ export default function Trip() {
           <h1 className="text-2xl font-semibold tracking-tight">{trip.title}</h1>
           <Badge tone={STATUS[trip.status].tone}>{STATUS[trip.status].label}</Badge>
         </div>
-        <p className="text-muted-foreground">{trip.destination || "Destination TBD"}</p>
+        <p className="text-muted-foreground">
+          {trip.destination || winner?.destination_name || "Destination TBD"}
+        </p>
         <Progress list={others} />
       </header>
 

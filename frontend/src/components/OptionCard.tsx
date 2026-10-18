@@ -34,9 +34,10 @@ export function OptionCard({ option, votes, winner = false, dimmed = false }: Op
       if (e.key === "ArrowRight")
         setDay((d) => (d === null ? d : Math.min(days.length - 1, d + 1)));
     };
-    window.addEventListener("keydown", onKey);
+    // Capture phase: the dialog popup stops keydown from bubbling to window.
+    window.addEventListener("keydown", onKey, true);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
     };
   }, [isOpen, days.length]);
 

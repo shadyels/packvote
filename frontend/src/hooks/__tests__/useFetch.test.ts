@@ -48,6 +48,34 @@ describe("useFetch", () => {
     expect(result.current.data).toBe("b");
   });
 
+  it("ignores an in-flight response that resolves before refetch() commits", async () => {
+    const stale = deferred<string>();
+    const fresh = deferred<string>();
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce("a")
+      .mockReturnValueOnce(stale.promise)
+      .mockReturnValueOnce(fresh.promise);
+    const { result } = renderHook(() => useFetch(fetcher, []));
+    await waitFor(() => {
+      expect(result.current.data).toBe("a");
+    });
+    act(() => {
+      result.current.refetch(); // request 2 (stale) in flight
+    });
+    await act(async () => {
+      result.current.refetch(); // request 3; the effect has not run yet...
+      stale.resolve("stale"); // ...when request 2 lands
+      await stale.promise;
+    });
+    expect(result.current.data).toBe("a");
+    await act(async () => {
+      fresh.resolve("fresh");
+      await fresh.promise;
+    });
+    expect(result.current.data).toBe("fresh");
+  });
+
   it("reports errors, keeps stale data on a failed refetch, and clears the error on success", async () => {
     const fetcher = vi
       .fn()

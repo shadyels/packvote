@@ -40,7 +40,12 @@ export function PreferenceForm({
   const [currency, setCurrency] = useState("USD");
   const [interests, setInterests] = useState("");
   const [tags, setTags] = useState("");
-  const [errors, setErrors] = useState<{ dates?: string; tags?: string; form?: string }>({});
+  const [errors, setErrors] = useState<{
+    dates?: string;
+    tags?: string;
+    budget?: string;
+    form?: string;
+  }>({});
   const [submitting, setSubmitting] = useState(false);
 
   const today = todayISO();
@@ -66,9 +71,9 @@ export function PreferenceForm({
     else if (long)
       next.tags = `Tag "${long.slice(0, 20)}…" is too long — max ${ACTIVITY_TAG_MAX.toString()} characters.`;
     if (budgetMin && budgetMax && Number(budgetMin) > Number(budgetMax))
-      next.form = "Minimum budget can't exceed the maximum.";
+      next.budget = "Minimum budget can't exceed the maximum.";
     setErrors(next);
-    if (next.dates || next.tags || next.form) return;
+    if (next.dates || next.tags || next.budget) return;
 
     setSubmitting(true);
     try {
@@ -164,7 +169,7 @@ export function PreferenceForm({
             />
           )}
         </Field>
-        <Field label="Budget max">
+        <Field label="Budget max" error={errors.budget}>
           {(c) => (
             <Input
               {...c}

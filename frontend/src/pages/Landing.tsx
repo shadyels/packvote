@@ -3,7 +3,7 @@ import { Ballot } from "@/components/Ballot";
 import { TripRow } from "@/components/TripRow";
 import { useAuth } from "@/hooks/useAuth";
 import { buttonClass } from "@/components/ui/Button";
-import type { Itinerary, TripSummary } from "@/types";
+import type { DayItinerary, Itinerary, TripSummary } from "@/types";
 
 const SAMPLE_TRIP: TripSummary = {
   id: 1,
@@ -16,14 +16,29 @@ const SAMPLE_TRIP: TripSummary = {
   created_at: "2026-05-02T10:00:00Z",
 };
 
-const option = (id: number, title: string, destination: string, budget: number): Itinerary => ({
+// Only the length is shown (the card is decorative), so stub days carry no activities.
+const stubDays = (n: number): DayItinerary[] =>
+  Array.from({ length: n }, (_, i) => ({
+    day_number: i + 1,
+    title: `Day ${(i + 1).toString()}`,
+    activities: [],
+    estimated_cost: null,
+  }));
+
+const option = (
+  id: number,
+  title: string,
+  destination: string,
+  budget: number,
+  days: number
+): Itinerary => ({
   id,
   trip_id: 1,
   iteration_number: 1,
   option_title: title,
   destination_name: destination,
   destination_description: "",
-  daily_itinerary: [],
+  daily_itinerary: stubDays(days),
   total_estimated_budget: budget,
   currency: "USD",
   match_reasoning: "",
@@ -37,9 +52,9 @@ const option = (id: number, title: string, destination: string, budget: number):
 });
 
 const SAMPLE_OPTIONS: Itinerary[] = [
-  option(1, "Coastal food trail", "Lisbon, Portugal", 1450),
-  option(2, "Alpine hut hopping", "Dolomites, Italy", 1280),
-  option(3, "Island slow week", "Naxos, Greece", 1620),
+  option(1, "Coastal food trail", "Lisbon, Portugal", 1450, 5),
+  option(2, "Alpine hut hopping", "Dolomites, Italy", 1280, 4),
+  option(3, "Island slow week", "Naxos, Greece", 1620, 6),
 ];
 
 const STEPS = [
@@ -81,8 +96,11 @@ function Ctas() {
 export default function Landing() {
   return (
     <div className="mx-auto flex w-full flex-col gap-20 py-4 sm:py-12">
-      <section className="grid items-center gap-10 lg:grid-cols-2" aria-labelledby="hero">
-        <div className="flex animate-slide-up flex-col items-start gap-6">
+      <section
+        className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2"
+        aria-labelledby="hero"
+      >
+        <div className="flex min-w-0 animate-slide-up flex-col items-start gap-6">
           <h1 id="hero" className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
             Group trips, decided fairly.
           </h1>
@@ -96,7 +114,7 @@ export default function Landing() {
           aria-hidden="true"
           {...inertProps}
           data-testid="hero-frame"
-          className="pointer-events-none flex animate-fade-in flex-col gap-4 rounded-2xl border border-border bg-muted p-3 select-none sm:p-4"
+          className="pointer-events-none flex min-w-0 animate-fade-in flex-col gap-4 rounded-2xl border border-border bg-muted p-3 select-none sm:p-4"
         >
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
             <TripRow trip={SAMPLE_TRIP} to="/dashboard" />

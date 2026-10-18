@@ -56,6 +56,15 @@ describe("OptionCard day-by-day", () => {
     expect(within(dialog).getByText("2 of 3")).toBeInTheDocument();
   });
 
+  it("handles arrow keys that the dialog stops from bubbling", async () => {
+    const dialog = await open();
+    dialog.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+    });
+    fireEvent.keyDown(within(dialog).getByRole("button", { name: /Next/ }), { key: "ArrowRight" });
+    expect(within(dialog).getByText("2 of 3")).toBeInTheDocument();
+  });
+
   it("shows per-person cost only when estimated_cost is not null", async () => {
     const dialog = await open();
     expect(within(dialog).getByText(/per person/)).toHaveTextContent("~USD25 per person");
