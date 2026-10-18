@@ -76,8 +76,8 @@ async def get_results_trip(
             )
         ).scalar_one_or_none()
     if participant is not None and participant.trip_id == trip_id:
-        # Participant token alone grants access; a stale bearer JWT must not
-        # break it (the frontend sends both when both are stored).
+        # Participant token alone grants access; a stale bearer JWT sent
+        # alongside it must not break it.
         trip = await db.get(Trip, trip_id)
         if trip is not None:
             return trip
