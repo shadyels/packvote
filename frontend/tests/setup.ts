@@ -19,8 +19,7 @@ const _buildStorage = (): Storage => {
     clear: (): void => {
       store = {};
     },
-    key: (index: number): string | null =>
-      Object.keys(store)[index] ?? null,
+    key: (index: number): string | null => Object.keys(store)[index] ?? null,
     get length(): number {
       return Object.keys(store).length;
     },

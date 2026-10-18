@@ -1,55 +1,39 @@
-import { useEffect } from "react";
-import { Outlet, Routes, Route, useNavigate, useParams } from "react-router-dom";
-import Layout from "@/components/Layout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import LandingPage from "@/pages/LandingPage";
-import LoginPage from "@/pages/LoginPage";
-import DashboardPage from "@/pages/DashboardPage";
-import TripDetailPage from "@/pages/TripDetailPage";
-import TripPage from "@/pages/TripPage";
-import JoinPage from "@/pages/JoinPage";
-import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import AppShell from "@/components/AppShell";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
+import Join from "@/pages/Join";
+import Dashboard from "@/pages/Dashboard";
+import TripDetail from "@/pages/TripDetail";
+import Trip from "@/pages/Trip";
+import NotFound from "@/pages/NotFound";
 
-function LayoutWrapper() {
-  return (
-    <Layout>
-      <Outlet />
-    </Layout>
-  );
-}
-
-/** Redirect /join/:token → /trip/:token (for invitation email links) */
+/** /join/:token (invitation email links) -> /trip/:token */
 function JoinRedirect() {
-  const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
-  useEffect(() => {
-    if (token) {
-      navigate(`/trip/${token}`, { replace: true });
-    }
-  }, [token, navigate]);
-  return null;
+  const { token = "" } = useParams<{ token: string }>();
+  return <Navigate to={`/trip/${token}`} replace />;
 }
 
 export default function App() {
   return (
     <Routes>
-      {/* Login and landing render their own full-screen layouts */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/" element={<LandingPage />} />
-
-      {/* All other routes wrapped in Layout */}
-      <Route element={<LayoutWrapper />}>
-        <Route path="/trip/:token" element={<TripPage />} />
-        <Route path="/trip/:token/vote" element={<TripPage />} />
-        <Route path="/join" element={<JoinPage />} />
+      <Route element={<AppShell />}>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/join" element={<Join />} />
         <Route path="/join/:token" element={<JoinRedirect />} />
+        <Route path="/trip/:token" element={<Trip />} />
+        <Route path="/trip/:token/vote" element={<Trip />} />
 
-        {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/dashboard/trip/:tripId" element={<TripDetailPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/trip/:tripId" element={<TripDetail />} />
         </Route>
+
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );

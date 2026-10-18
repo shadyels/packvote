@@ -13,9 +13,10 @@ import type {
   VotingResults,
 } from "@/types";
 
-const BASE_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+const BASE_URL: string =
+  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     public status: number,
     message: string
@@ -25,14 +26,23 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+// A 401 on a JWT-authenticated call means the session is gone; AuthContext subscribes and logs out.
+const unauthorizedListeners = new Set<() => void>();
+
+export function onUnauthorized(listener: () => void): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+const PARTICIPANT_TOKEN_HEADER = "X-Participant-Token";
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("access_token");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
+    ...(options.headers as Record<string, string> | undefined),
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -44,6 +54,16 @@ async function request<T>(
     const body = (await res.json().catch(() => ({ detail: res.statusText }))) as {
       detail: string;
     };
+    // Login/register/reset 401s are bad credentials, and participant-token calls are not session calls.
+    const isSessionCall =
+      token !== null &&
+      !(PARTICIPANT_TOKEN_HEADER in headers) &&
+      (!path.startsWith("/auth/") || path === "/auth/me");
+    if (res.status === 401 && isSessionCall) {
+      unauthorizedListeners.forEach((listener) => {
+        listener();
+      });
+    }
     throw new ApiError(res.status, body.detail);
   }
 
@@ -109,10 +129,10 @@ export const trips = {
     request<{ message: string }>(`/trips/${tripId.toString()}/new-iteration`, { method: "POST" }),
 
   pickWinner: (tripId: number, itineraryId: number) =>
-    request<{ message: string }>(
-      `/trips/${tripId.toString()}/pick-winner`,
-      { method: "POST", body: JSON.stringify({ itinerary_id: itineraryId }) }
-    ),
+    request<{ message: string }>(`/trips/${tripId.toString()}/pick-winner`, {
+      method: "POST",
+      body: JSON.stringify({ itinerary_id: itineraryId }),
+    }),
 
   update: (
     tripId: number,
@@ -130,8 +150,7 @@ export const trips = {
       body: JSON.stringify(payload),
     }),
 
-  delete: (tripId: number) =>
-    request<null>(`/trips/${tripId.toString()}`, { method: "DELETE" }),
+  delete: (tripId: number) => request<null>(`/trips/${tripId.toString()}`, { method: "DELETE" }),
 };
 
 // Participants
@@ -144,8 +163,7 @@ export const participants = {
       body: JSON.stringify({ trip_code, pin }),
     }),
 
-  getTripView: (token: string) =>
-    request<ParticipantTripView>(`/participants/${token}/trip-view`),
+  getTripView: (token: string) => request<ParticipantTripView>(`/participants/${token}/trip-view`),
 
   submitPreferences: (
     token: string,
@@ -183,25 +201,25 @@ export const votes = {
       body: JSON.stringify({ rankings }),
     }),
 
-  getResults: (tripId: number, iteration?: number) => {
+  getResults: (tripId: number, iteration?: number, participantToken?: string) => {
     const qs = iteration !== undefined ? `?iteration=${iteration.toString()}` : "";
-    return request<VotingResults>(`/votes/trips/${tripId.toString()}/results${qs}`);
+    return request<VotingResults>(`/votes/trips/${tripId.toString()}/results${qs}`, {
+      headers: participantToken ? { [PARTICIPANT_TOKEN_HEADER]: participantToken } : undefined,
+    });
   },
 };
 
 // Itineraries
 export const itineraries = {
-  getByTrip: (tripId: number) =>
-    request<Itinerary[]>(`/trips/${tripId.toString()}/itineraries`),
+  getByTrip: (tripId: number) => request<Itinerary[]>(`/trips/${tripId.toString()}/itineraries`),
 };
 
 // Admin
 export const admin = {
   resendAll: (tripId: number) =>
-    request<{ sent: number; failed: number }>(
-      `/admin/trips/${tripId.toString()}/resend-emails`,
-      { method: "POST" }
-    ),
+    request<{ sent: number; failed: number }>(`/admin/trips/${tripId.toString()}/resend-emails`, {
+      method: "POST",
+    }),
 
   resendOne: (tripId: number, participantId: number) =>
     request<{ sent: number; failed: number }>(
@@ -209,5 +227,3 @@ export const admin = {
       { method: "POST" }
     ),
 };
-
-export { ApiError };

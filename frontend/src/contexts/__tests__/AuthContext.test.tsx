@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AuthProvider, useAuth } from "../AuthContext";
 
@@ -7,10 +7,11 @@ import { AuthProvider, useAuth } from "../AuthContext";
 // Mock @/lib/api — use vi.hoisted so mocks are available in the factory
 // ---------------------------------------------------------------------------
 
-const { mockMe, mockLogin, mockRegister } = vi.hoisted(() => ({
+const { mockMe, mockLogin, mockRegister, mockOnUnauthorized } = vi.hoisted(() => ({
   mockMe: vi.fn(),
   mockLogin: vi.fn(),
   mockRegister: vi.fn(),
+  mockOnUnauthorized: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/api", () => ({
     login: mockLogin,
     register: mockRegister,
   },
+  onUnauthorized: mockOnUnauthorized,
 }));
 
 // ---------------------------------------------------------------------------
@@ -26,15 +28,26 @@ vi.mock("@/lib/api", () => ({
 // ---------------------------------------------------------------------------
 
 function TestConsumer() {
-  const { user, isLoading, isAuthenticated, login, logout, register } =
-    useAuth();
+  const { user, isLoading, isAuthenticated, login, logout, register } = useAuth();
   return (
     <div>
       <span data-testid="loading">{isLoading ? "loading" : "done"}</span>
       <span data-testid="authenticated">{isAuthenticated ? "yes" : "no"}</span>
       <span data-testid="user">{user ? user.email : "none"}</span>
-      <button onClick={() => { void login("a@a.com", "pass"); }}>login</button>
-      <button onClick={() => { void register("a@a.com", "pass"); }}>register</button>
+      <button
+        onClick={() => {
+          void login("a@a.com", "pass");
+        }}
+      >
+        login
+      </button>
+      <button
+        onClick={() => {
+          void register("a@a.com", "pass");
+        }}
+      >
+        register
+      </button>
       <button onClick={logout}>logout</button>
     </div>
   );
@@ -62,6 +75,7 @@ const FAKE_USER = {
 describe("AuthContext", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockOnUnauthorized.mockReturnValue(() => undefined);
     // Use removeItem rather than clear() for wider env compatibility
     window.localStorage.removeItem("access_token");
   });
@@ -150,11 +164,26 @@ describe("AuthContext", () => {
     expect(mockMe).toHaveBeenCalled();
   });
 
+  it("logs out when the API signals an expired session", async () => {
+    window.localStorage.setItem("access_token", "valid-token");
+    mockMe.mockResolvedValue(FAKE_USER);
+
+    render(<Wrapped />);
+    await waitFor(() => {
+      expect(screen.getByTestId("authenticated").textContent).toBe("yes");
+    });
+
+    const handler = mockOnUnauthorized.mock.calls[0][0] as () => void;
+    act(() => {
+      handler();
+    });
+    expect(screen.getByTestId("authenticated").textContent).toBe("no");
+    expect(window.localStorage.getItem("access_token")).toBeNull();
+  });
+
   it("useAuth throws when used outside AuthProvider", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    expect(() => render(<TestConsumer />)).toThrow(
-      "useAuth must be used within AuthProvider"
-    );
+    expect(() => render(<TestConsumer />)).toThrow("useAuth must be used within AuthProvider");
     consoleError.mockRestore();
   });
 });
