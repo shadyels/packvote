@@ -74,7 +74,7 @@ export default function Trip() {
   const { data, error, isLoading, refetch } = useFetch(
     () => participants.getTripView(token),
     [token],
-    { pollMs: 5000, pollWhile: (d) => d.trip.status === "GENERATING" }
+    { poll: (d) => (d.trip.status === "GENERATING" ? 5000 : null) }
   );
   const ballotRef = useRef<HTMLElement>(null);
   const focusBallot = location.pathname.endsWith("/vote");

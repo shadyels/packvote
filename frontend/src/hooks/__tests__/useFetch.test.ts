@@ -129,7 +129,7 @@ describe("useFetch", () => {
       vi.useRealTimers();
     });
 
-    it("polls while pollWhile holds and stops once it returns false", async () => {
+    it("polls while poll returns a delay and stops once it returns null", async () => {
       const fetcher = vi
         .fn<() => Promise<{ status: string }>>()
         .mockResolvedValueOnce({ status: "GENERATING" })
@@ -138,7 +138,7 @@ describe("useFetch", () => {
         .mockResolvedValue({ status: "VOTING" });
 
       const { result } = renderHook(() =>
-        useFetch(fetcher, [], { pollMs: 1000, pollWhile: (d) => d.status === "GENERATING" })
+        useFetch(fetcher, [], { poll: (d) => (d.status === "GENERATING" ? 1000 : null) })
       );
 
       await act(async () => {
@@ -171,7 +171,7 @@ describe("useFetch", () => {
         .mockResolvedValueOnce("a")
         .mockRejectedValueOnce(new Error("blip"))
         .mockResolvedValue("b");
-      const { result } = renderHook(() => useFetch(fetcher, [], { pollMs: 1000 }));
+      const { result } = renderHook(() => useFetch(fetcher, [], { poll: () => 1000 }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1000);
@@ -184,6 +184,67 @@ describe("useFetch", () => {
       });
       expect(result.current.data).toBe("b");
       expect(result.current.error).toBeNull();
+    });
+
+    it("takes the next delay from poll(data), so it changes with the data", async () => {
+      const fetcher = vi
+        .fn<() => Promise<number>>()
+        .mockResolvedValueOnce(1000)
+        .mockResolvedValueOnce(3000)
+        .mockResolvedValue(3000);
+      renderHook(() => useFetch(fetcher, [], { poll: (d) => d }));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2999);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(3);
+    });
+
+    it("does not poll when poll returns null", async () => {
+      const fetcher = vi.fn<() => Promise<string>>().mockResolvedValue("a");
+      renderHook(() => useFetch(fetcher, [], { poll: () => null }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60000);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    it("skips requests while the tab is hidden and resumes when visible", async () => {
+      let hidden = true;
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+      try {
+        const fetcher = vi.fn<() => Promise<string>>().mockResolvedValue("a");
+        renderHook(() => useFetch(fetcher, [], { poll: () => 1000 }));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(fetcher).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(fetcher).toHaveBeenCalledTimes(1);
+
+        hidden = false;
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+        expect(fetcher).toHaveBeenCalledTimes(2);
+      } finally {
+        Reflect.deleteProperty(document, "hidden");
+      }
     });
   });
 });

@@ -214,6 +214,35 @@ describe("TripDetail", () => {
     expect(screen.queryByRole("status", { name: "Loading trip" })).not.toBeInTheDocument();
   });
 
+  it("refetches a voting trip after 15s", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    m.get.mockResolvedValue(trip("VOTING"));
+    m.its.mockResolvedValue([itin(10, "Lisbon"), itin(11, "Rome")]);
+    renderAt();
+    await screen.findByRole("button", { name: "Submit vote" });
+    const before = m.get.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(14000);
+    });
+    expect(m.get.mock.calls.length).toBe(before);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(m.get.mock.calls.length).toBe(before + 1);
+  });
+
+  it("does not poll a finalized trip", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    m.get.mockResolvedValue(trip("FINALIZED"));
+    renderAt();
+    await screen.findByRole("heading", { level: 1 });
+    const before = m.get.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(m.get.mock.calls.length).toBe(before);
+  });
+
   it("edits the trip in a dialog, then toasts and refetches", async () => {
     renderAt();
     await userEvent.click(await screen.findByRole("button", { name: "Edit trip" }));

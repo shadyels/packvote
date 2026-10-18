@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
 
 interface FetchOptions<T> {
-  /** Re-run the fetcher every N ms while `pollWhile(data)` holds. */
-  pollMs?: number;
-  /** Polling continues only while this returns true for the current data. Default: always. */
-  pollWhile?: (data: T) => boolean;
+  /**
+   * Given the latest successful data, returns the delay in ms until the next poll, or `null` to
+   * stop. A failed poll retries after the last delay used. While the tab is hidden the request is
+   * skipped and the same delay is rescheduled.
+   */
+  poll?: (data: T) => number | null;
 }
 
 interface FetchResult<T> {
@@ -18,7 +20,7 @@ interface FetchResult<T> {
 export function useFetch<T>(
   fetcher: () => Promise<T>,
   deps: DependencyList,
-  { pollMs, pollWhile }: FetchOptions<T> = {}
+  { poll }: FetchOptions<T> = {}
 ): FetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,12 +29,13 @@ export function useFetch<T>(
 
   // Always call the latest closures without re-running the effect on every render.
   const fetcherRef = useRef(fetcher);
-  const pollWhileRef = useRef(pollWhile);
+  const pollRef = useRef(poll);
   fetcherRef.current = fetcher;
-  pollWhileRef.current = pollWhile;
+  pollRef.current = poll;
 
   const requestId = useRef(0);
   const hasData = useRef(false);
+  const lastDelay = useRef<number | null>(null);
 
   const refetch = useCallback(() => {
     setTick((t) => t + 1);
@@ -45,12 +48,20 @@ export function useFetch<T>(
     const prev = lastDeps.current;
     if (!prev || prev.length !== deps.length || prev.some((d, i) => !Object.is(d, deps[i]))) {
       hasData.current = false;
+      lastDelay.current = null;
     }
     lastDeps.current = deps;
 
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const id = ++requestId.current;
+
+    const schedule = (delay: number) => {
+      timer = setTimeout(() => {
+        if (document.hidden) schedule(delay);
+        else run();
+      }, delay);
+    };
 
     const run = () => {
       if (!hasData.current) {
@@ -66,16 +77,15 @@ export function useFetch<T>(
           setData(result);
           setError(null);
           setIsLoading(false);
-          if (pollMs && (pollWhileRef.current?.(result) ?? true)) {
-            timer = setTimeout(run, pollMs);
-          }
+          lastDelay.current = pollRef.current?.(result) ?? null;
+          if (lastDelay.current !== null) schedule(lastDelay.current);
         })
         .catch((err: unknown) => {
           if (!active || id !== requestId.current) return;
           setError(err instanceof Error ? err.message : "Something went wrong");
           setIsLoading(false);
-          // A failed poll keeps the last data and tries again next interval.
-          if (pollMs && hasData.current) timer = setTimeout(run, pollMs);
+          // A failed poll keeps the last data and tries again after the last delay.
+          if (hasData.current && lastDelay.current !== null) schedule(lastDelay.current);
         });
     };
     run();
@@ -85,7 +95,7 @@ export function useFetch<T>(
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- caller-provided deps
-  }, [...deps, tick, pollMs]);
+  }, [...deps, tick]);
 
   return { data, error, isLoading, refetch };
 }

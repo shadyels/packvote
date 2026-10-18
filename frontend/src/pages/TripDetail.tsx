@@ -23,7 +23,14 @@ import type { Itinerary, Participant, Trip, VotingResults } from "@/types";
 const TABS = ["overview", "participants", "options", "results"] as const;
 type Tab = (typeof TABS)[number];
 
-const POLL_MS = 5000;
+const GENERATING_POLL_MS = 5000;
+const WAITING_POLL_MS = 15000;
+const WAITING_STATUSES = ["CREATED", "COLLECTING_PREFERENCES", "VOTING"];
+
+function pollDelay({ trip }: Data): number | null {
+  if (trip.status === "GENERATING") return GENERATING_POLL_MS;
+  return WAITING_STATUSES.includes(trip.status) ? WAITING_POLL_MS : null;
+}
 const HAS_RESULTS = ["VOTING", "FINALIZED"];
 
 interface Data {
@@ -68,10 +75,7 @@ export default function TripDetail() {
   const requested = params.get("tab");
   const tab: Tab = TABS.find((t) => t === requested) ?? "overview";
 
-  const { data, error, isLoading, refetch } = useFetch(() => load(id), [id], {
-    pollMs: POLL_MS,
-    pollWhile: (d) => d.trip.status === "GENERATING",
-  });
+  const { data, error, isLoading, refetch } = useFetch(() => load(id), [id], { poll: pollDelay });
 
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
