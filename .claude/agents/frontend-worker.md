@@ -27,5 +27,19 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 
 <!-- BEGIN learned-lessons (written ONLY by the orchestrator) -->
 ## Learned lessons
-_(none yet)_
+- On macOS, BSD `sed -i` needs an explicit suffix (`sed -i ''`); without it the expression is eaten and a chained `&&` silently skips later edits — verify each scripted edit applied (or use a Python edit asserting the old text exists).
+- Run the formatter before scripted text replacements; replacements written against the pre-format layout silently miss.
+- When porting a formula, compute expected test values by running it; a failing assertion on unchanged ported logic is a bad expectation first.
+- Swapping a CSS framework major means checking its peer majors too (e.g. Tailwind v4 needs tailwind-merge v3 and prettier-plugin-tailwindcss `tailwindStylesheet`).
+- `void` is only for promises: check the lint rule against the library's real return type (react-router v6 `navigate()` returns void, so `void navigate()` is itself a lint error).
+- When a backend ignores null on PATCH, read the service layer, not just the schema, to learn what value actually clears a field (often `""`), then grep every reader of that field for `??`.
+- Render Dialog-hosted forms as Dialog children so unmount-on-close resets local state with no reset code.
+- React 18 typings lack `inert`: spread `{...{ inert: "" }}` and assert the attribute in the DOM; a decorative frame of real interactive components needs `inert`, not just `aria-hidden`, or its controls stay in the tab order.
+- Global key handlers that must work inside third-party modals belong in the capture phase (`addEventListener(..., true)`): base-ui's Dialog popup stops keydown propagation, so a bubble-phase `window` listener is dead in real browsers while jsdom tests pass.
+- To refocus a specific control after a list reorder, query a data attribute through a container ref rather than collecting per-row callback refs.
+- A hoisted `vi.mock` factory must include every export the component imports (e.g. `ApiError`), or the import fails with a confusing error.
+- Don't assert locale-formatted dates in tests (jsdom printed "1 Jun 2025"); assert structure or a locale-agnostic regex.
+- Tests for timing/propagation bugs must fail without the fix: put trigger and racing event in one act batch, put a stopPropagation barrier between target and listener, then revert the fix once to see red.
+- Before implementing a review or E2E finding, grep the current source for the supposedly missing behaviour; findings can describe code that already exists.
+- On a case-insensitive filesystem, writing `Button.tsx` over a tracked `button.tsx` keeps the old casing in git; recase only with `git mv` and compare `git ls-files` against import specifiers.
 <!-- END learned-lessons -->

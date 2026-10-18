@@ -34,4 +34,9 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 ## Learned lessons
 - Before tightening a loose assertion that accepts several states, run it once with a sentinel value to learn the real one.
 - Scripted multi-test deletions by text slicing can leave empty class bodies or orphaned imports; run ruff immediately after.
+- jsdom cannot prove layout or real event propagation: a global key handler tested via `fireEvent` on `window` can be dead in a browser when a modal stops propagation — verify with real key presses and listeners on each ancestor; log raw keydown + live-region text to split "not delivered" from "not handled".
+- Headless pages often report `document.hidden === true`, which stalls CSS animations, blocks `requestAnimationFrame` (dialog initial focus, dnd-kit) and pauses visibility-gated polling — check rAF/`document.getAnimations()`, shim rAF, emulate reduced motion, take a warm-up screenshot, and read geometry only after transitions settle.
+- Enter form values with real typing/keypresses and never disable validation; programmatic value setting bypasses React `onChange` and produces defects that don't exist. State in the report how each value was entered.
+- Automation clicks can silently no-op on off-screen elements or stale refs; scroll into view, re-snapshot and confirm via the network before reporting "nothing happened".
+- In the user's zsh, unquoted variables don't word-split; put multi-step browser/setup scripts in `#!/bin/bash` files.
 <!-- END learned-lessons -->

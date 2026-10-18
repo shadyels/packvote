@@ -39,5 +39,12 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - When a diff adds a unique constraint/index, list every write path that fills those columns — including bulk UPDATE backfills — and ask whether its input can carry duplicates the constraint now rejects; also check that an IntegrityError mapped to a domain error can only come from the constraint it names.
 - When a dependency accepts alternative credentials (header token OR JWT), check whether an invalid credential of one kind blocks a valid one of the other — clients that attach one credential to every request make that the common case.
 - When a fix makes a config default fail closed, check every process entry point (dev server, migrations, CI, deploy start command) and the example env file — fixtures set the variable, so a green suite proves nothing about them.
+- After a rewrite that recases filenames, compare `git ls-tree -r HEAD --name-only` with import specifiers: with `core.ignorecase=true` lint, tests and build all pass locally while a Linux checkout fails.
+- When a fetch hook keeps last data on error, check every consumer's guard (`if (error || !data)` cancels it) and every fetcher that degrades sub-requests to empty and resolves — both bypass keep-last-data, and adding polling turns the degrade path into a periodic wipe of UI state.
+- For request-id staleness guards, check where the id is bumped: bump synchronously in `refetch()`, not in the effect, or an in-flight response arriving before the commit still counts as current.
+- When a write path changes what it stores (e.g. `""` instead of null to clear), grep every reader of that field for `??` — the regression lands in a different file from the change.
+- A responsive label swap paired with an `aria-label` that exists only because jsdom concatenates both spans is a WCAG 2.5.3 Label-in-Name failure; `display:none` spans already give the right name per breakpoint.
+- `open={flag && derived}` closes without `onOpenChange` when `derived` flips, leaving `flag` set so the dialog reopens on a later unrelated change — check every input of a compound open condition.
+- For "fits at viewport X" layout fixes, redo the arithmetic with the measured numbers and worst realistic content (two-digit counts, long names) before accepting; fixes sized to the fixture often have single-digit-pixel slack.
 <!-- END learned-lessons -->
 
