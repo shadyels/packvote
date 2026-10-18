@@ -135,7 +135,7 @@ afterEach(() => {
 describe("TripDetail", () => {
   it("selects the tab from ?tab= and writes switches back to the URL", async () => {
     renderAt("/dashboard/trip/7?tab=participants");
-    expect(await screen.findByRole("tab", { name: "Participants (2)" })).toHaveAttribute(
+    expect(await screen.findByRole("tab", { name: "People (2)" })).toHaveAttribute(
       "aria-selected",
       "true"
     );

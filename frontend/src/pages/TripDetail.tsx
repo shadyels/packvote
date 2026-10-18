@@ -247,11 +247,13 @@ export default function TripDetail() {
       >
         <TabsList>
           <TabsTab value="overview">Overview</TabsTab>
-          <TabsTab value="participants" aria-label={`Participants (${people.length.toString()})`}>
-            <span className="sm:hidden">People ({people.length})</span>
-            <span className="hidden sm:inline">Participants ({people.length})</span>
+          {/* Counts hide below sm so four tabs fit at 375px; display:none keeps label = accessible name. */}
+          <TabsTab value="participants">
+            People<span className="hidden sm:inline"> ({people.length})</span>
           </TabsTab>
-          <TabsTab value="options">Options ({options.length})</TabsTab>
+          <TabsTab value="options">
+            Options<span className="hidden sm:inline"> ({options.length})</span>
+          </TabsTab>
           <TabsTab value="results">Results</TabsTab>
         </TabsList>
 
@@ -377,6 +379,7 @@ export default function TripDetail() {
                     value={pick}
                     onChange={(e) => {
                       setPick(e.target.value);
+                      setFinalizing(false);
                     }}
                   >
                     <option value="">Choose an option</option>
@@ -594,6 +597,7 @@ export default function TripDetail() {
             Cancel
           </Button>
           <Button
+            disabled={busy !== null}
             onClick={() => {
               void finalize();
             }}
