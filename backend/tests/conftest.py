@@ -15,7 +15,7 @@ from app.core.dependencies import get_email_service, get_session_factory
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.services import participants, unsplash
+from app.services import participants
 from app.services.ai import rate_limiter as ai_rate_limiter
 from app.services.email import brevo
 from app.services.rate_limit import SlidingWindow
@@ -32,14 +32,10 @@ def _fast_bcrypt(monkeypatch):
 @pytest.fixture(autouse=True)
 def _reset_module_state():
     """Reset process-global caches/limiters so tests can't leak into each other."""
-    unsplash._cache.clear()
-    unsplash._limiter = SlidingWindow(unsplash.MAX_RPH, unsplash.WINDOW_SECONDS)
     brevo._limiter = SlidingWindow(brevo.MAX_EPD, 86400)
     ai_rate_limiter._limiter = None
     participants._pin_windows.clear()
     yield
-    unsplash._cache.clear()
-    unsplash._limiter = SlidingWindow(unsplash.MAX_RPH, unsplash.WINDOW_SECONDS)
     brevo._limiter = SlidingWindow(brevo.MAX_EPD, 86400)
     ai_rate_limiter._limiter = None
     participants._pin_windows.clear()

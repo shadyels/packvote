@@ -29,7 +29,6 @@ export type TripStatus =
   | "GENERATING"
   | "GENERATION_FAILED"
   | "VOTING"
-  | "ITERATING"
   | "FINALIZED";
 
 export interface TripSummary {
@@ -166,8 +165,4 @@ export interface ParticipantAccessResponse {
 export interface TokenResponse {
   access_token: string;
   token_type: string;
-}
-
-export interface ApiError {
-  detail: string;
 }

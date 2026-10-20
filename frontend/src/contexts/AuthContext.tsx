@@ -1,11 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
-import { auth } from "@/lib/api";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { ApiError, auth, onUnauthorized } from "@/lib/api";
 import type { User } from "@/types";
 
 interface AuthState {
@@ -16,11 +10,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  register: (
-    email: string,
-    password: string,
-    full_name?: string
-  ) => Promise<void>;
+  register: (email: string, password: string, full_name?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -45,8 +35,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then((user) => {
         setState({ user, isLoading: false, isAuthenticated: true });
       })
-      .catch(() => {
-        localStorage.removeItem("access_token");
+      .catch((err: unknown) => {
+        // Only a 401 means the token is bad; on network/5xx keep it so a reload can recover.
+        if (err instanceof ApiError && err.status === 401) localStorage.removeItem("access_token");
         setState({ user: null, isLoading: false, isAuthenticated: false });
       });
   }, []);
@@ -58,21 +49,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user, isLoading: false, isAuthenticated: true });
   }, []);
 
-  const register = useCallback(
-    async (email: string, password: string, full_name?: string) => {
-      await auth.register(email, password, full_name);
-      const { access_token } = await auth.login(email, password);
-      localStorage.setItem("access_token", access_token);
-      const user = await auth.me();
-      setState({ user, isLoading: false, isAuthenticated: true });
-    },
-    []
-  );
+  const register = useCallback(async (email: string, password: string, full_name?: string) => {
+    await auth.register(email, password, full_name);
+    const { access_token } = await auth.login(email, password);
+    localStorage.setItem("access_token", access_token);
+    const user = await auth.me();
+    setState({ user, isLoading: false, isAuthenticated: true });
+  }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem("access_token");
     setState({ user: null, isLoading: false, isAuthenticated: false });
   }, []);
+
+  useEffect(() => onUnauthorized(logout), [logout]);
 
   return (
     <AuthContext.Provider value={{ ...state, login, register, logout }}>

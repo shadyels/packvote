@@ -18,7 +18,6 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 - **Ranked-choice voting** — full instant-runoff algorithm; re-voting supported; auto-tally when all votes are in; creator can manually finalise at any time
 - **Zero-friction participant flow** — no account required; join via a tokenized email link or trip code + 4-digit PIN
 - **Real-time status tracking** — 6 trip statuses (CREATED → COLLECTING\_PREFERENCES → GENERATING → GENERATION\_FAILED → VOTING → FINALIZED) with polling and live UI updates
-- **Destination photography** — Unsplash API integration with in-memory caching, graceful gradient fallback, and proper attribution
 - **Transactional email** — Brevo-powered invitations and password-reset emails containing direct links and trip code + PIN
 - **Password reset** — email-token flow for trip creators; forgot-password dialog + dedicated reset page
 - **Invited trips dashboard** — authenticated users see trips they were invited to as participants in a separate dashboard tab
@@ -33,7 +32,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 2. **Participants submit preferences** — dates, budget range (8 currencies), interests, and activity tags; no account needed
 3. **AI generates options** — once all preferences are in (auto-triggered) or manually by the creator, the AI produces 2–5 full itineraries with daily plans and budget breakdowns
 4. **Everyone votes** — participants rank the options; ranked-choice tallies the result automatically
-5. **Trip finalised** — the winning itinerary is displayed to all participants with Unsplash destination imagery
+5. **Trip finalised** — the winning itinerary is displayed to all participants
 
 ---
 
@@ -59,10 +58,9 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 |---|---|
 | React 18 + TypeScript | UI framework |
 | Vite | Build tool |
-| Tailwind CSS + shadcn/ui + @base-ui/react | Styling + component library (base-ui primitives, not Radix) |
+| Tailwind CSS v4 + @base-ui/react | Styling + Dialog/Tabs primitives (base-ui, not Radix); native controls elsewhere |
 | React Router v6 | Client-side routing |
 | Lucide React | Icons |
-| date-fns + react-day-picker v9 | Date utilities + custom drill-down calendar |
 | @dnd-kit/core + @dnd-kit/sortable | Drag-and-drop ranked-choice voting UI |
 | Sonner | Toast notifications |
 | Vitest + React Testing Library | Testing |
@@ -75,7 +73,6 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 | PostgreSQL | Production database (Railway add-on) |
 | GitHub Actions | CI/CD — lint → type-check → unit tests → integration tests |
 | Google Gemini | AI inference provider (free tier) |
-| Unsplash API | Destination photography |
 
 ---
 
@@ -86,7 +83,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 - **Pure ranked-choice algorithm** — `services/voting/ranked_choice.py` is a stateless function with zero DB dependencies, making it trivially unit-testable and reusable
 - **Robust AI JSON extraction** — open-source models sometimes wrap responses in markdown fences; `extract_json()` tries direct parse → strip fences → brace-extraction before raising `AIParseError` with the raw text attached for logging
 - **Versioned prompt** — the itinerary prompt is a code constant (`ITINERARY_PROMPT_V3` in `services/generation.py`); `PROMPT_VERSION` is stored on each generated itinerary. No prompt table or A/B split
-- **In-process rate limiting with sliding windows** — AI (Gemini free tier: 8 RPM / 200K TPM), email (Brevo: 300/day), and Unsplash (50 req/hr) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls. Distributed rate limiting is undecided (limits are per process)
+- **In-process rate limiting with sliding windows** — AI (Gemini free tier: 8 RPM / 200K TPM) and email (Brevo: 300/day) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls. Distributed rate limiting is undecided (limits are per process)
 - **Dual auth model** — JWT for trip creators; tokenized links + trip code/PIN for participants (no account creation)
 
 ---
@@ -108,15 +105,12 @@ packvote/
 │   └── tests/              # Unit + integration tests (SQLite in-memory)
 └── frontend/
     └── src/
-        ├── components/
-        │   ├── auth/       # ForgotPasswordDialog
-        │   ├── dashboard/  # Trip overview, itineraries, participants, voting sections
-        │   ├── shared/     # ItineraryCard, DayDetailDrawer
-        │   ├── trip/       # Participant-facing screens (preferences, voting, winner)
-        │   └── ui/         # shadcn/ui primitives
-        ├── pages/          # Route pages (Landing, Login, Dashboard, Trip, ResetPassword, Join)
-        ├── hooks/          # Custom React hooks (useAuth, useTrip, useTripDetail, useTripView, useTrips, useInvitedTrips)
-        ├── lib/            # API client, utilities, Unsplash integration
+        ├── components/     # Feature components (AppShell, Ballot, TripForm, OptionCard, ...)
+        │   └── ui/         # Primitives (Button, Dialog, Tabs, Select, ...)
+        ├── contexts/       # AuthContext
+        ├── pages/          # Route pages (Landing, Login, Dashboard, TripDetail, Trip, Join, ...)
+        ├── hooks/          # Custom React hooks (useAuth, useFetch)
+        ├── lib/            # API client (api.ts), status/limits/date helpers (trip.ts)
         └── types/          # TypeScript type definitions
 ```
 
@@ -159,7 +153,7 @@ pnpm dev
 cd backend && uv run pytest
 
 # Frontend
-cd frontend && pnpm test
+cd frontend && pnpm test --run
 ```
 
 ---

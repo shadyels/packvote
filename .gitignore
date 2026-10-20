@@ -93,3 +93,6 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+
+# Impeccable review screenshots (local only)
+frontend/.impeccable/review/

@@ -34,4 +34,13 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 ## Learned lessons
 - Before tightening a loose assertion that accepts several states, run it once with a sentinel value to learn the real one.
 - Scripted multi-test deletions by text slicing can leave empty class bodies or orphaned imports; run ruff immediately after.
+- jsdom cannot prove layout or real event propagation: a global key handler tested via `fireEvent` on `window` can be dead in a browser when a modal stops propagation — verify with real key presses and listeners on each ancestor; log raw keydown + live-region text to split "not delivered" from "not handled".
+- Headless pages often report `document.hidden === true`, which stalls CSS animations, blocks `requestAnimationFrame` (dialog initial focus, dnd-kit) and pauses visibility-gated polling — check rAF/`document.getAnimations()`, shim rAF, emulate reduced motion, take a warm-up screenshot, and read geometry only after transitions settle.
+- Enter form values with real typing/keypresses and never disable validation; programmatic value setting bypasses React `onChange` and produces defects that don't exist. State in the report how each value was entered.
+- Automation clicks can silently no-op on off-screen elements or stale refs; scroll into view, re-snapshot and confirm via the network before reporting "nothing happened".
+- In the user's zsh, unquoted variables don't word-split; put multi-step browser/setup scripts in `#!/bin/bash` files.
+- To prove a timed animation runs and clicks land during it: install hooks with `--init-script` in a fresh session, filter `document.getAnimations()` to WAAPI (`constructor.name === "Animation"`) vs CSS, log `event.target` in a capture-phase listener plus `elementFromPoint`, and sample geometry every frame across the sequence — one-time mid-sequence reflows are invisible at start/end.
+- Contrast audits must include generated content: `getComputedStyle(el, "::before")` color and opacity, against every ground it sits on (DOM-text-only checks missed a 1.64:1 label).
+- Programmatic `.focus()` does not trigger `:focus-visible`; reach elements with real Tab presses before judging focus rings.
+- Start your own dev server on a free port and stop it by PID only; never `pkill node`/`vite` — a cleanup sweep once killed the preview server the user was viewing.
 <!-- END learned-lessons -->

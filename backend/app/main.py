@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import admin, auth, participants, trips, unsplash, votes
+from app.api import admin, auth, participants, trips, votes
 from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.services.generation import recover_stuck_generations
@@ -61,7 +61,6 @@ app.include_router(trips.router)
 app.include_router(participants.router)
 app.include_router(votes.router)
 app.include_router(admin.router)
-app.include_router(unsplash.router)
 
 
 @app.get("/health")

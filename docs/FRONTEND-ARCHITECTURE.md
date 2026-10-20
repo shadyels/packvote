@@ -1,156 +1,188 @@
 # Frontend Architecture — PackVote
 
-## shadcn/ui is @base-ui/react
+## Structure
 
-The shadcn components in this project use `@base-ui/react` primitives (not `@radix-ui`). Key API differences:
-- `DialogTrigger` has no `asChild` — use `render` prop: `<DialogTrigger render={<Button />} />`
-- `Select.Root` `onValueChange` callback is `(value: string | null, eventDetails) => void` — guard against null before calling setState
-- `Select.Value` renders the raw value string, not the `ItemText` label. Pass explicit children to display a label: `<SelectValue>{label ?? rawValue}</SelectValue>`. See `TripOverviewSection` for the pattern.
-- `Tabs` uses `data-[active]:` for active tab styling (Tailwind v3 arbitrary data-attribute variant — NOT `data-active:` which is invalid syntax and generates nothing)
-- `TabsList` `line` variant includes `overflow-x-auto scrollbar-hide` for horizontal scroll on mobile. `.scrollbar-hide` is defined in `globals.css`.
+```
+frontend/src/
+├── main.tsx              # Mounts BrowserRouter > AuthProvider > App; imports styles.css
+├── App.tsx               # All routes; AppShell is the layout route for every page
+├── styles.css            # Tailwind v4 entry: @theme tokens, dark overrides, base styles
+├── types/index.ts        # API response types
+├── lib/api.ts            # The only fetch layer (request(), per-resource objects, onUnauthorized)
+├── lib/trip.ts           # STATUS, limits, maxTripDays, date helpers, cn()
+├── contexts/AuthContext.tsx
+├── hooks/useAuth.ts      # Re-exports useAuth from the context
+├── hooks/useFetch.ts     # The one data-fetching hook (with polling)
+├── components/           # Feature components (AppShell, Ballot, TripForm, OptionCard, ...)
+│   └── ui/               # Primitives (Button, Dialog, Tabs, Select, Input, Field, Toaster, ...)
+└── pages/                # Route components (Landing, Login, Dashboard, TripDetail, Trip, Join, ...)
+```
 
-**Async event handler lint rule:**
-The project enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers:
+Tests live next to the code in `__tests__/` folders (see Testing below).
+
+## Stack
+
+- **React 18 + Vite**, TypeScript strict. Functional components only.
+- **Tailwind CSS v4** through `@tailwindcss/vite` (`frontend/vite.config.ts`). There is no `tailwind.config` and no PostCSS step; design tokens are CSS-first `@theme` variables in `styles.css`.
+- **Primitives:** native controls first (`<input type="date">`, `<select>`, `<textarea>`). `@base-ui/react` is used only for **Dialog** (`components/ui/Dialog.tsx`) and **Tabs** (`components/ui/Tabs.tsx`). There is no Radix and no shadcn/ui.
+- **Drag and drop:** `@dnd-kit/core` + `@dnd-kit/sortable` in `components/Ballot.tsx`.
+- **Toasts:** `sonner`, mounted once in `AppShell` via `components/ui/Toaster.tsx`. Call `toast.success(...)` / `toast.error(...)` from `"sonner"`.
+- **Icons:** `lucide-react`.
+- **Fonts:** Geist and Geist Mono, loaded from Google Fonts in `frontend/index.html`.
+
+Removed in the rebuild: shadcn/ui, Radix, react-day-picker, date-fns, class-variance-authority, tw-animate-css, postcss/autoprefixer, and the DatePicker component.
+
+## Design Tokens and Theming
+
+Tokens are defined in `frontend/src/styles.css`. Components use the semantic names only (`bg-surface`, `text-muted-foreground`, `border-border`, `text-accent-ink`, `bg-danger-subtle`), never raw hex values.
+
+- Light values are in `@theme`. Dark values are overrides under `@media (prefers-color-scheme: dark)`.
+- Theme follows the OS setting only. There is no in-app toggle.
+- Accent is yellow: `--color-accent` is `#ffc81e` in both themes. It is a fill only (`bg-accent` with `text-accent-foreground`). Text, rings, and underlines use `--color-accent-ink`, which is near-black in light and yellow in dark.
+- Success (boarding, winner) is `--color-success`, and danger (eliminated) is `--color-danger`. Warning is orange and stays apart from the yellow accent.
+- Flap tiles (the landing board's letters) use `--color-flap`, `--color-flap-ink`, and `--color-flap-edge`.
+- Contrast targets in the `styles.css` header: at least 4.5:1 for text on background, surface, and muted; at least 3:1 for rings and non-text UI.
+- Focus ring: `:focus-visible` uses a 2px `--color-accent-ink` outline.
+
+**Buttons:** `components/ui/Button.tsx` exports `Button` (variants `primary | secondary | ghost | danger`; sizes `sm | md | icon`) and `buttonClass(variant, size)`. Use `buttonClass` for a `<Link>` that should look like a button. `sm` is 36px high and becomes 44px on coarse pointers (`pointer-coarse:h-11`). `md` is 44px. `loading` shows a spinner and disables the button.
+
+## Data Layer
+
+**`lib/api.ts`** is the only place that calls `fetch`. It exposes `auth`, `trips`, `participants`, `votes`, `itineraries`, and `admin` objects, one method per endpoint. `VITE_API_URL` is read at build time and defaults to `http://localhost:8000`.
+
+**`useFetch(fetcher, deps, { poll })`** (`hooks/useFetch.ts`) is the single hook for server data. Behaviour:
+- `isLoading` is true only until the first load settles (success or error). Later refetches and polls keep the last data on screen.
+- A failed refresh keeps the data and sets `error`. A failed first load leaves `data` null, so the page shows a Retry state.
+- When `deps` change, the hook drops the old data and shows the loading state again.
+- `refetch()` invalidates in-flight responses, so a stale response cannot overwrite newer data.
+- `poll(data)` returns the delay in ms until the next request, or `null` to stop. A failed poll retries after the last delay used.
+- A scheduled poll skips its request while the tab is hidden and reschedules the same delay. The first load on mount is not gated.
+
+**Polling cadence** (verified in the page files):
+
+| Page | Condition | Delay |
+|---|---|---|
+| Organizer `TripDetail` (`pollDelay`) | `GENERATING` | 5s |
+| | `CREATED`, `COLLECTING_PREFERENCES`, `VOTING` | 15s |
+| | any other status | none |
+| Participant `Trip` | `GENERATING` | 5s |
+| | any other status | none |
+
+**Organizer load is all-or-nothing.** `TripDetail` loads trip, participants and options with `Promise.all`, then results if the status is `VOTING` or `FINALIZED`. If the first load fails, the page shows a full-page Retry. If a later poll fails, the page keeps the data and shows an inline "Couldn't refresh" note.
+
+## Status and Limits
+
+`STATUS` in `lib/trip.ts` maps each `TripStatus` to a label and a tone. The statuses are `CREATED`, `COLLECTING_PREFERENCES`, `GENERATING`, `GENERATION_FAILED`, `VOTING`, and `FINALIZED`. There is no `ITERATING` status.
+
+Length limits (`TITLE_MAX`, `DESTINATION_MAX`, `NOTES_MAX`, `NAME_MAX`, `INTERESTS_MAX`, `ACTIVITY_TAG_MAX`, `ACTIVITY_TAGS_MAX_ITEMS`, `PARTICIPANT_EMAILS_MAX`, `PASSWORD_MIN`, `PASSWORD_MAX`) and `maxTripDays(numOptions)` mirror the backend in `backend/app/schemas/_limits.py`. Keep them in sync when the backend changes.
+
+**Dates:** `parseDate` reads only the first 10 characters of an ISO string and builds a local-time `Date`, so `"2025-06-01"` and `"2025-06-01T00:00:00"` both show June 1 in every timezone. Use `formatDate`, `formatDateRange`, and `formatTimestamp` for display.
+
+## Auth
+
+**Token storage:** the JWT is stored in `localStorage` under `access_token`.
+
+**`AuthContext`** (`contexts/AuthContext.tsx`) holds `user`, `isLoading`, `isAuthenticated`, `login`, `register`, and `logout`. `AuthProvider` wraps the app in `main.tsx`. Read it through `useAuth()`. Do not create a second auth state; that caused duplicate `auth.me()` calls.
+
+- On boot, a token is validated with `GET /auth/me`. Only a 401 removes the token. Network and 5xx errors keep it so a reload can recover.
+
+**Global 401 logout:** `request()` in `lib/api.ts` calls the `onUnauthorized` listeners on a 401 only when all of these hold:
+- the call was made with a token,
+- the stored token is still the same token (so a login in flight is not logged out),
+- the path is not under `/auth/`, or it is `/auth/me`.
+
+`AuthContext` subscribes and logs out. Login, register, and reset 401s are shown as bad-credential messages instead.
+
+**Error messages:** a 422 `detail` array is flattened into one readable string, with each item's `msg` joined by `; `.
+
+**Referrer:** `index.html` sets `<meta name="referrer" content="strict-origin-when-cross-origin">`.
+
+**Participant access:** participants have no JWT. The participant pages use the token from the URL (`/trip/:token`). The frontend never sends `X-Participant-Token`. Participant results come from the trip-view payload.
+
+## Routing
+
+Defined in `App.tsx`. Every route is a child of `AppShell`.
+
+| Path | Component | Notes |
+|---|---|---|
+| `/` | `Landing` | Public. Auth-aware header and CTA. |
+| `/login` | `Login` | |
+| `/reset-password` | `ResetPassword` | Reads `?token=` from the Brevo email link. |
+| `/join` | `Join` | Trip code + PIN form. |
+| `/join/:token` | `JoinRedirect` | Invitation email link. Redirects to `/trip/:token`. |
+| `/trip/:token` | `Trip` | Participant page. |
+| `/trip/:token/vote` | `Trip` | Voting email link. Same page; focuses the ballot when the trip is `VOTING`. |
+| `/dashboard` | `Dashboard` | Requires login (`ProtectedRoute`). |
+| `/dashboard/trip/:tripId` | `TripDetail` | Organizer page. Requires login. |
+| `*` | `NotFound` | |
+
+**Protected routes:** `ProtectedRoute` shows skeletons while auth is loading, then redirects to `/login` if the user is not authenticated.
+
+**Tabs use the URL.** The active tab is read from `?tab=` and changed with `setSearchParams(..., { replace: true })`. Do not keep the active tab in `useState`.
+- `Dashboard`: `?tab=created` (default) or `?tab=invited`. An unknown value falls back to `created`.
+- `TripDetail`: `?tab=overview` (default), `participants`, `options`, or `results`. An unknown value falls back to `overview`.
+
+**Back navigation:** invited trips on the dashboard link to `/trip/:token` with `location.state = { from: "dashboard-invited" }`. `Trip` shows a "My trips" link back to `/dashboard?tab=invited` only when that state is present. Email-link visitors do not see it. The state is only for UI context; anything that must survive a reload belongs in the URL.
+
+**Standalone pages:** `Landing` and the auth pages render inside `AppShell`, which provides the header, footer, skip link, and toaster. `AppShell` shows auth-aware nav: "Dashboard" and "Log out" when signed in, "Join a trip" and "Sign in" otherwise. The "Sign in" link is hidden on `/login`.
+
+## Components
+
+Feature components in `components/`:
+
+- **`Ballot`**: the ranked-choice input. A `dnd-kit` sortable list plus Up and Down buttons on every row. It is used by the participant page and the organizer's own vote.
+  - Sensors: pointer (5px activation distance), touch (150ms delay), keyboard.
+  - Screen-reader announcements name the option title and its position, instead of dnd-kit's default raw IDs.
+  - It takes `options`, `onSubmit(ids)`, and `submitLabel`. It resets its order when the option set changes.
+- **`OptionCard`**: one itinerary. The heading is `optionTitle(o)` = `option_title ?? destination_name`. Pass `winner` and `dimmed` for the results view.
+- **`Results`**: the round-by-round vote breakdown.
+- **`TripForm`**: create and edit forms (`trip` prop = edit mode). Used in dialogs.
+- **`PreferenceForm`**: participant preference form. Pre-fills dates from the organizer's proposal.
+- **`GeneratingState`**: the generating and failed states.
+- **`TripRow`**: one trip in a dashboard list.
+- **`DeparturesBoard`**: the landing page's sample vote (see Landing board below).
+- **`EmptyState`**, **`AppShell`**, **`ProtectedRoute`**.
+
+Primitives in `components/ui/`:
+
+- **`Dialog`**: controlled modal on `@base-ui/react/dialog`. Bottom sheet below `sm`, centered card from `sm` up. Enter and exit are CSS transitions driven by base-ui's `data-starting-style` and `data-ending-style`.
+- **`Tabs`**: `Tabs`, `TabsList`, `TabsTab`, `TabsPanel` on `@base-ui/react/tabs`. The list scrolls horizontally on narrow screens. Tabs are 44px high.
+- **`Button`**, **`Input`**, **`Select`**, **`Textarea`**, **`Field`**, **`Badge`**, **`Skeleton`**, **`Spinner`**, **`Toaster`**.
+
+**Landing board:** `Landing` renders `DeparturesBoard` (`components/DeparturesBoard.tsx`), a semantic `<table>` of a sample vote. Its rounds are derived by the exported `runoff()`, which mirrors the backend `tally()` in `backend/app/services/voting/ranked_choice.py`. The landing copy reads its figures from the same derived data (`BOARD_FACTS`).
+- The reveal runs once on mount (about 3 seconds) and has a Replay button.
+- Values are always in the DOM. Cells that are not yet revealed are faded with opacity, not removed.
+- Chips move with a FLIP animation through `element.animate`. The View Transitions API is not used, because a document-level view transition blocks clicks across the whole page.
+- Under `prefers-reduced-motion: reduce`, the board shows the final state and hides Replay.
+- Below `md` (768px) each row stacks; from `md` up it is a table.
+
+**Async handlers:** ESLint enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers:
+
 ```tsx
 onClick={() => { void handleAsync(); }}
 onSubmit={(e) => { void handleSubmit(e); }}
 ```
 
-## Auth & Routing
+## Accessibility and Motion
 
-**AuthContext pattern:**
-`frontend/src/contexts/AuthContext.tsx` provides shared auth state (user, isLoading, isAuthenticated, login, register, logout). `AuthProvider` wraps the app in `main.tsx`. `useAuth` in `hooks/useAuth.ts` re-exports from context. Never use standalone hook pattern — that caused multiple `auth.me()` calls.
+- **Skip link:** `AppShell` renders "Skip to content", which targets `<main id="main">`.
+- **Touch targets:** interactive controls are at least 44px on coarse pointers.
+- **Live regions:** status and error messages use `role="status"` or `role="alert"`. `Ballot` announces moves through a polite live region.
+- **Icons** are `aria-hidden="true"`. Icon-only buttons have an `aria-label` (for example, "Close" in `Dialog` and "Copy trip code ...").
+- **Reduced motion:** `styles.css` shortens all animations and transitions to 0.01ms under `prefers-reduced-motion: reduce`.
+- **Animations:** `fade-in`, `slide-up` (`--animate-slide-up`), and `flip` (`--animate-flip`, used by the landing board's letter tiles) are the custom keyframes, all defined as `@theme` animation tokens in `styles.css`. The board's chip moves are not keyframes; they use `element.animate`.
 
-**ProtectedRoute:**
-`frontend/src/components/ProtectedRoute.tsx` guards authenticated routes. Shows skeletons while loading, redirects to `/login` if unauthenticated.
+## Testing
 
-**Routing layout pattern:**
-`LayoutWrapper` in `App.tsx` wraps non-login/non-landing routes with the nav via `<Outlet />`. `LoginPage` and `LandingPage` render their own full-screen layouts outside `LayoutWrapper`.
+Vitest with jsdom, React Testing Library, and `globals: true`. Config is in `frontend/vitest.config.ts`. The setup file is `frontend/tests/setup.ts`.
 
-**Routes:**
-- `/trip/:token/vote` → same `TripPage` (voting notification emails link here)
-- `/join/:token` → `JoinRedirect` — redirects to `/trip/:token` (invitation email links)
-- `/join` → `JoinPage` (trip code + PIN form, no email required)
-- `/reset-password` → `ResetPasswordPage` — consumes `?token=` query param from Brevo email link; calls `POST /auth/password-reset/confirm`
+Test files (`__tests__/` folders):
 
-## Dashboard (F8)
+- `src/__tests__/routes.test.tsx`
+- `src/pages/__tests__/`: `Dashboard`, `Join`, `Landing`, `Login`, `Trip`, `TripDetail`
+- `src/components/__tests__/`: `Ballot`, `OptionCard`, `PreferenceForm`, `ProtectedRoute`, `Results`, `TripForm`
+- `src/hooks/__tests__/useFetch.test.ts`
+- `src/lib/__tests__/`: `api.test.ts`, `trip.test.ts`
+- `src/contexts/__tests__/AuthContext.test.tsx`
 
-**Tabs — Created vs Invited:**
-`DashboardPage` has two tabs powered by `Tabs`/`TabsList`/`TabsContent` from shadcn. The **Created** tab shows trips the user created; the **Invited** tab shows trips where the user was invited as a participant.
-
-`useInvitedTrips` hook (`frontend/src/hooks/useInvitedTrips.ts`) fetches `GET /trips/invited` and returns `{ trips: InvitedTripSummary[], isLoading, error, refetch }`. `InvitedTripSummary` extends `TripSummary` with a `participant_token` field used to build the link `href=/trip/:token`.
-
-`TripGrid` component (local to `DashboardPage`) is a shared render helper for both tabs — accepts `{ trips, isLoading, error, refetch, emptyTitle, emptyBody, hrefFn?, navStateFn? }`. The Invited tab passes `hrefFn={(trip) => /trip/${trip.participant_token}}`.
-
-**URL-driven tab state:**
-`DashboardPage` controls the active tab via `?tab=` query param (`useSearchParams`). `/dashboard?tab=invited` is a stable, bookmarkable URL. Tab changes call `setSearchParams({ tab }, { replace: true })` — do NOT store active tab in `useState`. The Invited tab passes `navStateFn={() => ({ from: "dashboard-invited" })}` to `TripGrid`; this is forwarded as `location.state` when navigating to an invited trip via `TripCard`.
-
-**`useTripDetail` hook:**
-`frontend/src/hooks/useTripDetail.ts` orchestrates parallel fetches (trip, participants, itineraries, voting results, AI logs) via `Promise.allSettled`. Polls every 5s when `trip.status === "GENERATING"`, stops on status change or unmount.
-
-**Dashboard sub-resource endpoints:**
-- `GET /trips/{trip_id}/participants` — creator-only, includes email. Each row includes `has_voted_current_iteration: bool` (whether the participant has voted in the current iteration) and `preferences_submitted: bool`. The creator appears as a regular participant row (identifiable by their email matching the authenticated user's email); no separate `is_admin` flag is returned.
-- `GET /trips/{trip_id}/itineraries` — creator-only, all iterations
-- `GET /trips/{trip_id}/ai-logs` — creator-only AI call log history
-
-**`ParticipantsSection` — adaptive column keyed on trip status:**
-`frontend/src/components/dashboard/ParticipantsSection.tsx` accepts `participants: Participant[]` and `trip: Trip`. During `VOTING` the column header and counter switch from "Preferences" to "Voted" and use `has_voted_current_iteration` instead of `preferences_submitted` for the progress bar and per-row icon. All other statuses keep the preferences column. The authenticated user's row gets an **Organizer** badge — identified by matching `p.email === auth.user?.email` via `useAuth()` (the creator-only endpoint guarantees the dashboard viewer is the trip creator).
-
-**`TripOverviewSection` — admin vote gate:**
-`frontend/src/components/dashboard/TripOverviewSection.tsx` accepts `participants: Participant[]`. It locates the creator's row by `p.email === user.email` and reads `has_voted_current_iteration`. During `VOTING`, if the creator has not yet voted the drag-to-rank form is shown; once voted, a green "Your vote is in · Waiting on N more participants" confirmation card replaces it. When `nonVoterCount === 0` (everyone voted, auto-tally imminent) the message reads "All participants have voted — results coming up."
-
-**Trip editing — `PATCH /trips/{trip_id}`:**
-Editable fields: `title`, `destination`, `proposed_start_date`, `proposed_end_date`, `num_options`, `notes`. Only allowed when status is `CREATED`, `COLLECTING_PREFERENCES`, or `GENERATION_FAILED` — returns 409 otherwise. Frontend: `EditTripDialog` at `frontend/src/components/dashboard/EditTripDialog.tsx`.
-
-**Trip deletion — cascade pattern:**
-`DELETE /trips/{trip_id}` returns 204. Blocked with 409 when `trip.status == "GENERATING"`. The backend deletes only the trip row; the database `ON DELETE CASCADE` foreign keys remove participants, preferences, itineraries and votes. `ai_call_logs` rows are kept with `trip_id` set to NULL (evaluation dataset — see `docs/AI-ARCHITECTURE.md`).
-
-**Frontend 204 handling:**
-`frontend/src/lib/api.ts` guards `res.json()` on empty body:
-```ts
-if (res.status === 204) return undefined as T;
-```
-Use `request<void>(...)` for any 204 endpoint.
-
-## Participant Trip Page (F7)
-
-**Composite endpoint `GET /participants/{token}/trip-view`:**
-Returns `ParticipantTripView` with participant info, trip public info, participant briefs (names + submitted status, no emails), current-iteration itineraries, voting results, and `has_voted`. Token is the auth — no bearer token.
-
-**`POST /participants/access-by-code`:**
-Payload: `{ trip_code, pin }`. PIN is per-participant, so `trip_code + pin` uniquely identifies a participant. Returns `{ token, participant }`.
-
-**`useTripView` hook:**
-`frontend/src/hooks/useTripView.ts` polls every 5s while `trip.status === "GENERATING"`, stops on status change or unmount.
-
-**Conditional back navigation (location.state pattern):**
-`TripPage` reads `location.state` via `useLocation()`. When `state.from === "dashboard-invited"`, a "← My Trips" button is rendered linking to `/dashboard?tab=invited`. When no state is present (user arrived via email link), the button is hidden. Use `location.state` for UI-only context that must not survive a page reload; encode navigation-critical state in URL params instead.
-
-**Participant trip component structure:**
-`frontend/src/components/trip/` — `TripHeader`, `TripDetails`, `ParticipantProgress`, `PreferenceForm`, `WaitingScreen`, `GeneratingScreen`, `VotingForm`, `WinnerDisplay`, `SortableRankItem`. `TripPage.tsx` is the state machine rendering the correct one based on status and `has_voted`.
-
-**`TripDetails` component:**
-Shown between `TripHeader` and `PreferenceForm` during `CREATED`/`COLLECTING_PREFERENCES` status. Displays the organizer's proposed destination, date range, and notes in a prominent card with brand-coloured icons. Hidden if the trip has no details to show. `notes` is included in `TripPublicInfo` (backend schema + frontend type) so participants can see the admin's notes.
-
-**`PreferenceForm` pre-fills from organizer proposal:**
-Accepts a `trip: TripPublicInfo` prop. Date pickers are initialised with the admin's `proposed_start_date`/`proposed_end_date` (parsed via `date-fns/parseISO`) so participants can accept the suggested dates or override them. A hint line ("Organizer suggested … — change if needed") is shown above the date grid when proposed dates exist.
-
-**Drag-to-reorder voting (`VotingForm` + `SortableRankItem`):**
-Uses `@dnd-kit/core` + `@dnd-kit/sortable`. State: `orderedIds: number[]`. Three sensors: `PointerSensor` (5px threshold), `TouchSensor` (150ms delay), `KeyboardSensor`. A `DragOverlay` renders a floating clone during drag.
-`SortableRankItem` only gives `useSortable` listeners to the handle element — prevents mobile scroll hijack.
-The same pattern is used in `TripOverviewSection` (admin dashboard) for the trip creator's vote during `VOTING` status.
-
-## DatePicker Component
-
-`frontend/src/components/ui/date-picker.tsx` — 3-level drill-down navigation (days → months → years). Key rules:
-- Drill-down: click month/year caption → month grid; click year header → 12-year grid
-- `startMonth` is always current month — no past month navigation in day view
-- Selecting a day closes the popover via `setOpen(false)` in `onSelect`
-- State in consumers is `Date | undefined`; formatted to `"yyyy-MM-dd"` via `date-fns/format` only at submit time
-- Dependencies: `react-day-picker` v9, `date-fns` v4
-
-**CRITICAL — Popover trigger uses a plain `<button>` element, NOT `<Button asChild>`:**
-Radix's `asChild` clones `onClick`/`aria-*` onto the child; Base UI's `ButtonPrimitive` does not forward those cloned props to the DOM. The trigger is styled with `buttonVariants({ variant: "outline" })`. Do not revert to `<Button asChild>` or the popover will silently stop opening.
-
-## Unsplash Image Utility
-
-`frontend/src/lib/unsplash.ts` provides `useDestinationImage(destination, imageIndex = 0, totalCount = 1)` → `{ imageUrl, gradient, isLoading }`.
-- `totalCount` → `count` query param; `imageIndex` selects `images[imageIndex % images.length]`
-- Consumers pass `imageIndex={index}` and `totalImages={items.length}` from `.map()` callbacks
-- Calls backend proxy `GET /unsplash/photo?destination=&count=` — no Unsplash key in the frontend bundle
-- In-memory `Map` cache (L1) keyed by destination, 1-hour TTL; refetches if cached array is smaller than `totalCount`
-- **Fallback:** deterministic gradient from destination name hash mixed with `imageIndex` when backend returns empty or fetch fails
-- No Unsplash attribution rendered anywhere
-- Use index access, not `Array.prototype.at()` — unavailable under `lib: ["ES2020"]`
-
-## Shared Components
-
-- `ItineraryCard` — `frontend/src/components/shared/ItineraryCard.tsx`
-  - `isWinner` — applies green border + glow + Winner badge
-  - `isGreyedOut` — applies `opacity-50 grayscale` to visually dim non-winner cards; pass `winnerId !== null && it.id !== winnerId` in any list that has a winner
-  - In both `ItinerariesSection` (admin) and `VotingForm` (participant), itineraries are sorted winner-first when `winnerId` is set
-  - **`option_title` as primary heading:** `CardTitle` displays `option_title ?? destination_name`. `destination_name` is always rendered as a subtitle below it (used for Unsplash image lookup). Never swap these — `destination_name` must stay as the image key.
-  - **Activity display — hybrid overview + drawer:** Daily itinerary renders as an always-visible list of compact day rows (title + activity count + activity pill tags). `VISIBLE_DAY_LIMIT = 5` (module-level constant) — trips longer than 5 days show a "Show N more days ↓ / Show fewer days ↑" toggle. Clicking a row opens `DayDetailDrawer`. The old expand/collapse flat list is removed.
-
-- `DayDetailDrawer` — `frontend/src/components/shared/DayDetailDrawer.tsx`
-  - Props: `{ days: DayItinerary[], initialDayIndex: number, open: boolean, onOpenChange, currency? }`
-  - **Mobile:** fixed bottom-sheet (`bottom-0 rounded-t-xl max-h-[85vh]`) with drag handle. Enters with `animate-slide-up`. Exit animation (`animate-slide-down`) is set via `data-closed:` but does not play to completion — `@base-ui/react` removes the DOM node immediately on close (known limitation; enter animation works correctly).
-  - **Desktop (sm+):** centered modal (`max-w-md rounded-xl`) with fade+zoom via `data-open:animate-in data-open:zoom-in-95`.
-  - Uses `DialogPrimitive.Popup` from `@base-ui/react/dialog` directly (not the project's wrapped `DialogContent`) — required for bottom-sheet positioning.
-  - `currentDayIndex` syncs to `initialDayIndex` on open. ArrowLeft/ArrowRight keyboard shortcuts navigate between days.
-  - Renders `DailyActivity.estimated_cost` (if not null) as `~{currency}{cost} per person` in brand orange.
-
-- `STATUS_CONFIG` — `frontend/src/lib/trip-status.ts`
-
-## CSS Animations
-
-`globals.css` defines `@keyframes`: `fade-in-up`, `fade-in`, `shimmer`, `progress`, `slide-up`, `slide-down`. The `GeneratingScreen` indeterminate progress bar uses `animate-[progress_40s_linear_infinite]`. `animate-slide-up` (0.3s ease-out) and `animate-slide-down` (0.25s ease-in) are used by `DayDetailDrawer` for mobile bottom-sheet entrance/exit.
-
-## Landing Page
-
-Standalone layout outside `LayoutWrapper` — own nav header and `<Footer />`. Route declared at top level before `LayoutWrapper`.
-
-**Auth-aware navigation:**
-`LandingPage` imports `useAuth()` to conditionally render nav links and CTAs. Authenticated users: "Dashboard" + "Logout" in header, "Create a Trip" CTA → `/dashboard`. Unauthenticated: "Join a Trip" + "Sign In" in header, "Create a Trip" CTA → `/login`. "Join a Trip" is hidden when authenticated. Always check `isAuthenticated` in standalone layouts (outside `LayoutWrapper`) — they don't get auth guarding via `ProtectedRoute`.
-
-Hero uses radial vignette overlay. Hero section height: `min-h-[100svh] md:min-h-[85vh]` — `svh` (small viewport height) fills the actual visible area on iOS Safari without the chrome-inclusive `vh` gap; desktop keeps the 85vh peek-at-next-section. Bottom CTA section: `bg-[#192840]` with top fade dissolving from offwhite; content div uses `pt-12 md:pt-36` (mobile-reduced to avoid a large dead zone above the dark content). Feature Highlights section uses `rounded-3xl bg-card border border-border` floating card container.
+Run from `frontend/`: `pnpm test --run` (one run). Bare `pnpm test` starts Vitest in watch mode.

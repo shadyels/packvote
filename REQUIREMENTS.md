@@ -368,7 +368,6 @@ FastAPI's built-in `BackgroundTasks` is used rather than an external task queue 
 
 **Frontend service:**
 - `VITE_API_URL` — Backend service URL (e.g. `https://backend.railway.app`)
-- `VITE_UNSPLASH_ACCESS_KEY` — Unsplash API for travel images (optional; falls back to gradient)
 
 ---
 
@@ -384,7 +383,7 @@ Build in this order:
 6. **AI pipeline** — Service layer, HuggingFace integration, prompt versioning, itinerary generation
 7. **Voting system** — Ranked-choice voting logic, voting UI, iteration flow ✅ *(mechanics done; F6 follow-up survey phase deferred)*
 8. **Trip Creator Dashboard** — Trip management, voting results, AI logs, controls ✅
-9. **Frontend polish** — Design system (black/cream/orange), Unsplash images, responsive refinement ✅
+9. **Frontend polish** — Design system (emerald accent, light/dark), responsive refinement ✅
 10. **Testing** — Full test suite, CI integration
 11. **Deployment** — Railway setup, environment config, live demo ✅ *(live at `packvote.shadyels.com`)*
 

@@ -1,0 +1,394 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-20T04:18:27+00:00",
+  "title": "Design System: PackVote",
+  "extensions": {
+    "colorMeta": {
+      "signal-yellow": {
+        "role": "primary",
+        "displayName": "Signal Yellow",
+        "canonical": "oklch(85.8% 0.170 87.8)",
+        "tonalRamp": [
+          "oklch(15% 0.17 87.8)",
+          "oklch(27% 0.17 87.8)",
+          "oklch(39% 0.17 87.8)",
+          "oklch(51% 0.17 87.8)",
+          "oklch(63% 0.17 87.8)",
+          "oklch(75% 0.17 87.8)",
+          "oklch(85% 0.17 87.8)",
+          "oklch(95% 0.17 87.8)"
+        ]
+      },
+      "boarding-green": {
+        "role": "secondary",
+        "displayName": "Boarding Green",
+        "canonical": "oklch(48.7% 0.117 153.6)",
+        "tonalRamp": [
+          "oklch(15% 0.117 153.6)",
+          "oklch(27% 0.117 153.6)",
+          "oklch(39% 0.117 153.6)",
+          "oklch(51% 0.117 153.6)",
+          "oklch(63% 0.117 153.6)",
+          "oklch(75% 0.117 153.6)",
+          "oklch(85% 0.117 153.6)",
+          "oklch(95% 0.117 153.6)"
+        ]
+      },
+      "eliminated-red": {
+        "role": "secondary",
+        "displayName": "Eliminated Red",
+        "canonical": "oklch(50% 0.182 29.5)",
+        "tonalRamp": [
+          "oklch(15% 0.182 29.5)",
+          "oklch(27% 0.182 29.5)",
+          "oklch(39% 0.182 29.5)",
+          "oklch(51% 0.182 29.5)",
+          "oklch(63% 0.182 29.5)",
+          "oklch(75% 0.182 29.5)",
+          "oklch(85% 0.182 29.5)",
+          "oklch(95% 0.182 29.5)"
+        ]
+      },
+      "warning-orange": {
+        "role": "tertiary",
+        "displayName": "Warning Orange",
+        "canonical": "oklch(51.8% 0.168 36.9)",
+        "tonalRamp": [
+          "oklch(15% 0.168 36.9)",
+          "oklch(27% 0.168 36.9)",
+          "oklch(39% 0.168 36.9)",
+          "oklch(51% 0.168 36.9)",
+          "oklch(63% 0.168 36.9)",
+          "oklch(75% 0.168 36.9)",
+          "oklch(85% 0.168 36.9)",
+          "oklch(95% 0.168 36.9)"
+        ]
+      },
+      "concrete": {
+        "role": "neutral",
+        "displayName": "Concrete",
+        "canonical": "oklch(94.2% 0.005 247.9)",
+        "tonalRamp": [
+          "oklch(15% 0.005 247.9)",
+          "oklch(27% 0.005 247.9)",
+          "oklch(39% 0.005 247.9)",
+          "oklch(51% 0.005 247.9)",
+          "oklch(63% 0.005 247.9)",
+          "oklch(75% 0.005 247.9)",
+          "oklch(85% 0.005 247.9)",
+          "oklch(95% 0.005 247.9)"
+        ]
+      },
+      "sign-black": {
+        "role": "neutral",
+        "displayName": "Sign Black",
+        "canonical": "oklch(17.7% 0.011 260.6)",
+        "tonalRamp": [
+          "oklch(15% 0.011 260.6)",
+          "oklch(27% 0.011 260.6)",
+          "oklch(39% 0.011 260.6)",
+          "oklch(51% 0.011 260.6)",
+          "oklch(63% 0.011 260.6)",
+          "oklch(75% 0.011 260.6)",
+          "oklch(85% 0.011 260.6)",
+          "oklch(95% 0.011 260.6)"
+        ]
+      },
+      "slate-text": {
+        "role": "neutral",
+        "displayName": "Slate Text",
+        "canonical": "oklch(43.7% 0.025 261.7)",
+        "tonalRamp": [
+          "oklch(15% 0.025 261.7)",
+          "oklch(27% 0.025 261.7)",
+          "oklch(39% 0.025 261.7)",
+          "oklch(51% 0.025 261.7)",
+          "oklch(63% 0.025 261.7)",
+          "oklch(75% 0.025 261.7)",
+          "oklch(85% 0.025 261.7)",
+          "oklch(95% 0.025 261.7)"
+        ]
+      },
+      "concrete-rule": {
+        "role": "neutral",
+        "displayName": "Concrete Rule",
+        "canonical": "oklch(85% 0.012 259.8)",
+        "tonalRamp": [
+          "oklch(15% 0.012 259.8)",
+          "oklch(27% 0.012 259.8)",
+          "oklch(39% 0.012 259.8)",
+          "oklch(51% 0.012 259.8)",
+          "oklch(63% 0.012 259.8)",
+          "oklch(75% 0.012 259.8)",
+          "oklch(85% 0.012 259.8)",
+          "oklch(95% 0.012 259.8)"
+        ]
+      },
+      "board-night": {
+        "role": "neutral",
+        "displayName": "Board Night (dark background)",
+        "canonical": "oklch(16.8% 0.018 263.9)",
+        "tonalRamp": [
+          "oklch(15% 0.018 263.9)",
+          "oklch(27% 0.018 263.9)",
+          "oklch(39% 0.018 263.9)",
+          "oklch(51% 0.018 263.9)",
+          "oklch(63% 0.018 263.9)",
+          "oklch(75% 0.018 263.9)",
+          "oklch(85% 0.018 263.9)",
+          "oklch(95% 0.018 263.9)"
+        ]
+      },
+      "board-panel": {
+        "role": "neutral",
+        "displayName": "Board Panel (dark surface)",
+        "canonical": "oklch(21.7% 0.022 260.5)",
+        "tonalRamp": [
+          "oklch(15% 0.022 260.5)",
+          "oklch(27% 0.022 260.5)",
+          "oklch(39% 0.022 260.5)",
+          "oklch(51% 0.022 260.5)",
+          "oklch(63% 0.022 260.5)",
+          "oklch(75% 0.022 260.5)",
+          "oklch(85% 0.022 260.5)",
+          "oklch(95% 0.022 260.5)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The page's single statement h1."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Statement h2 in feature panels (1.875rem, 3rem from 640px)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section h2s; card/step titles step down to 1.125rem/1rem."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose; ledes at 1.125rem."
+      },
+      "body-sm": {
+        "displayName": "Body Small",
+        "purpose": "Supporting copy, captions, nav, buttons."
+      },
+      "label": {
+        "displayName": "Board Label",
+        "purpose": "Mono uppercase column headers and status flaps."
+      },
+      "flap": {
+        "displayName": "Flap",
+        "purpose": "One letter per split-flap tile; 0.875rem, 1rem from 768px, 1.25rem from 1024px."
+      }
+    },
+    "shadows": [
+      {
+        "name": "lifted-drag",
+        "value": "0 10px 15px -3px rgb(0 0 0/.1), 0 4px 6px -4px rgb(0 0 0/.1)",
+        "purpose": "Ballot row while dragged, with a 1px accent-ink ring."
+      },
+      {
+        "name": "sheet",
+        "value": "0 20px 25px -5px rgb(0 0 0/.1), 0 8px 10px -6px rgb(0 0 0/.1)",
+        "purpose": "Bottom-sheet dialog over the overlay scrim."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Flip, slide-up and the chip FLIP move."
+      },
+      {
+        "name": "flip",
+        "value": "600ms rotateX(-90deg -> 0) perspective(300px), 45ms stagger per letter",
+        "purpose": "Split-flap tiles and revealed board values."
+      },
+      {
+        "name": "chip-move",
+        "value": "700ms element.animate FLIP translate",
+        "purpose": "Voter chips moving to their next choice; not View Transitions."
+      },
+      {
+        "name": "fade-in",
+        "value": "180ms ease-out",
+        "purpose": "Overlays and late-arriving content."
+      },
+      {
+        "name": "slide-up",
+        "value": "220ms, 8px rise",
+        "purpose": "Entering panels and toasts."
+      },
+      {
+        "name": "press",
+        "value": "150ms scale(0.98)",
+        "purpose": "Button active state."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "durations 0.01ms; board renders final state, no Replay",
+        "purpose": "prefers-reduced-motion: reduce."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one yellow action per screen.",
+      "html": "<button class=\"ds-btn-primary\">Plan a trip</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:0;border-radius:8px;background:var(--color-accent,#ffc81e);color:var(--color-accent-foreground,#0e1116);font:500 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:transform 150ms,filter 150ms}.ds-btn-primary:hover{filter:brightness(.95)}.ds-btn-primary:active{transform:scale(.98)}.ds-btn-primary:focus-visible{outline:2px solid var(--color-accent-ink,#0e1116);outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Alternate action beside the primary.",
+      "html": "<button class=\"ds-btn-secondary\">Join with a code</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;height:44px;padding:0 16px;border:1px solid var(--color-muted-foreground,#4a5260);border-radius:8px;background:var(--color-surface,#fff);color:var(--color-foreground,#0e1116);font:500 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:transform 150ms,background-color 150ms}.ds-btn-secondary:hover{background:var(--color-muted,#dde1e6)}.ds-btn-secondary:active{transform:scale(.98)}.ds-btn-secondary:focus-visible{outline:2px solid var(--color-accent-ink,#0e1116);outline-offset:2px}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "In-context low-emphasis action (Replay, Log out).",
+      "html": "<button class=\"ds-btn-ghost\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5\"/></svg>Replay</button>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--color-foreground,#0e1116);font:500 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:background-color 150ms}.ds-btn-ghost:hover{background:var(--color-muted,#dde1e6)}.ds-btn-ghost:focus-visible{outline:2px solid var(--color-accent-ink,#0e1116);outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive confirmation.",
+      "html": "<button class=\"ds-btn-danger\">Delete trip</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;height:44px;padding:0 16px;border:0;border-radius:8px;background:var(--color-danger,#b42318);color:var(--color-surface,#fff);font:500 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:opacity 150ms}.ds-btn-danger:hover{opacity:.9}.ds-btn-danger:focus-visible{outline:2px solid var(--color-accent-ink,#0e1116);outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Single-line field; accent-ink focus, red when aria-invalid.",
+      "html": "<input class=\"ds-input\" placeholder=\"Trip code\" />",
+      "css": ".ds-input{width:100%;height:44px;padding:0 12px;border:1px solid var(--color-border,#c9ced6);border-radius:8px;background:var(--color-surface,#fff);color:var(--color-foreground,#0e1116);font:400 14px Geist,system-ui,sans-serif;caret-color:var(--color-accent-ink,#0e1116);transition:border-color 150ms}.ds-input::placeholder{color:var(--color-muted-foreground,#4a5260)}.ds-input:focus-visible{border-color:var(--color-accent-ink,#0e1116);outline:1px solid var(--color-accent-ink,#0e1116);outline-offset:0}.ds-input[aria-invalid=true]{border-color:var(--color-danger,#b42318)}"
+    },
+    {
+      "name": "Header Navigation",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Wordmark plus slate text links; no buttons for primary actions.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-brand\" href=\"#\">Pack<span>Vote</span></a><div><a class=\"ds-nav-link\" href=\"#\">Join a trip</a><a class=\"ds-nav-link\" href=\"#\">Sign in</a></div></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 16px;border-bottom:1px solid var(--color-border,#c9ced6);background:var(--color-background,#e9ecef)}.ds-nav-brand{font:600 16px Geist,system-ui,sans-serif;letter-spacing:-.025em;color:var(--color-foreground,#0e1116);text-decoration:none}.ds-nav-brand span{color:var(--color-accent-ink,#0e1116)}.ds-nav-link{display:inline-flex;align-items:center;height:44px;padding:0 8px;font:400 14px Geist,system-ui,sans-serif;color:var(--color-muted-foreground,#4a5260);text-decoration:none;transition:color 150ms}.ds-nav-link:hover{color:var(--color-foreground,#0e1116)}.ds-nav-link:focus-visible{outline:2px solid var(--color-accent-ink,#0e1116);outline-offset:2px}"
+    },
+    {
+      "name": "Tabs",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Underline tabs; active gets a 2px accent-ink rule.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-tab\" aria-selected=\"true\">Options</button><button class=\"ds-tab\">Participants</button></div>",
+      "css": ".ds-tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-border,#c9ced6)}.ds-tab{margin-bottom:-1px;height:44px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:none;font:500 14px Geist,system-ui,sans-serif;color:var(--color-muted-foreground,#4a5260);cursor:pointer;transition:color 150ms}.ds-tab:hover{color:var(--color-foreground,#0e1116)}.ds-tab[aria-selected=true]{border-bottom-color:var(--color-accent-ink,#0e1116);color:var(--color-foreground,#0e1116)}.ds-tab:focus-visible{outline:2px solid var(--color-accent-ink,#0e1116);outline-offset:2px}"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Pill status tag: semantic text on its subtle tint.",
+      "html": "<span class=\"ds-badge ds-badge-success\">Winner</span> <span class=\"ds-badge\">Draft</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;background:var(--color-muted,#dde1e6);color:var(--color-muted-foreground,#4a5260);font:500 12px Geist,system-ui,sans-serif;white-space:nowrap}.ds-badge-success{background:var(--color-success-subtle,#e3f4ea);color:var(--color-success,#13723f)}"
+    },
+    {
+      "name": "Option Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat surface card; winner adds an accent-ink border and ring.",
+      "html": "<article class=\"ds-card\"><h3>Lisbon</h3><p>Tiles, trams and long dinners.</p></article>",
+      "css": ".ds-card{display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid var(--color-border,#c9ced6);border-radius:12px;background:var(--color-surface,#fff);color:var(--color-foreground,#0e1116);font-family:Geist,system-ui,sans-serif}.ds-card h3{margin:0;font-size:16px;font-weight:600;letter-spacing:-.025em}.ds-card p{margin:0;font-size:14px;color:var(--color-muted-foreground,#4a5260)}"
+    },
+    {
+      "name": "Split-Flap Row",
+      "kind": "custom",
+      "refersTo": "flap-tile",
+      "description": "Signature: destination letters as split-flap tiles plus a solid status flap.",
+      "html": "<div class=\"ds-flaprow\"><span class=\"ds-flaps\" aria-label=\"Lisbon\"><span>L</span><span>I</span><span>S</span><span>B</span><span>O</span><span>N</span></span><span class=\"ds-status ds-status-go\">BOARDING</span></div>",
+      "css": ".ds-flaprow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px;border:1px solid var(--color-border,#c9ced6);border-radius:4px;background:var(--color-surface,#fff)}.ds-flaps{display:flex;gap:2px;font:500 20px 'Geist Mono',ui-monospace,monospace;text-transform:uppercase}.ds-flaps span{position:relative;display:grid;place-items:center;width:32px;height:44px;border-radius:4px;background:var(--color-flap,#0e1116);color:var(--color-flap-ink,#f4f5f7);box-shadow:inset 0 0 0 1px var(--color-flap-edge,transparent);animation:ds-flip 600ms cubic-bezier(.16,1,.3,1) both}.ds-flaps span::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:rgb(0 0 0/.6)}.ds-flaps span:nth-child(2){animation-delay:45ms}.ds-flaps span:nth-child(3){animation-delay:90ms}.ds-flaps span:nth-child(4){animation-delay:135ms}.ds-flaps span:nth-child(5){animation-delay:180ms}.ds-flaps span:nth-child(6){animation-delay:225ms}.ds-status{display:inline-flex;align-items:center;height:28px;padding:0 8px;border-radius:4px;font:500 12px 'Geist Mono',ui-monospace,monospace;letter-spacing:.05em}.ds-status-go{background:var(--color-success,#13723f);color:var(--color-background,#e9ecef)}@keyframes ds-flip{from{opacity:0;transform:perspective(300px) rotateX(-90deg)}to{opacity:1;transform:perspective(300px) rotateX(0)}}@media (prefers-reduced-motion:reduce){.ds-flaps span{animation:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Departures Hall",
+    "overview": "PackVote borrows the two faces of an airport. Dark mode is the departures board: a blue-black ground, near-black split-flap cells, cool-white type and one signal yellow. Light mode is the wayfinding sign: cool concrete grey, solid yellow panels, black type. Both themes follow `prefers-color-scheme`, and there is no toggle. Both read as public, legible information rather than decoration. The group's vote is shown as a board resolving, with flaps turning and a row going to BOARDING, not as a chart.\n\nDensity is calm. A single centred column (64rem) holds generous section gaps. Type is large and tight-tracked for statements, and monospaced for data: codes, counts, statuses. Depth comes from tone and hairline rules, not shadows. Motion is mechanical and short: tiles flip down into place, and chips slide to their new row with a long ease-out.\n\nThe product rule \"no photography or imagery anywhere\" holds visually too: there are no rasters, illustrations or hero images. The board, type and yellow carry the identity.",
+    "keyCharacteristics": [
+      "Two themes, one world: departures board (dark) and wayfinding sign (light).",
+      "Signal yellow is the only accent, used sparingly and on purpose.",
+      "Geist for statements, Geist Mono for anything a board would print.",
+      "Flat, rule-separated surfaces. Shadows only on lifted interaction states.",
+      "Status colors are solid fills, read the way an airport reads them: green = boarding/winner, red = eliminated."
+    ],
+    "rules": [
+      {
+        "name": "The Fill-Only Yellow Rule",
+        "body": "In light mode yellow is only ever a fill. Text, focus rings, caret, active-tab underlines and accent arrows use `--color-accent-ink`, which is sign black in light and signal yellow in dark. `--color-accent-subtle` is the solid yellow in light and a dark olive (`board-yellow-subtle`) in dark. Never put yellow text or a yellow stroke on a light surface.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Yellow Primary Rule",
+        "body": "Exactly one yellow primary action per screen. Secondary navigation that duplicates it (for example the header \"Sign in\") is a text link, not a button.",
+        "section": "colors"
+      },
+      {
+        "name": "The Solid Status Rule",
+        "body": "Status labels on the board are solid fills with their own text color (green BOARDING, red ELIMINATED, muted RUNNER-UP), so they stay legible on the yellow winner row in both themes. Green or red text on yellow fails in dark and is not allowed.",
+        "section": "colors"
+      },
+      {
+        "name": "The Contrast Floor Rule",
+        "body": "Text holds at least 4.5:1 on background, surface and muted, and rings and non-text UI hold at least 3:1, in both themes. A new color pairing has to meet this before it ships.",
+        "section": "colors"
+      },
+      {
+        "name": "The Board Prints Mono Rule",
+        "body": "Anything a board would print (destination codes, initials, vote counts, statuses, trip codes and PINs) is Geist Mono with tabular numerals. Prose, headings and buttons are never mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "Nothing casts a shadow at rest. Depth appears only when the user picks something up or opens something over the page.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** route every color through the `--color-*` tokens so both themes come from one class list.",
+      "**Do** use `accent-ink` for any yellow-meaning text, ring, underline or icon, and `accent` only as a fill.",
+      "**Do** keep exactly one yellow primary per screen.",
+      "**Do** set codes, counts, initials and statuses in Geist Mono with tabular numerals.",
+      "**Do** make status labels solid fills with their own text color.",
+      "**Do** keep every interactive target at least 44px tall.",
+      "**Do** keep motion mechanical and short (180–700ms, ease-out `cubic-bezier(0.16, 1, 0.3, 1)`), and make reduced motion show the final state."
+    ],
+    "donts": [
+      "**Don't** put yellow text or a yellow stroke on a light surface.",
+      "**Don't** put green or red text on the yellow fill.",
+      "**Don't** add photography, illustrations or raster images.",
+      "**Don't** add resting shadows to cards or panels.",
+      "**Don't** use View Transitions for in-page movement; use FLIP with `element.animate`.",
+      "**Don't** introduce a second accent hue or let warning orange drift toward the yellow."
+    ]
+  }
+}

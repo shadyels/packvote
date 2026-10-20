@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Components use these names only (bg-surface, text-muted-foreground, ...).
+ * Light = airport wayfinding sign (cool concrete, solid yellow, black type); dark = departures
+ * board (blue-black, cool-white type, signal yellow). Light values live in @theme; dark overrides
+ * are below, driven by prefers-color-scheme only.
+ * `accent` is a FILL (bg-accent + text-accent-foreground). In light mode yellow appears only as a
+ * fill: `accent-subtle` is the solid accent there and `accent-ink` is black, so text, rings and
+ * underlines use `accent-ink` (dark mode uses yellow for both). Green = success (boarding / winner),
+ * red = danger (eliminated); `flap`, `flap-ink` and `flap-edge` colour the split-flap letter tiles
+ * (near-black in both themes, edge line only in dark); orange `warning` stays visibly apart from the yellow accent.
+ * Contrast: text >= 4.5:1 on background, surface and muted; rings and non-text UI >= 3:1.
+ */
+@theme {
+  --color-background: #e9ecef;
+  --color-surface: #ffffff;
+  --color-muted: #dde1e6;
+  --color-foreground: #0e1116;
+  --color-muted-foreground: #4a5260;
+  --color-border: #c9ced6;
+
+  --color-accent: #ffc81e;
+  --color-accent-foreground: #0e1116;
+  --color-accent-subtle: #ffc81e;
+  --color-accent-ink: #0e1116;
+
+  --color-danger: #b42318;
+  --color-danger-subtle: #fdecea;
+  --color-warning: #b4370a;
+  --color-warning-subtle: #ffedd5;
+  --color-success: #13723f;
+  --color-success-subtle: #e3f4ea;
+  --color-overlay: #00000066;
+
+  --color-flap: #0e1116;
+  --color-flap-ink: #f4f5f7;
+  --color-flap-edge: transparent;
+
+  --font-sans:
+    "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --animate-fade-in: fade-in 180ms ease-out both;
+  --animate-slide-up: slide-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-flip: flip 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes flip {
+    from {
+      opacity: 0;
+      transform: perspective(300px) rotateX(-90deg);
+    }
+    to {
+      opacity: 1;
+      transform: perspective(300px) rotateX(0);
+    }
+  }
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0b0f17;
+    --color-surface: #141a24;
+    --color-muted: #1c2330;
+    --color-foreground: #edeff2;
+    --color-muted-foreground: #9aa3b2;
+    --color-border: #2a3343;
+
+    --color-accent: #ffc81e;
+    --color-accent-foreground: #0b0f17;
+    --color-accent-subtle: #2b2410;
+    --color-accent-ink: #ffc81e;
+
+    --color-danger: #f87171;
+    --color-danger-subtle: #2b1416;
+    --color-warning: #fb923c;
+    --color-warning-subtle: #2b1a0c;
+    --color-success: #4ade80;
+    --color-success-subtle: #0f2a18;
+    --color-overlay: #000000b3;
+
+    --color-flap: #05070b;
+    --color-flap-ink: #edeff2;
+    --color-flap-edge: #ffffff1a;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "calt", "kern";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent-ink);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-accent-foreground);
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-accent-ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
