@@ -2,28 +2,40 @@
 
 /*
  * Design tokens. Components use these names only (bg-surface, text-muted-foreground, ...).
- * Light values live in @theme; dark overrides are below, driven by prefers-color-scheme only.
- * Contrast (text on its background) is >= 4.5:1 in both themes.
+ * Light = airport wayfinding sign (cool concrete, solid yellow, black type); dark = departures
+ * board (blue-black, cool-white type, signal yellow). Light values live in @theme; dark overrides
+ * are below, driven by prefers-color-scheme only.
+ * `accent` is a FILL (bg-accent + text-accent-foreground). In light mode yellow appears only as a
+ * fill: `accent-subtle` is the solid accent there and `accent-ink` is black, so text, rings and
+ * underlines use `accent-ink` (dark mode uses yellow for both). Green = success (boarding / winner),
+ * red = danger (eliminated); `flap`, `flap-ink` and `flap-edge` colour the split-flap letter tiles
+ * (near-black in both themes, edge line only in dark); orange `warning` stays visibly apart from the yellow accent.
+ * Contrast: text >= 4.5:1 on background, surface and muted; rings and non-text UI >= 3:1.
  */
 @theme {
-  --color-background: #fafafa;
+  --color-background: #e9ecef;
   --color-surface: #ffffff;
-  --color-muted: #f4f4f5;
-  --color-foreground: #18181b;
-  --color-muted-foreground: #52525b;
-  --color-border: #e4e4e7;
+  --color-muted: #dde1e6;
+  --color-foreground: #0e1116;
+  --color-muted-foreground: #4a5260;
+  --color-border: #c9ced6;
 
-  --color-accent: #047857;
-  --color-accent-foreground: #ffffff;
-  --color-accent-subtle: #ecfdf5;
+  --color-accent: #ffc81e;
+  --color-accent-foreground: #0e1116;
+  --color-accent-subtle: #ffc81e;
+  --color-accent-ink: #0e1116;
 
-  --color-danger: #b91c1c;
-  --color-danger-subtle: #fef2f2;
-  --color-warning: #92400e;
-  --color-warning-subtle: #fffbeb;
-  --color-success: #15803d;
-  --color-success-subtle: #f0fdf4;
+  --color-danger: #b42318;
+  --color-danger-subtle: #fdecea;
+  --color-warning: #b4370a;
+  --color-warning-subtle: #ffedd5;
+  --color-success: #13723f;
+  --color-success-subtle: #e3f4ea;
   --color-overlay: #00000066;
+
+  --color-flap: #0e1116;
+  --color-flap-ink: #f4f5f7;
+  --color-flap-edge: transparent;
 
   --font-sans:
     "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
@@ -32,6 +44,7 @@
 
   --animate-fade-in: fade-in 180ms ease-out both;
   --animate-slide-up: slide-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-flip: flip 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 
   @keyframes fade-in {
     from {
@@ -39,6 +52,16 @@
     }
     to {
       opacity: 1;
+    }
+  }
+  @keyframes flip {
+    from {
+      opacity: 0;
+      transform: perspective(300px) rotateX(-90deg);
+    }
+    to {
+      opacity: 1;
+      transform: perspective(300px) rotateX(0);
     }
   }
   @keyframes slide-up {
@@ -55,24 +78,29 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: #09090b;
-    --color-surface: #131316;
-    --color-muted: #1c1c20;
-    --color-foreground: #fafafa;
-    --color-muted-foreground: #a1a1aa;
-    --color-border: #2a2a2f;
+    --color-background: #0b0f17;
+    --color-surface: #141a24;
+    --color-muted: #1c2330;
+    --color-foreground: #edeff2;
+    --color-muted-foreground: #9aa3b2;
+    --color-border: #2a3343;
 
-    --color-accent: #34d399;
-    --color-accent-foreground: #04130c;
-    --color-accent-subtle: #0b2a20;
+    --color-accent: #ffc81e;
+    --color-accent-foreground: #0b0f17;
+    --color-accent-subtle: #2b2410;
+    --color-accent-ink: #ffc81e;
 
     --color-danger: #f87171;
     --color-danger-subtle: #2b1416;
-    --color-warning: #fbbf24;
-    --color-warning-subtle: #2b2109;
+    --color-warning: #fb923c;
+    --color-warning-subtle: #2b1a0c;
     --color-success: #4ade80;
     --color-success-subtle: #0f2a18;
     --color-overlay: #000000b3;
+
+    --color-flap: #05070b;
+    --color-flap-ink: #edeff2;
+    --color-flap-edge: #ffffff1a;
   }
 }
 
@@ -97,12 +125,18 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-accent-ink);
     outline-offset: 2px;
   }
 
   ::selection {
-    background-color: var(--color-accent-subtle);
+    background-color: var(--color-accent);
+    color: var(--color-accent-foreground);
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-accent-ink);
   }
 }
 

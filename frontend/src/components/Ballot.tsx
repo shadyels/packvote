@@ -60,7 +60,7 @@ function Row({ option, rank, total, onMove }: RowProps) {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         "flex items-center gap-1 rounded-xl border bg-surface py-1 pr-1 pl-1",
-        isDragging && "relative z-10 shadow-lg ring-1 ring-accent"
+        isDragging && "relative z-10 shadow-lg ring-1 ring-accent-ink"
       )}
     >
       <button

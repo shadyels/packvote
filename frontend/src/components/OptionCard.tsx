@@ -45,7 +45,7 @@ export function OptionCard({ option, votes, winner = false, dimmed = false }: Op
     <article
       className={cn(
         "flex flex-col gap-3 rounded-xl border bg-surface p-4 transition-opacity",
-        winner && "border-accent ring-1 ring-accent",
+        winner && "border-accent-ink ring-1 ring-accent-ink",
         dimmed && "opacity-60"
       )}
     >

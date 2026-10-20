@@ -3,7 +3,7 @@ import { cn, type Tone } from "@/lib/trip";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-muted text-muted-foreground",
-  accent: "bg-accent-subtle text-accent",
+  accent: "bg-accent-subtle text-accent-ink",
   success: "bg-success-subtle text-success",
   warning: "bg-warning-subtle text-warning",
   danger: "bg-danger-subtle text-danger",

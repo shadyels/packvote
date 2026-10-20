@@ -44,6 +44,7 @@ describe("routes", () => {
 
   it("/reset-password renders ResetPassword", () => {
     at("/reset-password?token=x");
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Choose a new password" })).toBeInTheDocument();
   });
 
@@ -55,5 +56,6 @@ describe("routes", () => {
   it("/dashboard unauthenticated redirects to /login", () => {
     at("/dashboard");
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 });

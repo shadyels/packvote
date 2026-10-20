@@ -8,7 +8,10 @@ export default function NotFound() {
       <p className="mt-2 text-sm text-muted-foreground">
         That page doesn&apos;t exist or the link has changed.
       </p>
-      <Link to="/" className="mt-6 inline-block text-sm font-medium text-accent hover:underline">
+      <Link
+        to="/"
+        className="mt-6 inline-block text-sm font-medium text-accent-ink hover:underline"
+      >
         Back to home
       </Link>
     </div>

@@ -1,6 +1,6 @@
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Button, buttonClass } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Toaster } from "@/components/ui/Toaster";
 
 const navLink =
@@ -9,6 +9,7 @@ const navLink =
 export default function AppShell() {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -19,7 +20,7 @@ export default function AppShell() {
     <div className="flex min-h-dvh flex-col">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-accent"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-accent-ink"
       >
         Skip to content
       </a>
@@ -28,8 +29,11 @@ export default function AppShell() {
           aria-label="Main"
           className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4"
         >
-          <Link to="/" className="text-base font-semibold tracking-tight">
-            Pack<span className="text-accent">Vote</span>
+          <Link
+            to="/"
+            className="inline-flex h-11 items-center text-base font-semibold tracking-tight"
+          >
+            Pack<span className="text-accent-ink">Vote</span>
           </Link>
           <div className="flex items-center gap-1">
             {isAuthenticated ? (
@@ -49,9 +53,11 @@ export default function AppShell() {
                 <Link to="/join" className={navLink}>
                   Join a trip
                 </Link>
-                <Link to="/login" className={buttonClass("primary", "sm")}>
-                  Sign in
-                </Link>
+                {pathname !== "/login" && (
+                  <Link to="/login" className={navLink}>
+                    Sign in
+                  </Link>
+                )}
               </>
             )}
           </div>
@@ -65,7 +71,7 @@ export default function AppShell() {
         <Outlet />
       </main>
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        PackVote — group trips, decided together.
+        PackVote — group trips, decided fairly.
       </footer>
       <Toaster />
     </div>

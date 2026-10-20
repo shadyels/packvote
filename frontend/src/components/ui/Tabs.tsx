@@ -18,7 +18,7 @@ export function TabsTab({ className, ...props }: ComponentProps<typeof BaseTabs.
   return (
     <BaseTabs.Tab
       className={cn(
-        "-mb-px inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground data-active:border-accent data-active:text-foreground sm:px-3",
+        "-mb-px inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground data-active:border-accent-ink data-active:text-foreground sm:px-3",
         className
       )}
       {...props}
