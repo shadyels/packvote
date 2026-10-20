@@ -34,13 +34,15 @@ Removed in the rebuild: shadcn/ui, Radix, react-day-picker, date-fns, class-vari
 
 ## Design Tokens and Theming
 
-Tokens are defined in `frontend/src/styles.css`. Components use the semantic names only (`bg-surface`, `text-muted-foreground`, `border-border`, `text-accent`, `bg-danger-subtle`), never raw hex values.
+Tokens are defined in `frontend/src/styles.css`. Components use the semantic names only (`bg-surface`, `text-muted-foreground`, `border-border`, `text-accent-ink`, `bg-danger-subtle`), never raw hex values.
 
 - Light values are in `@theme`. Dark values are overrides under `@media (prefers-color-scheme: dark)`.
 - Theme follows the OS setting only. There is no in-app toggle.
-- Accent is emerald: `--color-accent` is `#047857` in light and `#34D399` in dark. There is no orange in the design.
-- Contrast of text on its background is documented as at least 4.5:1 in both themes.
-- Focus ring: `:focus-visible` uses a 2px `--color-accent` outline.
+- Accent is yellow: `--color-accent` is `#ffc81e` in both themes. It is a fill only (`bg-accent` with `text-accent-foreground`). Text, rings, and underlines use `--color-accent-ink`, which is near-black in light and yellow in dark.
+- Success (boarding, winner) is `--color-success`, and danger (eliminated) is `--color-danger`. Warning is orange and stays apart from the yellow accent.
+- Flap tiles (the landing board's letters) use `--color-flap`, `--color-flap-ink`, and `--color-flap-edge`.
+- Contrast targets in the `styles.css` header: at least 4.5:1 for text on background, surface, and muted; at least 3:1 for rings and non-text UI.
+- Focus ring: `:focus-visible` uses a 2px `--color-accent-ink` outline.
 
 **Buttons:** `components/ui/Button.tsx` exports `Button` (variants `primary | secondary | ghost | danger`; sizes `sm | md | icon`) and `buttonClass(variant, size)`. Use `buttonClass` for a `<Link>` that should look like a button. `sm` is 36px high and becomes 44px on coarse pointers (`pointer-coarse:h-11`). `md` is 44px. `loading` shows a spinner and disables the button.
 
@@ -122,13 +124,13 @@ Defined in `App.tsx`. Every route is a child of `AppShell`.
 
 **Back navigation:** invited trips on the dashboard link to `/trip/:token` with `location.state = { from: "dashboard-invited" }`. `Trip` shows a "My trips" link back to `/dashboard?tab=invited` only when that state is present. Email-link visitors do not see it. The state is only for UI context; anything that must survive a reload belongs in the URL.
 
-**Standalone pages:** `Landing` and the auth pages render inside `AppShell`, which provides the header, footer, skip link, and toaster. `AppShell` shows auth-aware nav: "Dashboard" and "Log out" when signed in, "Join a trip" and "Sign in" otherwise.
+**Standalone pages:** `Landing` and the auth pages render inside `AppShell`, which provides the header, footer, skip link, and toaster. `AppShell` shows auth-aware nav: "Dashboard" and "Log out" when signed in, "Join a trip" and "Sign in" otherwise. The "Sign in" link is hidden on `/login`.
 
 ## Components
 
 Feature components in `components/`:
 
-- **`Ballot`**: the ranked-choice input. A `dnd-kit` sortable list plus Up and Down buttons on every row. It is used by the participant page, the organizer's own vote, and the landing hero.
+- **`Ballot`**: the ranked-choice input. A `dnd-kit` sortable list plus Up and Down buttons on every row. It is used by the participant page and the organizer's own vote.
   - Sensors: pointer (5px activation distance), touch (150ms delay), keyboard.
   - Screen-reader announcements name the option title and its position, instead of dnd-kit's default raw IDs.
   - It takes `options`, `onSubmit(ids)`, and `submitLabel`. It resets its order when the option set changes.
@@ -137,7 +139,8 @@ Feature components in `components/`:
 - **`TripForm`**: create and edit forms (`trip` prop = edit mode). Used in dialogs.
 - **`PreferenceForm`**: participant preference form. Pre-fills dates from the organizer's proposal.
 - **`GeneratingState`**: the generating and failed states.
-- **`TripRow`**: one trip in a dashboard list. Also used by the landing hero.
+- **`TripRow`**: one trip in a dashboard list.
+- **`DeparturesBoard`**: the landing page's sample vote (see Landing board below).
 - **`EmptyState`**, **`AppShell`**, **`ProtectedRoute`**.
 
 Primitives in `components/ui/`:
@@ -146,7 +149,12 @@ Primitives in `components/ui/`:
 - **`Tabs`**: `Tabs`, `TabsList`, `TabsTab`, `TabsPanel` on `@base-ui/react/tabs`. The list scrolls horizontally on narrow screens. Tabs are 44px high.
 - **`Button`**, **`Input`**, **`Select`**, **`Textarea`**, **`Field`**, **`Badge`**, **`Skeleton`**, **`Spinner`**, **`Toaster`**.
 
-**Landing hero:** `Landing` renders a real `TripRow` and `Ballot` with sample data inside a frame marked `inert` and `aria-hidden="true"`. The `inert` attribute is passed as a string prop because React 18 typings do not include it.
+**Landing board:** `Landing` renders `DeparturesBoard` (`components/DeparturesBoard.tsx`), a semantic `<table>` of a sample vote. Its rounds are derived by the exported `runoff()`, which mirrors the backend `tally()` in `backend/app/services/voting/ranked_choice.py`. The landing copy reads its figures from the same derived data (`BOARD_FACTS`).
+- The reveal runs once on mount (about 3 seconds) and has a Replay button.
+- Values are always in the DOM. Cells that are not yet revealed are faded with opacity, not removed.
+- Chips move with a FLIP animation through `element.animate`. The View Transitions API is not used, because a document-level view transition blocks clicks across the whole page.
+- Under `prefers-reduced-motion: reduce`, the board shows the final state and hides Replay.
+- Below `md` (768px) each row stacks; from `md` up it is a table.
 
 **Async handlers:** ESLint enforces `@typescript-eslint/no-misused-promises`. Wrap async handlers:
 
@@ -162,7 +170,7 @@ onSubmit={(e) => { void handleSubmit(e); }}
 - **Live regions:** status and error messages use `role="status"` or `role="alert"`. `Ballot` announces moves through a polite live region.
 - **Icons** are `aria-hidden="true"`. Icon-only buttons have an `aria-label` (for example, "Close" in `Dialog` and "Copy trip code ...").
 - **Reduced motion:** `styles.css` shortens all animations and transitions to 0.01ms under `prefers-reduced-motion: reduce`.
-- **Animations:** `fade-in` (page entry) and `slide-up` (`--animate-slide-up`) are the only custom keyframes, both defined as `@theme` animation tokens in `styles.css`.
+- **Animations:** `fade-in`, `slide-up` (`--animate-slide-up`), and `flip` (`--animate-flip`, used by the landing board's letter tiles) are the custom keyframes, all defined as `@theme` animation tokens in `styles.css`. The board's chip moves are not keyframes; they use `element.animate`.
 
 ## Testing
 

@@ -81,11 +81,13 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 
 ## Design System
 
-- **Background:** `#fafafa` light / `#09090b` dark (`--color-background`)
-- **Card/Surface:** `#ffffff` light / `#131316` dark (`--color-surface`)
-- **Text:** `#18181b` light / `#fafafa` dark (`--color-foreground`)
-- **Accent:** Emerald `#047857` light / `#34D399` dark (`--color-accent`) — use `text-accent`, `bg-accent`. No orange.
-- **Borders:** `#e4e4e7` light / `#2a2a2f` dark (`--color-border`)
+- **Background:** `#e9ecef` light / `#0b0f17` dark (`--color-background`)
+- **Card/Surface:** `#ffffff` light / `#141a24` dark (`--color-surface`)
+- **Text:** `#0e1116` light / `#edeff2` dark (`--color-foreground`)
+- **Accent:** `#ffc81e` yellow in both themes (`--color-accent`) — fill only: `bg-accent` with `text-accent-foreground`
+- **Accent ink:** `#0e1116` light / `#ffc81e` dark (`--color-accent-ink`) — text, rings, underlines, focus: `text-accent-ink`, `ring-accent-ink`, `border-accent-ink`
+- **Status:** success `--color-success` (boarding, winner), danger `--color-danger` (eliminated), warning `--color-warning` (orange, apart from the accent). Landing board flap tiles: `--color-flap`, `--color-flap-ink`, `--color-flap-edge`
+- **Borders:** `#c9ced6` light / `#2a3343` dark (`--color-border`)
 - **Theme:** Light and dark follow `prefers-color-scheme` only (no toggle). Geist + Geist Mono.
 - **Responsive:** Fully mobile-responsive
 - **Images:** None. No photos anywhere.
