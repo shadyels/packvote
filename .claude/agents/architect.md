@@ -55,4 +55,5 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - When a spec allows API contract changes under "no frontend edits", grep the consumer for each removed field and classify hits as type-only vs runtime-dereferenced; a dereferenced removal (`undefined.trim()`) makes merge/deploy order a user decision the follow-up table alone does not surface.
 - When a ruling deletes something under a "no dead code" rule, sweep the whole touched module for every other uncalled export (inherited ones included) before issuing the verdict, or the hard constraint is applied selectively.
 - Changing "degrade sub-requests to empty" to all-or-nothing is safe only if no sub-request can fail for the authorised caller in a normal state; enumerate each sub-request's backend error paths before approving.
+- Before approving a token or design-system change, check the root instruction files (CLAUDE.md design-system sections, architecture docs) for rules the change made wrong; a stale "use `text-accent`" rule recreates the regression the change fixed.
 <!-- END learned-lessons -->
