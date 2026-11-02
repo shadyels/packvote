@@ -75,7 +75,7 @@ describe("Dashboard", () => {
     const row = screen.getByRole("link", { name: /Lisbon/ });
     expect(row).toHaveAttribute("href", "/dashboard/trip/1");
     expect(row).toHaveTextContent("Surprise me");
-    expect(row).toHaveTextContent("3/4");
+    expect(row.closest("tr")).toHaveTextContent("3/4");
   });
 
   it("?tab=invited selects Invited; switching updates the URL; invalid falls back to created", async () => {

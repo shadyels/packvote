@@ -119,7 +119,13 @@ beforeEach(() => {
   m.get.mockResolvedValue(trip("COLLECTING_PREFERENCES"));
   m.people.mockResolvedValue([person(1, "me@x.com"), person(2, "a@x.com")]);
   m.its.mockResolvedValue([]);
-  m.results.mockResolvedValue(null);
+  m.results.mockResolvedValue({
+    trip_id: 7,
+    iteration_number: 1,
+    rounds: [],
+    winner_id: null,
+    is_complete: false,
+  });
   m.generate.mockResolvedValue({ message: "ok" });
   m.pickWinner.mockResolvedValue({ message: "ok" });
   m.del.mockResolvedValue(null);
@@ -141,6 +147,18 @@ describe("TripDetail", () => {
     );
     await userEvent.click(screen.getByRole("tab", { name: "Overview" }));
     expect(screen.getByText("at /dashboard/trip/7?tab=overview")).toBeInTheDocument();
+  });
+
+  it("results tab: empty board once voting opens, empty state before", async () => {
+    m.get.mockResolvedValue(trip("VOTING"));
+    const { unmount } = renderAt("/dashboard/trip/7?tab=results");
+    expect(await screen.findByText("No votes yet")).toBeInTheDocument();
+    unmount();
+
+    m.get.mockResolvedValue(trip("COLLECTING_PREFERENCES"));
+    renderAt("/dashboard/trip/7?tab=results");
+    expect(await screen.findByText("No results yet")).toBeInTheDocument();
+    expect(screen.queryByText("No votes yet")).not.toBeInTheDocument();
   });
 
   it("generates and toasts", async () => {

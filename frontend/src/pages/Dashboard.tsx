@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Inbox, Plus, Route } from "lucide-react";
+import { Plus } from "lucide-react";
+import { DeparturesList } from "@/components/DeparturesList";
 import { EmptyState } from "@/components/EmptyState";
 import { TripForm } from "@/components/TripForm";
-import { TripRow } from "@/components/TripRow";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/Tabs";
 import { useFetch } from "@/hooks/useFetch";
 import { trips } from "@/lib/api";
@@ -26,20 +25,12 @@ function ListState({
   empty: React.ReactNode | null;
   children: React.ReactNode;
 }) {
-  if (isLoading) {
-    return (
-      <div role="status" aria-label="Loading trips" className="divide-y rounded-xl border">
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-20 rounded-none" />
-        ))}
-      </div>
-    );
-  }
+  if (isLoading) return <DeparturesList label="Loading trips" trips={[]} to={() => ""} loading />;
   if (error) {
     return (
       <div
         role="alert"
-        className="flex items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger-subtle px-4 py-3 text-sm text-danger"
+        className="flex items-center justify-between gap-3 border-t-2 border-danger pt-4 text-sm text-danger"
       >
         <span>{error}</span>
         <Button variant="secondary" size="sm" onClick={onRetry}>
@@ -48,7 +39,7 @@ function ListState({
       </div>
     );
   }
-  return empty ?? <div className="divide-y overflow-hidden rounded-xl border">{children}</div>;
+  return empty ?? children;
 }
 
 export default function Dashboard() {
@@ -62,7 +53,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">My trips</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">My trips</h1>
         <Button
           onClick={() => {
             setCreating(true);
@@ -81,8 +72,12 @@ export default function Dashboard() {
         }}
       >
         <TabsList>
-          <TabsTab value="created">Created ({created.data?.length ?? 0})</TabsTab>
-          <TabsTab value="invited">Invited ({invited.data?.length ?? 0})</TabsTab>
+          <TabsTab value="created">
+            Created <span className="font-mono">({created.data?.length ?? 0})</span>
+          </TabsTab>
+          <TabsTab value="invited">
+            Invited <span className="font-mono">({invited.data?.length ?? 0})</span>
+          </TabsTab>
         </TabsList>
         <TabsPanel value="created">
           <ListState
@@ -92,25 +87,17 @@ export default function Dashboard() {
             empty={
               created.data?.length === 0 ? (
                 <EmptyState
-                  icon={Route}
                   title="No trips yet"
-                  text="Create your first trip and invite your group."
-                  action={
-                    <Button
-                      onClick={() => {
-                        setCreating(true);
-                      }}
-                    >
-                      New trip
-                    </Button>
-                  }
+                  text="Create a trip, invite your group by email, collect everyone's preferences, then vote on AI-written itineraries."
                 />
               ) : null
             }
           >
-            {created.data?.map((t) => (
-              <TripRow key={t.id} trip={t} to={`/dashboard/trip/${t.id.toString()}`} />
-            ))}
+            <DeparturesList
+              label="Created trips"
+              trips={created.data ?? []}
+              to={(t) => `/dashboard/trip/${t.id.toString()}`}
+            />
           </ListState>
         </TabsPanel>
         <TabsPanel value="invited">
@@ -121,21 +108,18 @@ export default function Dashboard() {
             empty={
               invited.data?.length === 0 ? (
                 <EmptyState
-                  icon={Inbox}
                   title="No invitations yet"
                   text="When someone adds you to a trip, it'll show up here."
                 />
               ) : null
             }
           >
-            {invited.data?.map((t) => (
-              <TripRow
-                key={t.id}
-                trip={t}
-                to={`/trip/${t.participant_token}`}
-                linkState={{ from: "dashboard-invited" }}
-              />
-            ))}
+            <DeparturesList
+              label="Invited trips"
+              trips={invited.data ?? []}
+              to={(t) => `/trip/${t.participant_token}`}
+              linkState={{ from: "dashboard-invited" }}
+            />
           </ListState>
         </TabsPanel>
       </Tabs>

@@ -102,7 +102,7 @@ export default function Login() {
 
   return (
     <div className="mx-auto w-full max-w-sm py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="border-t-2 border-foreground pt-4 text-3xl font-semibold tracking-tight">
         {isLogin ? "Sign in" : "Create your account"}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">

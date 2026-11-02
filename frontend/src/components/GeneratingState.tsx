@@ -34,10 +34,7 @@ export function GeneratingState({ status, error, onRetry, retrying }: Generating
 
   if (status === "failed") {
     return (
-      <div
-        role="alert"
-        className="flex flex-col gap-3 rounded-xl border border-danger/30 bg-danger-subtle p-5"
-      >
+      <div role="alert" className="flex flex-col gap-3 border-t-2 border-danger pt-4">
         <div className="flex items-center gap-2 font-medium text-danger">
           <TriangleAlert className="size-4" aria-hidden="true" />
           Itinerary generation failed
@@ -57,15 +54,12 @@ export function GeneratingState({ status, error, onRetry, retrying }: Generating
   }
 
   return (
-    <div
-      role="status"
-      className="flex flex-col items-center gap-5 rounded-xl border bg-surface px-5 py-12 text-center"
-    >
+    <div role="status" className="flex flex-col gap-4 border-t-2 border-foreground pt-4">
       <div className="flex w-40 gap-1" aria-hidden="true">
         {[0, 1, 2, 3, 4].map((i) => (
           <span
             key={i}
-            className={cn("h-1.5 flex-1 animate-pulse rounded-full bg-accent")}
+            className={cn("h-1.5 flex-1 animate-pulse rounded-full bg-warning")}
             style={{ animationDelay: `${(i * 200).toString()}ms` }}
           />
         ))}

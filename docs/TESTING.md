@@ -35,7 +35,7 @@ uv run pytest tests/ai -m live   # Live AI tests (manual only — burns API cred
 - Test files live in `__tests__/` folders next to the code:
   - `src/__tests__/routes.test.tsx`
   - `src/pages/__tests__/`: `Dashboard`, `Join`, `Landing`, `Login`, `Trip`, `TripDetail`
-  - `src/components/__tests__/`: `Ballot`, `OptionCard`, `PreferenceForm`, `ProtectedRoute`, `Results`, `TripForm`
+  - `src/components/__tests__/`: `Ballot`, `Flap`, `OptionCard`, `PreferenceForm`, `ProtectedRoute`, `ResultsBoard`, `TripForm`
   - `src/hooks/__tests__/useFetch.test.ts`
   - `src/lib/__tests__/`: `api.test.ts`, `trip.test.ts`
   - `src/contexts/__tests__/AuthContext.test.tsx`

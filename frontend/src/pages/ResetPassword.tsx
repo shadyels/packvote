@@ -32,7 +32,9 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <div className="mx-auto w-full max-w-sm py-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Reset password</h1>
+        <h1 className="border-t-2 border-foreground pt-4 text-3xl font-semibold tracking-tight">
+          Reset password
+        </h1>
         <p role="alert" className="mt-2 text-sm text-danger">
           This reset link is missing a token.
         </p>
@@ -64,7 +66,9 @@ export default function ResetPassword() {
 
   return (
     <div className="mx-auto w-full max-w-sm py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
+      <h1 className="border-t-2 border-foreground pt-4 text-3xl font-semibold tracking-tight">
+        Choose a new password
+      </h1>
       {done ? (
         <div role="status" className="mt-4 text-sm">
           <p>Password updated. Redirecting to sign in…</p>

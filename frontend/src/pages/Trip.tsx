@@ -1,15 +1,17 @@
 import { useEffect, useRef } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Ballot } from "@/components/Ballot";
 import { GeneratingState } from "@/components/GeneratingState";
-import { OptionCard } from "@/components/OptionCard";
+import { OptionCard, optionTitle } from "@/components/OptionCard";
 import { PreferenceForm } from "@/components/PreferenceForm";
-import { Badge } from "@/components/ui/Badge";
+import { ResultsBoard } from "@/components/ResultsBoard";
+import { TripHeader } from "@/components/TripHeader";
+import { FlapWord, StatusFlap } from "@/components/ui/Flap";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ApiError, participants, votes } from "@/lib/api";
-import { STATUS, formatDateRange } from "@/lib/trip";
+import { cn, flapText, formatDateRange } from "@/lib/trip";
 import { useFetch } from "@/hooks/useFetch";
 import type { ParticipantBrief, ParticipantTripView } from "@/types";
 
@@ -31,11 +33,10 @@ function Progress({ list }: { list: ParticipantBrief[] }) {
           <li
             key={p.id}
             title={p.preferences_submitted ? "Submitted" : "Waiting"}
-            className={`flex size-8 items-center justify-center rounded-full text-xs font-medium ${
-              p.preferences_submitted
-                ? "bg-success-subtle text-success"
-                : "bg-muted text-muted-foreground"
-            }`}
+            className={cn(
+              "grid size-7 place-items-center rounded-sm font-mono text-xs font-medium",
+              p.preferences_submitted ? "bg-success text-background" : "bg-muted text-foreground"
+            )}
           >
             {initials(p)}
             <span className="sr-only">{p.preferences_submitted ? " submitted" : " waiting"}</span>
@@ -57,12 +58,10 @@ function Skeletons() {
 }
 
 function Options({ view }: { view: ParticipantTripView }) {
-  const rounds = view.voting_results?.rounds ?? [];
-  const last = rounds.length ? rounds[rounds.length - 1].results : undefined;
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {view.itineraries.map((o) => (
-        <OptionCard key={o.id} option={o} votes={last ? (last[o.id] ?? 0) : undefined} />
+        <OptionCard key={o.id} option={o} />
       ))}
     </div>
   );
@@ -123,7 +122,7 @@ export default function Trip() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl animate-fade-in flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       {state?.from === "dashboard-invited" && (
         <Link
           to="/dashboard?tab=invited"
@@ -134,21 +133,17 @@ export default function Trip() {
         </Link>
       )}
 
-      <header className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{trip.title}</h1>
-          <Badge tone={STATUS[trip.status].tone}>{STATUS[trip.status].label}</Badge>
-        </div>
-        <p className="text-muted-foreground">
-          {trip.destination || winner?.destination_name || "Destination TBD"}
-        </p>
-        <Progress list={others} />
-      </header>
+      <TripHeader
+        title={trip.title}
+        status={trip.status}
+        destination={trip.destination || winner?.destination_name || null}
+      />
+      <Progress list={others} />
 
       {(trip.status === "CREATED" || trip.status === "COLLECTING_PREFERENCES") && (
         <>
           {(trip.destination || dates || trip.notes) && (
-            <section className="rounded-xl border bg-surface p-4">
+            <section className="border-t-2 border-foreground pt-4">
               <h2 className="mb-2 text-sm font-semibold">Organizer&apos;s proposal</h2>
               <dl className="flex flex-col gap-1 text-sm">
                 {trip.destination && (
@@ -173,18 +168,18 @@ export default function Trip() {
             </section>
           )}
           {participant.preferences_submitted ? (
-            <section className="flex flex-col items-center gap-2 rounded-xl border bg-surface px-5 py-10 text-center">
-              <span className="flex size-10 items-center justify-center rounded-full bg-success-subtle text-success">
-                <Check className="size-5" aria-hidden="true" />
-              </span>
-              <h2 className="text-lg font-semibold tracking-tight">Preferences submitted</h2>
+            <section className="flex flex-col gap-2 border-t-2 border-foreground pt-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-lg font-semibold tracking-tight">Preferences submitted</h2>
+                <StatusFlap tone="success">Submitted</StatusFlap>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Waiting for the rest of the group. We&apos;ll generate options once the organizer
                 starts.
               </p>
             </section>
           ) : (
-            <section className="rounded-xl border bg-surface p-4">
+            <section className="border-t-2 border-foreground pt-4">
               <h2 className="mb-4 text-lg font-semibold tracking-tight">Your preferences</h2>
               <PreferenceForm
                 token={token}
@@ -202,7 +197,10 @@ export default function Trip() {
 
       {ballotShown && (
         <>
-          <section className="flex flex-col gap-3" aria-labelledby="options-h">
+          <section
+            className="flex flex-col gap-3 border-t-2 border-foreground pt-4"
+            aria-labelledby="options-h"
+          >
             <h2 id="options-h" className="text-lg font-semibold tracking-tight">
               Options
             </h2>
@@ -212,7 +210,7 @@ export default function Trip() {
             ref={ballotRef}
             tabIndex={-1}
             aria-labelledby="ballot-h"
-            className="flex flex-col gap-3 outline-none"
+            className="flex flex-col gap-3 border-t-2 border-foreground pt-4 outline-none"
           >
             <h2 id="ballot-h" className="text-lg font-semibold tracking-tight">
               {data.has_voted ? "Update your vote" : "Cast your vote"}
@@ -223,6 +221,21 @@ export default function Trip() {
               submitLabel={data.has_voted ? "Update vote" : "Submit vote"}
             />
           </section>
+          {data.voting_results && data.voting_results.rounds.length > 0 && (
+            <section
+              className="flex flex-col gap-3 border-t-2 border-foreground pt-4"
+              aria-labelledby="results-h"
+            >
+              <h2 id="results-h" className="text-lg font-semibold tracking-tight">
+                Results so far
+              </h2>
+              <ResultsBoard
+                results={data.voting_results}
+                options={data.itineraries}
+                final={false}
+              />
+            </section>
+          )}
         </>
       )}
 
@@ -230,7 +243,16 @@ export default function Trip() {
         <section className="flex flex-col gap-3">
           {winner ? (
             <>
-              <h2 className="text-lg font-semibold tracking-tight">Your group has a winner</h2>
+              <div className="flex flex-col gap-3 rounded-2xl bg-accent p-5 text-accent-foreground">
+                <h2 className="text-lg font-semibold tracking-tight">Your group has a winner</h2>
+                <FlapWord
+                  text={flapText(optionTitle(winner), 11)}
+                  label={null}
+                  size="board"
+                  inverted
+                />
+                <p className="text-sm font-medium">{optionTitle(winner)}</p>
+              </div>
               <OptionCard option={winner} winner />
             </>
           ) : (

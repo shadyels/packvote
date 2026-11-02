@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { cn } from "@/lib/trip";
+import { FlapWord } from "@/components/ui/Flap";
+import { useFlip } from "@/hooks/useFlip";
+import { cn, prefersReducedMotion } from "@/lib/trip";
 
 type Option = "dolomites" | "lisbon" | "naxos";
 const OPTIONS: Option[] = ["dolomites", "lisbon", "naxos"];
@@ -81,10 +83,6 @@ const SEQUENCE: [number, number][] = [
 ];
 const FINAL = 5;
 
-const prefersReducedMotion = () =>
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 const TONES = {
   success: "bg-success text-background",
   danger: "bg-danger text-background",
@@ -114,21 +112,11 @@ export function DeparturesBoard() {
   const timers = useRef<number[]>([]);
   const runId = useRef(0);
 
-  const boardRef = useRef<HTMLDivElement>(null);
-  const firstRects = useRef(new Map<string, DOMRect>());
-  const chipAnims = useRef<Animation[]>([]);
-
-  const cancelChips = () => {
-    chipAnims.current.forEach((a) => {
-      a.cancel();
-    });
-    chipAnims.current = [];
-    firstRects.current.clear();
-  };
+  const { ref: boardRef, capture, cancel } = useFlip<HTMLDivElement>(phase, 700, "chip-id");
 
   const play = useCallback(() => {
     timers.current.forEach(window.clearTimeout);
-    cancelChips();
+    cancel();
     const id = ++runId.current;
     setRun(id);
     setPhase(0);
@@ -136,48 +124,17 @@ export function DeparturesBoard() {
       window.setTimeout(() => {
         if (id !== runId.current) return;
         // FLIP: remember where each chip is before it moves rows.
-        if (next === 3 && boardRef.current) {
-          boardRef.current.querySelectorAll<HTMLElement>("[data-chip-id]").forEach((el) => {
-            firstRects.current.set(el.dataset.chipId ?? "", el.getBoundingClientRect());
-          });
-        }
+        if (next === 3) capture();
         setPhase(next);
       }, ms)
     );
-  }, []);
-
-  // After React commits the moved chips, slide them from their old position (before paint).
-  useLayoutEffect(() => {
-    if (firstRects.current.size === 0 || !boardRef.current) return;
-    boardRef.current.querySelectorAll<HTMLElement>("[data-chip-id]").forEach((el) => {
-      const from = firstRects.current.get(el.dataset.chipId ?? "");
-      if (!from || typeof el.animate !== "function") return;
-      const to = el.getBoundingClientRect();
-      const dx = from.left - to.left;
-      const dy = from.top - to.top;
-      if (dx === 0 && dy === 0) return;
-      chipAnims.current.push(
-        el.animate(
-          [
-            { transform: `translate(${dx.toString()}px, ${dy.toString()}px)` },
-            { transform: "none" },
-          ],
-          {
-            duration: 700,
-            easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-          }
-        )
-      );
-    });
-    firstRects.current.clear();
-  }, [phase]);
+  }, [cancel, capture]);
 
   useEffect(() => {
     if (!reduced) play();
     return () => {
       runId.current += 1;
       timers.current.forEach(window.clearTimeout);
-      cancelChips();
     };
   }, [play, reduced]);
 
@@ -247,28 +204,13 @@ export function DeparturesBoard() {
                   scope="row"
                   className={cn(cell, "text-left max-md:col-span-3 max-md:row-start-1")}
                 >
-                  <span className="sr-only">{NAMES[opt]}</span>
-                  <span
+                  <FlapWord
                     key={run}
-                    aria-hidden="true"
-                    className="flex gap-0.5 font-mono text-sm font-medium uppercase md:text-base lg:text-xl"
-                  >
-                    {NAMES[opt].split("").map((ch, i) => (
-                      <span
-                        key={i}
-                        style={{ animationDelay: `${(i * 45).toString()}ms` }}
-                        className={cn(
-                          "relative grid h-7 w-5 place-items-center rounded-sm transition-colors duration-300 before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-black/60 md:h-9 md:w-6 lg:h-11 lg:w-8",
-                          boarded
-                            ? "bg-accent-foreground text-accent"
-                            : "bg-flap text-flap-ink ring-1 ring-flap-edge ring-inset",
-                          !reduced && "animate-flip"
-                        )}
-                      >
-                        {ch}
-                      </span>
-                    ))}
-                  </span>
+                    text={NAMES[opt]}
+                    size="board"
+                    inverted={boarded}
+                    flip={!reduced}
+                  />
                 </th>
                 <td role="cell" className={cn(cell, "max-md:row-start-2")}>
                   <span className="sr-only">

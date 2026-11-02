@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { StatusFlap } from "@/components/ui/Flap";
 import { cn } from "@/lib/trip";
 import type { Itinerary } from "@/types";
 
@@ -13,14 +13,12 @@ export const formatBudget = (o: Itinerary) =>
 
 interface OptionCardProps {
   option: Itinerary;
-  /** Final-round vote count, shown when defined. */
-  votes?: number;
   winner?: boolean;
   /** Greyed out (a winner exists and this is not it). */
   dimmed?: boolean;
 }
 
-export function OptionCard({ option, votes, winner = false, dimmed = false }: OptionCardProps) {
+export function OptionCard({ option, winner = false, dimmed = false }: OptionCardProps) {
   const [day, setDay] = useState<number | null>(null);
   const days = option.daily_itinerary;
   const current = day === null ? undefined : days[day];
@@ -45,7 +43,7 @@ export function OptionCard({ option, votes, winner = false, dimmed = false }: Op
     <article
       className={cn(
         "flex flex-col gap-3 rounded-xl border bg-surface p-4 transition-opacity",
-        winner && "border-accent-ink ring-1 ring-accent-ink",
+        winner && "border-success",
         dimmed && "opacity-60"
       )}
     >
@@ -56,19 +54,11 @@ export function OptionCard({ option, votes, winner = false, dimmed = false }: Op
             <p className="text-sm text-muted-foreground">{option.destination_name}</p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {winner && (
-            <Badge tone="success">
-              <Check className="mr-1 size-3" aria-hidden="true" />
-              Winner
-            </Badge>
-          )}
-          {votes !== undefined && (
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {votes} {votes === 1 ? "vote" : "votes"}
-            </span>
-          )}
-        </div>
+        {winner && (
+          <span className="shrink-0">
+            <StatusFlap tone="success">Winner</StatusFlap>
+          </span>
+        )}
       </header>
 
       <p className="line-clamp-3 text-sm text-muted-foreground">{option.destination_description}</p>
@@ -87,13 +77,7 @@ export function OptionCard({ option, votes, winner = false, dimmed = false }: Op
       </dl>
 
       {option.highlights.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5">
-          {option.highlights.slice(0, 4).map((h) => (
-            <li key={h} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              {h}
-            </li>
-          ))}
-        </ul>
+        <p className="text-sm text-muted-foreground">{option.highlights.slice(0, 4).join(" · ")}</p>
       )}
 
       {days.length > 0 && (

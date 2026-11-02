@@ -72,11 +72,11 @@ Tokens are defined in `frontend/src/styles.css`. Components use the semantic nam
 
 ## Status and Limits
 
-`STATUS` in `lib/trip.ts` maps each `TripStatus` to a label and a tone. The statuses are `CREATED`, `COLLECTING_PREFERENCES`, `GENERATING`, `GENERATION_FAILED`, `VOTING`, and `FINALIZED`. There is no `ITERATING` status.
+`STATUS` in `lib/trip.ts` maps each `TripStatus` to a label and a `StatusFlap` tone (`muted`, `flap`, `success`, `warning`, `danger`). `tripStage(status)` gives the gate-strip position, and `flapText(s, max = 12)` gives the tile text (the part before the first comma, capped). The statuses are `CREATED`, `COLLECTING_PREFERENCES`, `GENERATING`, `GENERATION_FAILED`, `VOTING`, and `FINALIZED`. There is no `ITERATING` status.
 
 Length limits (`TITLE_MAX`, `DESTINATION_MAX`, `NOTES_MAX`, `NAME_MAX`, `INTERESTS_MAX`, `ACTIVITY_TAG_MAX`, `ACTIVITY_TAGS_MAX_ITEMS`, `PARTICIPANT_EMAILS_MAX`, `PASSWORD_MIN`, `PASSWORD_MAX`) and `maxTripDays(numOptions)` mirror the backend in `backend/app/schemas/_limits.py`. Keep them in sync when the backend changes.
 
-**Dates:** `parseDate` reads only the first 10 characters of an ISO string and builds a local-time `Date`, so `"2025-06-01"` and `"2025-06-01T00:00:00"` both show June 1 in every timezone. Use `formatDate`, `formatDateRange`, and `formatTimestamp` for display.
+**Dates:** `parseDate` reads only the first 10 characters of an ISO string and builds a local-time `Date`, so `"2025-06-01"` and `"2025-06-01T00:00:00"` both show June 1 in every timezone. Use `formatDate`, `formatShortDate`, and `formatDateRange` for display.
 
 ## Auth
 
@@ -134,25 +134,32 @@ Feature components in `components/`:
   - Sensors: pointer (5px activation distance), touch (150ms delay), keyboard.
   - Screen-reader announcements name the option title and its position, instead of dnd-kit's default raw IDs.
   - It takes `options`, `onSubmit(ids)`, and `submitLabel`. It resets its order when the option set changes.
-- **`OptionCard`**: one itinerary. The heading is `optionTitle(o)` = `option_title ?? destination_name`. Pass `winner` and `dimmed` for the results view.
-- **`Results`**: the round-by-round vote breakdown.
+  - The rank is a flap tile. Up and Down moves slide the rows with `useFlip` (300ms); drags do not.
+- **`OptionCard`**: one itinerary. The heading is `optionTitle(o)` = `option_title ?? destination_name`. Pass `winner` and `dimmed` for the results view. Highlights are one muted text line.
+- **`ResultsBoard`**: the round-by-round runoff board, used by the organizer Results tab and the participant VOTING page. Rows come from the pure exported `boardRows(results, options)`.
+  - The leader reads "Leading" until `final`; only then does the winner row turn yellow with "Boarding". A tie shows muted "Tied" flaps and no yellow row.
+  - Organizer override: the backend reports the organizer's pick as `results.winner_id` and the vote's own winner as the last round's `winner_id`. When they differ, the pick gets the yellow row, the vote winner shows "Won vote", and a line reads "Organizer finalized {title}".
+  - It renders settled on mount. It replays when `JSON.stringify(results.rounds)` changes, on Replay, or on mount with `playOnMount` (TripDetail sets it once the user changes tab in-session).
+  - Zero rounds render an `EmptyState`.
+- **`TripHeader`**: the trip title, the trip code in flap tiles (organizer, with a copy button) or the destination (participant), and the gate strip (`ol[aria-label="Trip progress"]`) whose current step is the live status flap.
 - **`TripForm`**: create and edit forms (`trip` prop = edit mode). Used in dialogs.
 - **`PreferenceForm`**: participant preference form. Pre-fills dates from the organizer's proposal.
 - **`GeneratingState`**: the generating and failed states.
-- **`TripRow`**: one trip in a dashboard list.
+- **`DeparturesList`**: the dashboard trip table (Trip / Code / Prefs / Status). The trip link is stretched over the whole row; rows stack below `md`.
 - **`DeparturesBoard`**: the landing page's sample vote (see Landing board below).
 - **`EmptyState`**, **`AppShell`**, **`ProtectedRoute`**.
 
 Primitives in `components/ui/`:
 
 - **`Dialog`**: controlled modal on `@base-ui/react/dialog`. Bottom sheet below `sm`, centered card from `sm` up. Enter and exit are CSS transitions driven by base-ui's `data-starting-style` and `data-ending-style`.
-- **`Tabs`**: `Tabs`, `TabsList`, `TabsTab`, `TabsPanel` on `@base-ui/react/tabs`. The list scrolls horizontally on narrow screens. Tabs are 44px high.
-- **`Button`**, **`Input`**, **`Select`**, **`Textarea`**, **`Field`**, **`Badge`**, **`Skeleton`**, **`Spinner`**, **`Toaster`**.
+- **`Tabs`**: `Tabs`, `TabsList`, `TabsTab`, `TabsPanel` on `@base-ui/react/tabs`. The list scrolls horizontally on narrow screens. Tabs are 44px high. The active underline is a `Tabs.Indicator` that slides via `--active-tab-left`/`--active-tab-width`; the list's bottom rule is an inset box-shadow so the indicator can cover it inside the scroll container.
+- **`Flap`**: `StatusFlap` (a solid status flap in one tone) and `FlapWord` (one split-flap tile per character). `FlapWord` never animates on first paint; after mount only tiles whose character changed flip.
+- **`Button`**, **`Input`**, **`Select`**, **`Textarea`**, **`Field`**, **`Skeleton`**, **`Spinner`**, **`Toaster`**.
 
 **Landing board:** `Landing` renders `DeparturesBoard` (`components/DeparturesBoard.tsx`), a semantic `<table>` of a sample vote. Its rounds are derived by the exported `runoff()`, which mirrors the backend `tally()` in `backend/app/services/voting/ranked_choice.py`. The landing copy reads its figures from the same derived data (`BOARD_FACTS`).
 - The reveal runs once on mount (about 3 seconds) and has a Replay button.
 - Values are always in the DOM. Cells that are not yet revealed are faded with opacity, not removed.
-- Chips move with a FLIP animation through `element.animate`. The View Transitions API is not used, because a document-level view transition blocks clicks across the whole page.
+- Chips move with a FLIP animation through `element.animate`, via `hooks/useFlip.ts`. The View Transitions API is not used, because a document-level view transition blocks clicks across the whole page.
 - Under `prefers-reduced-motion: reduce`, the board shows the final state and hides Replay.
 - Below `md` (768px) each row stacks; from `md` up it is a table.
 
@@ -170,7 +177,9 @@ onSubmit={(e) => { void handleSubmit(e); }}
 - **Live regions:** status and error messages use `role="status"` or `role="alert"`. `Ballot` announces moves through a polite live region.
 - **Icons** are `aria-hidden="true"`. Icon-only buttons have an `aria-label` (for example, "Close" in `Dialog` and "Copy trip code ...").
 - **Reduced motion:** `styles.css` shortens all animations and transitions to 0.01ms under `prefers-reduced-motion: reduce`.
-- **Animations:** `fade-in`, `slide-up` (`--animate-slide-up`), and `flip` (`--animate-flip`, used by the landing board's letter tiles) are the custom keyframes, all defined as `@theme` animation tokens in `styles.css`. The board's chip moves are not keyframes; they use `element.animate`.
+- **Animations:** `fade-in` and `flip` (`--animate-flip`, used by flap tiles) are the custom keyframes, both defined as `@theme` animation tokens in `styles.css`. Row moves are not keyframes; they use `element.animate` through `useFlip`.
+- **Motion on state change only:** nothing animates on page load outside the landing board and the generating indicator's pulse. Tiles flip when a value changes, the gate-strip flap flips on a status change, and the results board plays when its rounds change, on Replay, or on mount after an in-session tab change.
+- **WAAPI and reduced motion:** the global CSS rule does not reach `element.animate`, so `useFlip` and the boards check `prefersReducedMotion()` (`lib/trip.ts`) themselves.
 
 ## Testing
 
@@ -180,7 +189,7 @@ Test files (`__tests__/` folders):
 
 - `src/__tests__/routes.test.tsx`
 - `src/pages/__tests__/`: `Dashboard`, `Join`, `Landing`, `Login`, `Trip`, `TripDetail`
-- `src/components/__tests__/`: `Ballot`, `OptionCard`, `PreferenceForm`, `ProtectedRoute`, `Results`, `TripForm`
+- `src/components/__tests__/`: `Ballot`, `Flap`, `OptionCard`, `PreferenceForm`, `ProtectedRoute`, `ResultsBoard`, `TripForm`
 - `src/hooks/__tests__/useFetch.test.ts`
 - `src/lib/__tests__/`: `api.test.ts`, `trip.test.ts`
 - `src/contexts/__tests__/AuthContext.test.tsx`

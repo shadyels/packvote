@@ -10,16 +10,49 @@ export function cn(...inputs: ClassValue[]): string {
 // Status meta — single source for organizer and participant views
 // ---------------------------------------------------------------------------
 
-export type Tone = "neutral" | "accent" | "success" | "warning" | "danger";
+export type Tone = "muted" | "flap" | "success" | "warning" | "danger";
 
 export const STATUS: Record<TripStatus, { label: string; tone: Tone }> = {
-  CREATED: { label: "Created", tone: "neutral" },
-  COLLECTING_PREFERENCES: { label: "Collecting", tone: "neutral" },
+  CREATED: { label: "Created", tone: "muted" },
+  COLLECTING_PREFERENCES: { label: "Collecting", tone: "muted" },
   GENERATING: { label: "Generating", tone: "warning" },
   GENERATION_FAILED: { label: "Failed", tone: "danger" },
-  VOTING: { label: "Voting", tone: "accent" },
+  VOTING: { label: "Voting", tone: "flap" },
   FINALIZED: { label: "Finalized", tone: "success" },
 };
+
+/** False when matchMedia is missing (jsdom). */
+export function prefersReducedMotion(): boolean {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/** Part before the first comma (whole string if that part is empty), trimmed, capped at `max`. */
+export function flapText(s: string, max = 12): string {
+  const head = s.split(",")[0].trim();
+  return (head || s).trim().slice(0, max).trimEnd();
+}
+
+export type TripStage = { index: 0 | 1 | 2 | 3; failed: boolean };
+
+/** Lifecycle position for the gate strip. */
+export function tripStage(status: TripStatus): TripStage {
+  switch (status) {
+    case "CREATED":
+    case "COLLECTING_PREFERENCES":
+      return { index: 0, failed: false };
+    case "GENERATING":
+      return { index: 1, failed: false };
+    case "GENERATION_FAILED":
+      return { index: 1, failed: true };
+    case "VOTING":
+      return { index: 2, failed: false };
+    case "FINALIZED":
+      return { index: 3, failed: false };
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Limits — mirror backend clamps; keep in sync with backend schemas/services
@@ -94,11 +127,6 @@ export function formatDateRange(start: string | null, end: string | null): strin
   if (start) return `From ${formatDate(start)}`;
   if (end) return `Until ${formatDate(end)}`;
   return null;
-}
-
-/** Full timestamp (e.g. created_at) as a short local date. */
-export function formatTimestamp(iso: string): string {
-  return dateFormat.format(new Date(iso));
 }
 
 /** Whole days from start to end (end - start), by calendar date. */

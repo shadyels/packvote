@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { FlapWord } from "@/components/ui/Flap";
 import { Input } from "@/components/ui/Input";
 import { ApiError, participants } from "@/lib/api";
 
@@ -32,12 +33,19 @@ export default function Join() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-sm animate-slide-up py-4">
+    <div className="mx-auto w-full max-w-sm py-4">
       <h1 className="text-2xl font-semibold tracking-tight">Join a trip</h1>
       <p className="mt-1 mb-6 text-sm text-muted-foreground">
         Enter the trip code and PIN from your invitation. Invited by email? Use the link in that
         email instead.
       </p>
+      <div className="mb-6">
+        <FlapWord
+          text={code.trim().toUpperCase().padEnd(8, " ").slice(0, 8)}
+          label={null}
+          size="sm"
+        />
+      </div>
       <form
         onSubmit={(e) => {
           void handleSubmit(e);
