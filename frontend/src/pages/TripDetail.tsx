@@ -1,23 +1,24 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Check, Copy, Layers, Mail, Users, Vote, X } from "lucide-react";
+import { ArrowLeft, Check, Mail } from "lucide-react";
 import { Ballot } from "@/components/Ballot";
 import { EmptyState } from "@/components/EmptyState";
 import { GeneratingState } from "@/components/GeneratingState";
 import { OptionCard, optionTitle } from "@/components/OptionCard";
-import { Results } from "@/components/Results";
+import { ResultsBoard } from "@/components/ResultsBoard";
 import { TripForm } from "@/components/TripForm";
-import { Badge } from "@/components/ui/Badge";
+import { TripHeader } from "@/components/TripHeader";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { StatusFlap } from "@/components/ui/Flap";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/Tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useFetch } from "@/hooks/useFetch";
 import { admin, ApiError, itineraries, participants, trips, votes } from "@/lib/api";
-import { STATUS, formatDateRange } from "@/lib/trip";
+import { formatDateRange } from "@/lib/trip";
 import type { Itinerary, Participant, Trip, VotingResults } from "@/types";
 
 const TABS = ["overview", "participants", "options", "results"] as const;
@@ -50,6 +51,10 @@ async function load(tripId: number): Promise<Data> {
   return { trip, people, options, results };
 }
 
+const SECTION = "border-t-2 border-foreground pt-4";
+const DT = "font-mono text-xs tracking-wider text-muted-foreground uppercase";
+const DD = "mt-1 text-xl font-semibold break-words tabular-nums";
+
 const errMsg = (err: unknown, fallback: string) =>
   err instanceof ApiError ? err.message : fallback;
 
@@ -73,12 +78,18 @@ export default function TripDetail() {
   const [deleting, setDeleting] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [pick, setPick] = useState("");
+  // Replay the results board only once the user has switched tabs in this session.
+  const [tabTouched, setTabTouched] = useState(false);
 
   if (isLoading) {
     return (
       <div role="status" aria-label="Loading trip" className="flex flex-col gap-4">
         <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-9 w-72 max-w-full" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <Skeleton className="h-9 w-72 max-w-full" />
+          <Skeleton className="h-7 w-40" />
+        </div>
+        <Skeleton className="h-9 w-full" />
         <Skeleton className="h-11 w-full" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -93,7 +104,7 @@ export default function TripDetail() {
         </Link>
         <div
           role="alert"
-          className="flex w-full items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger-subtle px-4 py-3 text-sm text-danger"
+          className="flex w-full items-center justify-between gap-3 border-t-2 border-danger pt-4 text-sm text-danger"
         >
           <span>{error ?? "Failed to load trip."}</span>
           <Button variant="secondary" size="sm" onClick={refetch}>
@@ -114,6 +125,7 @@ export default function TripDetail() {
   ).length;
   const dates = formatDateRange(trip.proposed_start_date, trip.proposed_end_date);
   const picked = current.find((o) => String(o.id) === pick);
+  const ballotOpen = !!me && current.length > 0 && !me.has_voted_current_iteration;
 
   // One shared busy flag: the running action shows a spinner, every other action is disabled.
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
@@ -189,19 +201,9 @@ export default function TripDetail() {
       "Could not send emails."
     );
 
-  const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(trip.trip_code);
-      toast.success("Trip code copied.");
-    } catch {
-      toast.error("Could not copy the code.");
-    }
-  };
-
   const voted = people.filter((p) => p.has_voted_current_iteration).length;
   const waiting = people.length - voted;
   const winner = options.find((o) => o.id === trip.winner_itinerary_id);
-  const lastRound = results?.rounds[results.rounds.length - 1];
   const groups = [...new Set(options.map((o) => o.iteration_number))].sort((a, b) => b - a);
 
   return (
@@ -214,34 +216,29 @@ export default function TripDetail() {
         Back to dashboard
       </Link>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{trip.title}</h1>
-        <Badge tone={STATUS[status].tone}>{STATUS[status].label}</Badge>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
-        <span>{trip.destination || "Surprise me"}</span>
-        {error && (
-          <span role="status" className="text-warning">
-            Couldn&apos;t refresh. Showing the last loaded data.
-          </span>
-        )}
-        <button
-          type="button"
-          aria-label={`Copy trip code ${trip.trip_code}`}
-          onClick={() => {
-            void copyCode();
-          }}
-          className="inline-flex min-h-11 items-center gap-1.5 font-mono hover:text-foreground"
-        >
-          {trip.trip_code}
-          <Copy className="size-3.5" aria-hidden="true" />
-        </button>
+      <div className="mt-3">
+        <TripHeader
+          code={trip.trip_code}
+          title={trip.title}
+          status={status}
+          subline={
+            <>
+              <span>{trip.destination || "Surprise me"}</span>
+              {error && (
+                <span role="status" className="text-warning">
+                  Couldn&apos;t refresh. Showing the last loaded data.
+                </span>
+              )}
+            </>
+          }
+        />
       </div>
 
       <Tabs
         className="mt-4"
         value={tab}
         onValueChange={(v) => {
+          setTabTouched(true);
           setParams({ tab: String(v) }, { replace: true });
         }}
       >
@@ -257,33 +254,14 @@ export default function TripDetail() {
           <TabsTab value="results">Results</TabsTab>
         </TabsList>
 
-        <TabsPanel value="overview" className="flex flex-col gap-6 pt-5">
-          <dl className="grid grid-cols-2 gap-4 rounded-xl border bg-surface p-4 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-muted-foreground">Dates</dt>
-              <dd className="mt-0.5 font-medium">{dates ?? "Flexible"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Iteration</dt>
-              <dd className="mt-0.5 font-medium tabular-nums">
-                {trip.current_iteration} / {trip.max_iterations}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Options per round</dt>
-              <dd className="mt-0.5 font-medium tabular-nums">{trip.num_options}</dd>
-            </div>
-            {trip.notes && (
-              <div className="col-span-2 sm:col-span-3">
-                <dt className="text-muted-foreground">Notes</dt>
-                <dd className="mt-0.5 whitespace-pre-wrap">{trip.notes}</dd>
-              </div>
-            )}
-          </dl>
-
+        <TabsPanel value="overview" className="flex flex-col gap-8 pt-5">
           {(status === "CREATED" || status === "COLLECTING_PREFERENCES") && (
-            <div className="flex flex-col items-start gap-2">
-              <div className="flex flex-wrap gap-2">
+            <section className={SECTION}>
+              <h2 className="text-base font-semibold">Ready when you are</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                You can generate before everyone has responded.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   loading={busy === "generate"}
                   disabled={busy !== null}
@@ -303,10 +281,7 @@ export default function TripDetail() {
                   Edit trip
                 </Button>
               </div>
-              <p className="text-sm text-muted-foreground">
-                You can generate before everyone has responded.
-              </p>
-            </div>
+            </section>
           )}
 
           {status === "GENERATING" && <GeneratingState status="generating" />}
@@ -335,12 +310,12 @@ export default function TripDetail() {
           )}
 
           {isVotingPhase && (
-            <section aria-label="Finish voting" className="flex flex-col gap-4">
+            <>
               {current.length > 0 && me && (
-                <div className="rounded-xl border bg-surface p-4">
-                  <h2 className="text-sm font-semibold">Your vote</h2>
+                <section aria-label="Your vote" className={SECTION}>
+                  <h2 className="text-base font-semibold">Your vote</h2>
                   {me.has_voted_current_iteration ? (
-                    <p className="mt-2 flex items-center gap-2 text-sm text-success">
+                    <p className="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-success">
                       <Check className="size-4" aria-hidden="true" />
                       Your vote is in
                       <span className="text-muted-foreground">
@@ -365,11 +340,11 @@ export default function TripDetail() {
                       />
                     </div>
                   )}
-                </div>
+                </section>
               )}
 
-              <div className="rounded-xl border bg-surface p-4">
-                <h2 className="text-sm font-semibold">Pick the winner</h2>
+              <section aria-label="Pick the winner" className={SECTION}>
+                <h2 className="text-base font-semibold">Pick the winner</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Skip the vote and finalize an option yourself.
                 </p>
@@ -391,6 +366,7 @@ export default function TripDetail() {
                   </Select>
                   <Button
                     className="sm:shrink-0"
+                    variant={ballotOpen ? "secondary" : "primary"}
                     loading={busy === "finalize"}
                     disabled={busy !== null || !picked}
                     onClick={() => {
@@ -400,7 +376,7 @@ export default function TripDetail() {
                     Finalize
                   </Button>
                 </div>
-              </div>
+              </section>
 
               {trip.current_iteration < trip.max_iterations && (
                 <div className="flex flex-wrap items-center gap-3">
@@ -419,28 +395,54 @@ export default function TripDetail() {
                   </span>
                 </div>
               )}
-            </section>
+            </>
           )}
 
           {status === "FINALIZED" && (
-            <p className="flex items-center gap-2 rounded-xl bg-success-subtle px-4 py-3 text-sm font-medium text-success">
-              <Check className="size-4" aria-hidden="true" />
-              Trip finalized
-              {winner && `: ${optionTitle(winner)}`}
-            </p>
+            <section aria-label="Winner" className={SECTION}>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <StatusFlap tone="success">Winner</StatusFlap>
+                <p className="min-w-0 text-xl font-semibold break-words">
+                  {winner ? optionTitle(winner) : "Trip finalized"}
+                </p>
+              </div>
+            </section>
           )}
+
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
+            <div className="col-span-2 min-w-0 sm:col-span-1">
+              <dt className={DT}>Dates</dt>
+              <dd className={DD}>{dates ?? "Flexible"}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className={DT}>Iteration</dt>
+              <dd className={DD}>
+                {trip.current_iteration} / {trip.max_iterations}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className={DT}>Options per round</dt>
+              <dd className={DD}>{trip.num_options}</dd>
+            </div>
+            {trip.notes && (
+              <div className="col-span-2 min-w-0 sm:col-span-3">
+                <dt className={DT}>Notes</dt>
+                <dd className="mt-1 break-words whitespace-pre-wrap">{trip.notes}</dd>
+              </div>
+            )}
+          </dl>
 
           {status !== "GENERATING" && (
             <section
               aria-label="Danger zone"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 p-4"
+              className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"
             >
-              <div>
-                <h2 className="text-sm font-semibold text-danger">Delete trip</h2>
-                <p className="text-sm text-muted-foreground">This cannot be undone.</p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Deleting a trip removes everything in it. This cannot be undone.
+              </p>
               <Button
-                variant="danger"
+                variant="ghost"
+                className="text-danger"
                 disabled={busy !== null}
                 onClick={() => {
                   setDeleting(true);
@@ -454,11 +456,11 @@ export default function TripDetail() {
 
         <TabsPanel value="participants">
           {people.length === 0 ? (
-            <EmptyState icon={Users} title="No participants yet" text="Nobody has been invited." />
+            <EmptyState title="No participants yet" text="Nobody has been invited." />
           ) : (
-            <div>
+            <section className={SECTION}>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-medium tabular-nums">
+                <p className="text-2xl font-semibold tabular-nums">
                   {done} of {people.length} {isVotingPhase ? "votes" : "preferences"} submitted
                 </p>
                 <Button
@@ -474,61 +476,67 @@ export default function TripDetail() {
                   Resend all
                 </Button>
               </div>
-              <ul className="mt-3 divide-y overflow-hidden rounded-xl border">
+              <ul className="mt-3 divide-y border-y">
                 {people.map((p) => {
                   const ok = isVotingPhase
                     ? p.has_voted_current_iteration
                     : p.preferences_submitted;
                   return (
-                    <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-                      {ok ? (
-                        <Check className="size-4 shrink-0 text-success" aria-hidden="true" />
-                      ) : (
-                        <X className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      )}
-                      <span className="sr-only">{ok ? "Submitted" : "Pending"}</span>
-                      <div className="min-w-0 flex-1">
+                    <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+                      <div className="min-w-0 flex-1 basis-40">
                         <p className="flex items-center gap-2 text-sm font-medium">
                           <span className="truncate">{p.name || p.email}</span>
-                          {p.email === user?.email && <Badge>Organizer</Badge>}
+                          {p.email === user?.email && (
+                            <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+                              Organizer
+                            </span>
+                          )}
                         </p>
                         {p.name && (
                           <p className="truncate text-xs text-muted-foreground">{p.email}</p>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Resend email to ${p.email}`}
-                        loading={busy === `resend-${p.id.toString()}`}
-                        disabled={busy !== null}
-                        onClick={() => {
-                          void resend(`resend-${p.id.toString()}`, () =>
-                            admin.resendOne(trip.id, p.id)
-                          );
-                        }}
-                      >
-                        Resend
-                      </Button>
+                      <div className="ml-auto flex shrink-0 items-center gap-3">
+                        <StatusFlap tone={ok ? "success" : "muted"}>
+                          {ok ? "Submitted" : "Pending"}
+                        </StatusFlap>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Resend email to ${p.email}`}
+                          loading={busy === `resend-${p.id.toString()}`}
+                          disabled={busy !== null}
+                          onClick={() => {
+                            void resend(`resend-${p.id.toString()}`, () =>
+                              admin.resendOne(trip.id, p.id)
+                            );
+                          }}
+                        >
+                          Resend
+                        </Button>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
-            </div>
+            </section>
           )}
         </TabsPanel>
 
         <TabsPanel value="options" className="flex flex-col gap-8 pt-5">
           {options.length === 0 ? (
             <EmptyState
-              icon={Layers}
               title="No options yet"
               text="Generate options once your group has responded."
             />
           ) : (
             groups.map((iteration) => (
-              <section key={iteration} aria-label={`Iteration ${iteration.toString()}`}>
-                <h2 className="mb-3 text-sm font-semibold">Iteration {iteration}</h2>
+              <section
+                key={iteration}
+                aria-label={`Iteration ${iteration.toString()}`}
+                className={SECTION}
+              >
+                <h2 className="mb-3 text-base font-semibold">Iteration {iteration}</h2>
                 <div className="grid gap-4 md:grid-cols-2">
                   {options
                     .filter((o) => o.iteration_number === iteration)
@@ -541,11 +549,6 @@ export default function TripDetail() {
                       <OptionCard
                         key={o.id}
                         option={o}
-                        votes={
-                          results?.iteration_number === iteration
-                            ? lastRound?.results[o.id]
-                            : undefined
-                        }
                         winner={o.id === trip.winner_itinerary_id}
                         dimmed={
                           trip.winner_itinerary_id !== null && o.id !== trip.winner_itinerary_id
@@ -559,10 +562,15 @@ export default function TripDetail() {
         </TabsPanel>
 
         <TabsPanel value="results">
-          {results && results.rounds.length > 0 ? (
-            <Results results={results} options={current} />
+          {results ? (
+            <ResultsBoard
+              results={results}
+              options={options}
+              final={status === "FINALIZED"}
+              playOnMount={tabTouched}
+            />
           ) : (
-            <EmptyState icon={Vote} title="No votes yet" text="No votes recorded yet." />
+            <EmptyState title="No results yet" text="Results appear once voting opens." />
           )}
         </TabsPanel>
       </Tabs>

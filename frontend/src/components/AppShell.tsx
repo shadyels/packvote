@@ -1,7 +1,8 @@
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
 import { Toaster } from "@/components/ui/Toaster";
+import { cn } from "@/lib/trip";
 
 const navLink =
   "text-muted-foreground hover:text-foreground inline-flex h-11 items-center px-2 text-sm transition-colors";
@@ -41,9 +42,18 @@ export default function AppShell() {
                 <span className="mr-2 hidden max-w-48 truncate text-sm text-muted-foreground sm:block">
                   {user?.email}
                 </span>
-                <Link to="/dashboard" className={navLink}>
+                <NavLink
+                  to="/dashboard"
+                  className={({ isActive }) =>
+                    cn(
+                      navLink,
+                      isActive &&
+                        "text-foreground underline decoration-accent-ink decoration-2 underline-offset-8"
+                    )
+                  }
+                >
                   Dashboard
-                </Link>
+                </NavLink>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   Log out
                 </Button>

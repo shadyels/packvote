@@ -3,10 +3,12 @@ import {
   STATUS,
   cn,
   daysBetween,
+  flapText,
   formatDateRange,
   maxTripDays,
   parseDate,
   toISODate,
+  tripStage,
 } from "../trip";
 import type { TripStatus } from "@/types";
 
@@ -100,5 +102,38 @@ describe("dates", () => {
     expect(formatDateRange("2025-06-01", null)).toMatch(/^From /);
     expect(formatDateRange(null, "2025-06-08")).toMatch(/^Until /);
     expect(formatDateRange("2025-06-01", "2025-06-08")).toContain(" – ");
+  });
+});
+
+describe("flapText", () => {
+  it("keeps the part before the first comma", () => {
+    expect(flapText("Naxos, Greece")).toBe("Naxos");
+  });
+
+  it("caps at 12 characters", () => {
+    expect(flapText("Mediterranean coast")).toBe("Mediterranea");
+  });
+
+  it("falls back to the whole string when the head is empty", () => {
+    expect(flapText(", Greece")).toBe(", Greece");
+  });
+
+  it("trims whitespace, including after the cap", () => {
+    expect(flapText("  Naxos  , Greece")).toBe("Naxos");
+    expect(flapText("Sri Lanka tour", 8)).toBe("Sri Lank");
+    expect(flapText("Sri Lanka tour", 4)).toBe("Sri");
+  });
+});
+
+describe("tripStage", () => {
+  it.each([
+    ["CREATED", 0, false],
+    ["COLLECTING_PREFERENCES", 0, false],
+    ["GENERATING", 1, false],
+    ["GENERATION_FAILED", 1, true],
+    ["VOTING", 2, false],
+    ["FINALIZED", 3, false],
+  ] as const)("%s -> index %i, failed %s", (status, index, failed) => {
+    expect(tripStage(status)).toEqual({ index, failed });
   });
 });

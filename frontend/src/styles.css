@@ -6,10 +6,10 @@
  * board (blue-black, cool-white type, signal yellow). Light values live in @theme; dark overrides
  * are below, driven by prefers-color-scheme only.
  * `accent` is a FILL (bg-accent + text-accent-foreground). In light mode yellow appears only as a
- * fill: `accent-subtle` is the solid accent there and `accent-ink` is black, so text, rings and
- * underlines use `accent-ink` (dark mode uses yellow for both). Green = success (boarding / winner),
- * red = danger (eliminated); `flap`, `flap-ink` and `flap-edge` colour the split-flap letter tiles
- * (near-black in both themes, edge line only in dark); orange `warning` stays visibly apart from the yellow accent.
+ * fill and `accent-ink` is black, so text, rings and underlines use `accent-ink` (dark mode uses
+ * yellow for both). Green = success (boarding / winner), red = danger (eliminated); `flap`,
+ * `flap-ink` and `flap-edge` colour the split-flap letter tiles (near-black in both themes, edge
+ * line only in dark); orange `warning` stays visibly apart from the yellow accent.
  * Contrast: text >= 4.5:1 on background, surface and muted; rings and non-text UI >= 3:1.
  */
 @theme {
@@ -22,15 +22,12 @@
 
   --color-accent: #ffc81e;
   --color-accent-foreground: #0e1116;
-  --color-accent-subtle: #ffc81e;
   --color-accent-ink: #0e1116;
 
   --color-danger: #b42318;
   --color-danger-subtle: #fdecea;
   --color-warning: #b4370a;
-  --color-warning-subtle: #ffedd5;
   --color-success: #13723f;
-  --color-success-subtle: #e3f4ea;
   --color-overlay: #00000066;
 
   --color-flap: #0e1116;
@@ -43,7 +40,6 @@
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --animate-fade-in: fade-in 180ms ease-out both;
-  --animate-slide-up: slide-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-flip: flip 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 
   @keyframes fade-in {
@@ -64,16 +60,6 @@
       transform: perspective(300px) rotateX(0);
     }
   }
-  @keyframes slide-up {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -87,15 +73,12 @@
 
     --color-accent: #ffc81e;
     --color-accent-foreground: #0b0f17;
-    --color-accent-subtle: #2b2410;
     --color-accent-ink: #ffc81e;
 
     --color-danger: #f87171;
     --color-danger-subtle: #2b1416;
     --color-warning: #fb923c;
-    --color-warning-subtle: #2b1a0c;
     --color-success: #4ade80;
-    --color-success-subtle: #0f2a18;
     --color-overlay: #000000b3;
 
     --color-flap: #05070b;

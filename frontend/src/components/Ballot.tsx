@@ -21,6 +21,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { FlapWord } from "@/components/ui/Flap";
+import { useFlip } from "@/hooks/useFlip";
 import { cn } from "@/lib/trip";
 import { formatBudget, optionTitle } from "@/components/OptionCard";
 import type { Itinerary } from "@/types";
@@ -57,6 +59,7 @@ function Row({ option, rank, total, onMove }: RowProps) {
   return (
     <li
       ref={setNodeRef}
+      data-flip-id={option.id}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         "flex items-center gap-1 rounded-xl border bg-surface py-1 pr-1 pl-1",
@@ -73,15 +76,7 @@ function Row({ option, rank, total, onMove }: RowProps) {
       >
         <GripVertical className="size-5" aria-hidden="true" />
       </button>
-      <span
-        className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
-          rank === 1 ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
-        )}
-        aria-hidden="true"
-      >
-        {rank}
-      </span>
+      <FlapWord text={rank.toString()} label={null} size="sm" className="shrink-0" />
       <div className="min-w-0 flex-1 px-2">
         <p className="truncate text-sm font-medium">
           <span className="sr-only">{`Rank ${rank.toString()}: `}</span>
@@ -124,9 +119,9 @@ export function Ballot({ options, onSubmit, submitLabel }: BallotProps) {
   const [order, setOrder] = useState({ key: optionKey, ids: options.map((o) => o.id) });
   const [pending, setPending] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  const list = useRef<HTMLOListElement>(null);
   const refocus = useRef<{ id: number; dir: -1 | 1 } | null>(null);
   const dndId = useId();
+  const flip = useFlip<HTMLOListElement>(order, 300);
 
   // New option set (e.g. next iteration) -> start from the new options, not the stale order.
   if (order.key !== optionKey) setOrder({ key: optionKey, ids: options.map((o) => o.id) });
@@ -140,11 +135,13 @@ export function Ballot({ options, onSubmit, submitLabel }: BallotProps) {
     refocus.current = null;
     const [same, other] = target.dir === -1 ? ["up", "down"] : ["down", "up"];
     const find = (d: string) =>
-      list.current?.querySelector<HTMLButtonElement>(`[data-move="${target.id.toString()}-${d}"]`);
+      flip.ref.current?.querySelector<HTMLButtonElement>(
+        `[data-move="${target.id.toString()}-${d}"]`
+      );
     // At the end of the list the same-direction button is disabled; keep focus on the other one.
     const btn = find(same);
     (btn && !btn.disabled ? btn : find(other))?.focus();
-  }, [order]);
+  }, [order, flip.ref]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -165,6 +162,7 @@ export function Ballot({ options, onSubmit, submitLabel }: BallotProps) {
     const to = from + dir;
     if (to < 0 || to >= ids.length) return;
     refocus.current = { id, dir };
+    flip.capture();
     apply(arrayMove(ids, from, to), id);
   };
 
@@ -212,7 +210,7 @@ export function Ballot({ options, onSubmit, submitLabel }: BallotProps) {
         onDragEnd={onDragEnd}
       >
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          <ol ref={list} className="flex flex-col gap-2">
+          <ol ref={flip.ref} className="flex flex-col gap-2">
             {ids.map((id, i) => (
               <Row
                 key={id}
