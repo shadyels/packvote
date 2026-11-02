@@ -45,4 +45,5 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - `.catch(() => ({}))` on `res.json()` covers parse failures only; valid-but-unexpected JSON (`null`, null array entries) still breaks destructuring and can skip the error path (incl. logout notification).
 - When a feature is removed, grep docs and the root CLAUDE.md as well as code; stale docs naming a removed `VITE_*_KEY` invite reintroducing a secret into the client bundle.
 - When URL paths or queries carry tokens and the page loads third-party resources, pin the referrer policy with a meta tag instead of relying on the browser default, and state that assumption explicitly.
+- When a redesign swaps a component for one that renders more fields, diff the rendered field set old vs new (e.g. a trip code now shown on rows that didn't show it) even if the API already carried the data, and grade it by the field's role in a credential.
 <!-- END learned-lessons -->

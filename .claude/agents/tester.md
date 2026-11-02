@@ -43,4 +43,7 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - Contrast audits must include generated content: `getComputedStyle(el, "::before")` color and opacity, against every ground it sits on (DOM-text-only checks missed a 1.64:1 label).
 - Programmatic `.focus()` does not trigger `:focus-visible`; reach elements with real Tab presses before judging focus rings.
 - Start your own dev server on a free port and stop it by PID only; never `pkill node`/`vite` — a cleanup sweep once killed the preview server the user was viewing.
+- Screenshot evidence: use absolute paths, read route/tab ids from source (never guess `?tab=`), assert the intended state (selected tab name, key text) before each capture, and run an md5 duplicate check over the set before reporting.
+- Layout checks: a document-level `scrollWidth` misses clipping inside `overflow-hidden` containers, so compare scroll/client widths per clipping element; find dead zones of stretched-link rows with `elementFromPoint` on each positioned child, then confirm with a real click.
+- When staging states in a seeded DB, first check the rows match what the brief claims, save every row you mutate to a file, and diff-restore each one; report extra rows you had to touch.
 <!-- END learned-lessons -->
