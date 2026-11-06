@@ -110,8 +110,11 @@ function DayStrip({
   );
 }
 
-// Node centre from the top of a stop: row 1 is a 16px slot label or a 24px title; later stops add the 20px gap.
-const GAP = 20;
+// Offsets are in spacing units (rem-based via --spacing) so they track the pt-5 / leading-4 / leading-6 classes
+// when the user's default font size is not 16px. Node centre from the top of a stop: row 1 is a
+// leading-4 slot label or a leading-6 title (half = 2 or 3 units); later stops add the pt-5 gap.
+const GAP = 5;
+const u = (n: number) => `calc(var(--spacing) * ${n.toString()})`;
 
 /** Transit-line diagram: square nodes joined by a 2px rule; slot label only when it changes. */
 function Route({ activities }: { activities: DailyActivity[] }) {
@@ -121,7 +124,7 @@ function Route({ activities }: { activities: DailyActivity[] }) {
         const first = i === 0;
         const last = i === activities.length - 1;
         const label = a.time !== null && a.time !== activities[i - 1]?.time ? a.time : null;
-        const centre = (first ? 0 : GAP) + (label ? 8 : 12);
+        const centre = (first ? 0 : GAP) + (label ? 2 : 3);
         return (
           <li key={`${a.title}-${i.toString()}`} className="relative pl-6 not-first:pt-5">
             {!(first && last) && (
@@ -129,15 +132,15 @@ function Route({ activities }: { activities: DailyActivity[] }) {
                 aria-hidden="true"
                 className="absolute left-1 w-0.5 bg-foreground"
                 style={{
-                  top: first ? centre : 0,
-                  bottom: last ? `calc(100% - ${centre.toString()}px)` : 0,
+                  top: first ? u(centre) : 0,
+                  bottom: last ? `calc(100% - ${u(centre)})` : 0,
                 }}
               />
             )}
             <span
               aria-hidden="true"
               className="absolute left-0 size-2.5 rounded-sm bg-foreground"
-              style={{ top: centre - 5 }}
+              style={{ top: u(centre - 1.25) }}
             />
             {label && (
               <p className="font-mono text-xs leading-4 font-medium tracking-wider text-muted-foreground uppercase">
@@ -255,7 +258,9 @@ export function OptionCard({ option, winner = false, dimmed = false }: OptionCar
               <FlapWord text={`DAY ${pad2(day + 1)}`} label={null} size="board" />
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <h3 className="min-w-0 text-2xl font-semibold tracking-tight">{current.title}</h3>
-                <p className="text-sm text-muted-foreground">{option.destination_name}</p>
+                {option.option_title && (
+                  <p className="text-sm text-muted-foreground">{option.destination_name}</p>
+                )}
               </div>
             </div>
             <div key={day} className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto">

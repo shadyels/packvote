@@ -68,6 +68,9 @@ describe("OptionCard day-by-day", () => {
     const next = within(dialog).getByRole("button", { name: "Next day" });
     await userEvent.click(next);
     expect(isCurrent(dialog, 3)).toBe(true);
+    // jsdom doesn't blur an element that becomes `disabled`, so assert the attributes too.
+    expect(next).toBeEnabled();
+    expect(next).toHaveAttribute("aria-disabled", "true");
     expect(document.activeElement).toBe(next);
   });
 

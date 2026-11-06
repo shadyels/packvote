@@ -89,7 +89,7 @@ def _make_itinerary_option(destination: str = "Barcelona") -> ItineraryOption:
                 title="Arrival day",
                 activities=[
                     DailyActivity(
-                        time="10:00",
+                        time="morning",
                         title="Check in",
                         description="Settle into the hotel.",
                         estimated_cost=None,

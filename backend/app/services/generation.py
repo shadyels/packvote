@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "v4"
 
-ITINERARY_PROMPT_V3 = """\
+ITINERARY_PROMPT_V4 = """\
 [SYSTEM]
 You are an expert travel planner. Generate exactly {num_options} distinct travel itinerary options for a group trip. Respond with valid JSON ONLY — no markdown, no prose outside the JSON.
 
@@ -93,7 +93,7 @@ Rules:
 - Each option must cover all {trip_duration_days} days of the trip.
 - Each day must have exactly 4 activities.
 - Of each day's 4 activities, exactly 3 must reference a specific named venue, dish, or experience. Exactly 1 must be an unstructured neighborhood exploration (no fixed destination) — but still written with full descriptive depth: describe the area's vibe, what to look for, a landmark to orient around.
-- NEVER use logistics as activities: no check-in, check-out, arrival, departure, hotel settling, packing, transfers, or airport activities. Every activity slot must be a real experience the group will remember.
+- NEVER use logistics as activities: no check-in, check-out, arrival, departure, hotel settling, packing, transfers, or airport activities. Every activity must be a real experience the group will remember.
 - Meals are NOT activities unless they reference a specific, well-known restaurant or food experience by name (e.g. "Dinner at Noma", "Tsukiji tuna auction breakfast", "Michelin-starred lunch at Osteria Francescana"). Generic meals — "lunch at a local restaurant", "dinner in the old town", "grab street food" — are banned.
 - Each activity's "time" is the part of the day it happens: exactly one of the lowercase words morning, afternoon, evening, night. Keep activities in chronological order so slots never go backwards within a day. Repeating a slot is allowed (e.g. two morning activities). Never use clock times.
 - All estimated_cost fields must be null (price data is not available yet).
@@ -488,7 +488,7 @@ def _render_prompt(
 
     preferences_block = _build_preferences_block(preferences)
 
-    return ITINERARY_PROMPT_V3.format(
+    return ITINERARY_PROMPT_V4.format(
         num_options=trip.num_options,
         trip_duration_days=trip_duration_days,
         trip_title=f"<<<USER DATA>>>{sanitize_text(trip.title)}<<<END USER DATA>>>",

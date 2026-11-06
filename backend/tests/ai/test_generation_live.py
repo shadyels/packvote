@@ -15,7 +15,7 @@ import pytest
 from app.schemas.itinerary import AIGenerationResponse
 from app.services.ai.json_utils import AIInputError
 from app.services.ai.service import AIService
-from app.services.generation import ITINERARY_PROMPT_V3
+from app.services.generation import ITINERARY_PROMPT_V4
 
 _OPEN_DESTINATION = "DESTINATION: Open — suggest the best fit for this group"
 
@@ -25,7 +25,7 @@ def _build_minimal_prompt(
     destination_constraint: str = _OPEN_DESTINATION,
 ) -> str:
     """Minimal rendered prompt for live testing — no DB needed."""
-    return ITINERARY_PROMPT_V3.format(
+    return ITINERARY_PROMPT_V4.format(
         num_options=num_options,
         trip_duration_days=5,
         trip_title="Live Test Trip",
@@ -215,7 +215,7 @@ class TestErrorEnvelopeLive:
     async def test_contradictory_dates_raises_ai_input_error(self) -> None:
         """AI may detect end-before-start dates as invalid input."""
         service = AIService.from_settings()
-        prompt = ITINERARY_PROMPT_V3.format(
+        prompt = ITINERARY_PROMPT_V4.format(
             num_options=1,
             trip_duration_days=0,
             trip_title="Impossible Trip",

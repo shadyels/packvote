@@ -1,15 +1,16 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, field_validator
 
-TIME_SLOTS = ("morning", "afternoon", "evening", "night")
+TimeSlot = Literal["morning", "afternoon", "evening", "night"]
+TIME_SLOTS = get_args(TimeSlot)
 
 
 class DailyActivity(BaseModel):
     # Part of day. Lenient on purpose: an AI typo must not fail a rate-limited
     # generation, and rows stored before v4 hold clock times or null.
-    time: Literal["morning", "afternoon", "evening", "night"] | None = None
+    time: TimeSlot | None = None
     title: str
     description: str
     estimated_cost: float | None = None  # Phase 2 price field
