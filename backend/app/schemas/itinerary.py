@@ -1,13 +1,24 @@
 from datetime import datetime
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+TIME_SLOTS = ("morning", "afternoon", "evening", "night")
 
 
 class DailyActivity(BaseModel):
-    time: str | None = None
+    # Part of day. Lenient on purpose: an AI typo must not fail a rate-limited
+    # generation, and rows stored before v4 hold clock times or null.
+    time: Literal["morning", "afternoon", "evening", "night"] | None = None
     title: str
     description: str
     estimated_cost: float | None = None  # Phase 2 price field
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def _coerce_time_slot(cls, v: Any) -> str | None:
+        slot = v.strip().lower() if isinstance(v, str) else None
+        return slot if slot in TIME_SLOTS else None
 
 
 class DayItinerary(BaseModel):
