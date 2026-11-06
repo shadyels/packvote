@@ -51,12 +51,24 @@ describe("OptionCard day-by-day", () => {
     const dialog = await open();
     expect(within(dialog).getByText("Day 1 of 3")).toBeInTheDocument();
     expect(isCurrent(dialog, 1)).toBe(true);
-    expect(within(dialog).getByRole("button", { name: "Previous day" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Previous day" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     await userEvent.click(within(dialog).getByRole("button", { name: "Next day" }));
     expect(within(dialog).getByText("Day 2 of 3")).toBeInTheDocument();
     expect(within(dialog).getByText("Act 2")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Previous day" }));
     expect(isCurrent(dialog, 1)).toBe(true);
+  });
+
+  it("keeps focus on Next after reaching the last day", async () => {
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Day 2" }));
+    const next = within(dialog).getByRole("button", { name: "Next day" });
+    await userEvent.click(next);
+    expect(isCurrent(dialog, 3)).toBe(true);
+    expect(document.activeElement).toBe(next);
   });
 
   it("jumps to a day from the strip", async () => {
@@ -65,7 +77,10 @@ describe("OptionCard day-by-day", () => {
     expect(isCurrent(dialog, 3)).toBe(true);
     expect(isCurrent(dialog, 1)).toBe(false);
     expect(within(dialog).getByText("Act 3")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Next day" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Next day" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
   });
 
   it("prints a slot label once per run of equal slots, and none for null", async () => {
@@ -89,7 +104,10 @@ describe("OptionCard day-by-day", () => {
     fireEvent.keyDown(window, { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(isCurrent(dialog, 3)).toBe(true);
-    expect(within(dialog).getByRole("button", { name: "Next day" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Next day" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(isCurrent(dialog, 2)).toBe(true);
   });

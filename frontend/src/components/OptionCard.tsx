@@ -37,10 +37,12 @@ function DayButton({
       aria-current={current ? "step" : undefined}
       onClick={onSelect}
       className={cn(
-        "flex h-11 w-full min-w-11 items-start pt-2 font-mono text-xs font-medium tracking-wider tabular-nums",
-        state === "past" && "border-t-2 border-foreground",
-        current && "border-t-2 border-accent-ink",
-        state === "next" && "border-t border-border text-muted-foreground hover:text-foreground"
+        // pt-[9px] under a 1px rule matches pt-2 under the 2px rule, so the numerals share a baseline.
+        "flex h-11 w-full min-w-11 items-start font-mono text-xs font-medium tracking-wider tabular-nums",
+        state === "past" && "border-t border-foreground pt-[9px]",
+        current && "border-t-2 border-accent-ink pt-2 font-semibold",
+        state === "next" &&
+          "border-t border-border pt-[9px] text-muted-foreground hover:text-foreground"
       )}
     >
       {pad2(n)}
@@ -48,7 +50,11 @@ function DayButton({
   );
 }
 
-/** Gate strip for days: passed days a heavy rule, the current day an accent-ink rule. */
+// aria-disabled (not `disabled`) at the ends so focus stays on the button that was just pressed.
+const endClass =
+  "aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent aria-disabled:active:scale-100";
+
+/** Gate strip for days: passed days a thin foreground rule, the current day a heavier accent-ink rule and bold numeral. */
 function DayStrip({
   day,
   count,
@@ -64,9 +70,10 @@ function DayStrip({
         variant="ghost"
         size="icon"
         aria-label="Previous day"
-        disabled={day === 0}
+        aria-disabled={day === 0}
+        className={endClass}
         onClick={() => {
-          onSelect(day - 1);
+          if (day > 0) onSelect(day - 1);
         }}
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
@@ -88,9 +95,10 @@ function DayStrip({
         variant="ghost"
         size="icon"
         aria-label="Next day"
-        disabled={day === count - 1}
+        aria-disabled={day === count - 1}
+        className={endClass}
         onClick={() => {
-          onSelect(day + 1);
+          if (day < count - 1) onSelect(day + 1);
         }}
       >
         <ArrowRight className="size-4" aria-hidden="true" />
@@ -237,19 +245,22 @@ export function OptionCard({ option, winner = false, dimmed = false }: OptionCar
           if (!open) setDay(null);
         }}
         title={optionTitle(option)}
-        className="sm:max-w-xl"
+        // Fixed height so the strip never moves between days; only the route scrolls.
+        className="flex h-[90dvh] flex-col overflow-hidden sm:h-[min(90dvh,44rem)] sm:max-w-xl"
       >
         {current && day !== null && (
-          <div className="flex flex-col gap-5">
+          <div className="flex min-h-0 flex-1 flex-col gap-5">
             <DayStrip day={day} count={days.length} onSelect={setDay} />
-            <div className="flex flex-col gap-3">
+            <div className="flex shrink-0 flex-col gap-3">
               <FlapWord text={`DAY ${pad2(day + 1)}`} label={null} size="board" />
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <h3 className="min-w-0 text-2xl font-semibold tracking-tight">{current.title}</h3>
                 <p className="text-sm text-muted-foreground">{option.destination_name}</p>
               </div>
             </div>
-            <Route activities={current.activities} />
+            <div key={day} className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto">
+              <Route activities={current.activities} />
+            </div>
           </div>
         )}
       </Dialog>
