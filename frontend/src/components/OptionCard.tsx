@@ -1,15 +1,149 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
-import { StatusFlap } from "@/components/ui/Flap";
+import { FlapWord, StatusFlap } from "@/components/ui/Flap";
 import { cn } from "@/lib/trip";
-import type { Itinerary } from "@/types";
+import type { DailyActivity, Itinerary } from "@/types";
 
 export const optionTitle = (o: Itinerary) => o.option_title ?? o.destination_name;
 
 export const formatBudget = (o: Itinerary) =>
   `${o.currency} ${o.total_estimated_budget.toLocaleString()}`;
+
+const pad2 = (n: number) => n.toString().padStart(2, "0");
+
+function DayButton({
+  n,
+  state,
+  onSelect,
+}: {
+  n: number;
+  state: "past" | "current" | "next";
+  onSelect: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const current = state === "current";
+  useEffect(() => {
+    // jsdom has no scrollIntoView
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (current) ref.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [current]);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-label={`Day ${n.toString()}`}
+      aria-current={current ? "step" : undefined}
+      onClick={onSelect}
+      className={cn(
+        "flex h-11 w-full min-w-11 items-start pt-2 font-mono text-xs font-medium tracking-wider tabular-nums",
+        state === "past" && "border-t-2 border-foreground",
+        current && "border-t-2 border-accent-ink",
+        state === "next" && "border-t border-border text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {pad2(n)}
+    </button>
+  );
+}
+
+/** Gate strip for days: passed days a heavy rule, the current day an accent-ink rule. */
+function DayStrip({
+  day,
+  count,
+  onSelect,
+}: {
+  day: number;
+  count: number;
+  onSelect: (d: number) => void;
+}) {
+  return (
+    <nav aria-label="Days" className="flex items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Previous day"
+        disabled={day === 0}
+        onClick={() => {
+          onSelect(day - 1);
+        }}
+      >
+        <ArrowLeft className="size-4" aria-hidden="true" />
+      </Button>
+      <ol className="flex min-w-0 flex-1 [scrollbar-width:none] gap-1 overflow-x-auto">
+        {Array.from({ length: count }, (_, i) => (
+          <li key={i} className="min-w-11 flex-1 shrink-0">
+            <DayButton
+              n={i + 1}
+              state={i < day ? "past" : i === day ? "current" : "next"}
+              onSelect={() => {
+                onSelect(i);
+              }}
+            />
+          </li>
+        ))}
+      </ol>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Next day"
+        disabled={day === count - 1}
+        onClick={() => {
+          onSelect(day + 1);
+        }}
+      >
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </Button>
+      <p className="sr-only" aria-live="polite">
+        Day {day + 1} of {count}
+      </p>
+    </nav>
+  );
+}
+
+// Node centre from the top of a stop: row 1 is a 16px slot label or a 24px title; later stops add the 20px gap.
+const GAP = 20;
+
+/** Transit-line diagram: square nodes joined by a 2px rule; slot label only when it changes. */
+function Route({ activities }: { activities: DailyActivity[] }) {
+  return (
+    <ol className="flex flex-col">
+      {activities.map((a, i) => {
+        const first = i === 0;
+        const last = i === activities.length - 1;
+        const label = a.time !== null && a.time !== activities[i - 1]?.time ? a.time : null;
+        const centre = (first ? 0 : GAP) + (label ? 8 : 12);
+        return (
+          <li key={`${a.title}-${i.toString()}`} className="relative pl-6 not-first:pt-5">
+            {!(first && last) && (
+              <span
+                aria-hidden="true"
+                className="absolute left-1 w-0.5 bg-foreground"
+                style={{
+                  top: first ? centre : 0,
+                  bottom: last ? `calc(100% - ${centre.toString()}px)` : 0,
+                }}
+              />
+            )}
+            <span
+              aria-hidden="true"
+              className="absolute left-0 size-2.5 rounded-sm bg-foreground"
+              style={{ top: centre - 5 }}
+            />
+            {label && (
+              <p className="font-mono text-xs leading-4 font-medium tracking-wider text-muted-foreground uppercase">
+                {label}
+              </p>
+            )}
+            <p className="text-base leading-6 font-semibold">{a.title}</p>
+            <p className="text-sm text-muted-foreground">{a.description}</p>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 interface OptionCardProps {
   option: Itinerary;
@@ -80,6 +214,10 @@ export function OptionCard({ option, winner = false, dimmed = false }: OptionCar
         <p className="text-sm text-muted-foreground">{option.highlights.slice(0, 4).join(" · ")}</p>
       )}
 
+      {option.match_reasoning && (
+        <p className="max-w-[65ch] text-sm text-muted-foreground">{option.match_reasoning}</p>
+      )}
+
       {days.length > 0 && (
         <Button
           variant="secondary"
@@ -98,65 +236,20 @@ export function OptionCard({ option, winner = false, dimmed = false }: OptionCar
         onOpenChange={(open) => {
           if (!open) setDay(null);
         }}
-        title={
-          current ? `Day ${current.day_number.toString()} · ${current.title}` : optionTitle(option)
-        }
-        description={optionTitle(option)}
+        title={optionTitle(option)}
         className="sm:max-w-xl"
       >
         {current && day !== null && (
-          <div className="flex flex-col gap-4">
-            {day === 0 && option.match_reasoning && (
-              <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-                {option.match_reasoning}
-              </p>
-            )}
-            <ul className="flex flex-col divide-y divide-border">
-              {current.activities.map((a, i) => (
-                <li key={`${a.title}-${i.toString()}`} className="flex gap-3 py-3 first:pt-0">
-                  <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {a.time}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{a.title}</p>
-                    <p className="text-sm text-muted-foreground">{a.description}</p>
-                    {a.estimated_cost !== null && (
-                      <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                        ~{option.currency}
-                        {a.estimated_cost.toLocaleString()} per person
-                      </p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <div className="flex items-center justify-between">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={day === 0}
-                onClick={() => {
-                  setDay(day - 1);
-                }}
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
-                {day + 1} of {days.length}
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={day === days.length - 1}
-                onClick={() => {
-                  setDay(day + 1);
-                }}
-              >
-                Next
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </Button>
+          <div className="flex flex-col gap-5">
+            <DayStrip day={day} count={days.length} onSelect={setDay} />
+            <div className="flex flex-col gap-3">
+              <FlapWord text={`DAY ${pad2(day + 1)}`} label={null} size="board" />
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <h3 className="min-w-0 text-2xl font-semibold tracking-tight">{current.title}</h3>
+                <p className="text-sm text-muted-foreground">{option.destination_name}</p>
+              </div>
             </div>
+            <Route activities={current.activities} />
           </div>
         )}
       </Dialog>
