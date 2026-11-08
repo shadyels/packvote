@@ -82,7 +82,7 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 - **Background task session isolation** — FastAPI closes request-scoped DB sessions before background tasks run; generation tasks open their own `async with session_factory()` session to avoid stale-connection errors
 - **Pure ranked-choice algorithm** — `services/voting/ranked_choice.py` is a stateless function with zero DB dependencies, making it trivially unit-testable and reusable
 - **Robust AI JSON extraction** — open-source models sometimes wrap responses in markdown fences; `extract_json()` tries direct parse → strip fences → brace-extraction before raising `AIParseError` with the raw text attached for logging
-- **Versioned prompt** — the itinerary prompt is a code constant (`ITINERARY_PROMPT_V3` in `services/generation.py`); `PROMPT_VERSION` is stored on each generated itinerary. No prompt table or A/B split
+- **Versioned prompt** — the itinerary prompt is a code constant (`ITINERARY_PROMPT_V4` in `services/generation.py`); `PROMPT_VERSION` is stored on each generated itinerary. No prompt table or A/B split
 - **In-process rate limiting with sliding windows** — AI (Gemini free tier: 8 RPM / 200K TPM) and email (Brevo: 300/day) use process-level sliding-window gates to enforce provider limits; return fast-fail errors before network calls. Distributed rate limiting is undecided (limits are per process)
 - **Dual auth model** — JWT for trip creators; tokenized links + trip code/PIN for participants (no account creation)
 

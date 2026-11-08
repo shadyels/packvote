@@ -135,7 +135,7 @@ Feature components in `components/`:
   - Screen-reader announcements name the option title and its position, instead of dnd-kit's default raw IDs.
   - It takes `options`, `onSubmit(ids)`, and `submitLabel`. It resets its order when the option set changes.
   - The rank is a flap tile. Up and Down moves slide the rows with `useFlip` (300ms); drags do not.
-- **`OptionCard`**: one itinerary. The heading is `optionTitle(o)` = `option_title ?? destination_name`. Pass `winner` and `dimmed` for the results view. Highlights are one muted text line.
+- **`OptionCard`**: one itinerary. The heading is `optionTitle(o)` = `option_title ?? destination_name`. Pass `winner` and `dimmed` for the results view. Highlights are one muted text line, and `match_reasoning` renders below them. "Day-by-day" opens the day route (day strip, flap header, stops); ArrowLeft/ArrowRight on the window step days while it is open. Visuals are in DESIGN.md, "Day Route".
 - **`ResultsBoard`**: the round-by-round runoff board, used by the organizer Results tab and the participant VOTING page. Rows come from the pure exported `boardRows(results, options)`.
   - The leader reads "Leading" until `final`; only then does the winner row turn yellow with "Boarding". A tie shows muted "Tied" flaps and no yellow row.
   - Organizer override: the backend reports the organizer's pick as `results.winner_id` and the vote's own winner as the last round's `winner_id`. When they differ, the pick gets the yellow row, the vote winner shows "Won vote", and a line reads "Organizer finalized {title}".

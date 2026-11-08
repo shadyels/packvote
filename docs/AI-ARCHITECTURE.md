@@ -5,7 +5,7 @@
 - Single provider class: `OpenAICompatProvider` (`services/ai/openai_compat.py`) using the `openai` SDK against **any** OpenAI-compatible chat-completions endpoint. There is no provider base class.
 - Default: **Google Gemini free tier** — `gemini-3.6-flash` via `https://generativelanguage.googleapis.com/v1beta/openai/` (`gemini-2.5-flash` was retired for new API keys — 404 "no longer available to new users")
 - All AI responses MUST return validated JSON (Pydantic validation).
-- The prompt is a code constant (`ITINERARY_PROMPT_V3` in `services/generation.py`) with `PROMPT_VERSION = "v3"`, recorded on each `Itinerary.prompt_version`. There is no prompt table and no A/B split.
+- The prompt is a code constant (`ITINERARY_PROMPT_V4` in `services/generation.py`) with `PROMPT_VERSION = "v4"`, recorded on each `Itinerary.prompt_version`. There is no prompt table and no A/B split.
 
 ## Provider Implementation
 
@@ -125,7 +125,7 @@ clean = sanitize_text(user_value)
 ```
 
 ### Delimiter isolation
-Every user-controlled value injected into `ITINERARY_PROMPT_V3` must be wrapped in structural delimiters so the model treats it as data, not instructions:
+Every user-controlled value injected into `ITINERARY_PROMPT_V4` must be wrapped in structural delimiters so the model treats it as data, not instructions:
 
 ```
 <<<USER DATA>>>{value}<<<END USER DATA>>>
@@ -138,7 +138,7 @@ Do NOT add phrase-blacklisting (e.g. filtering "ignore previous instructions"). 
 ### Duration backstop
 `_compute_trip_duration` (the single chokepoint for all three duration paths) clamps its result to `max_trip_days(trip.num_options)` from `app.schemas._limits`. This prevents AI output truncation caused by the fixed `MAX_OUTPUT_TOKENS = 16_384` budget in `services/ai/openai_compat.py`.
 
-Formula: `floor((15000 - num_options×250) / (num_options×360))` — n=2→20d, n=3→13d, n=4→9d, n=5→7d. Constants in `_limits.py` are calibration estimates; lock them from real measured completion tokens.
+Formula: `floor((15000 - num_options×250) / (num_options×360))`, where 250 is `OPTION_OVERHEAD_TOKENS` and 360 is `PER_DAY_TOKENS` — n=2→20d, n=3→13d, n=4→9d, n=5→7d. Constants in `_limits.py` are calibration estimates; lock them from real measured completion tokens.
 
 If a real generation is measured and constants change, update **both** `backend/app/schemas/_limits.py` and `frontend/src/lib/validation.ts` (the JS mirror used for frontend date-range validation).
 
@@ -152,8 +152,9 @@ When writing or updating a prompt version, maintain these constraints — they e
 - **`option_title`:** A creative 3-5 word thematic name capturing the trip's personality. Must NOT contain or repeat the destination name. e.g. `"Coastal Culture Crawl"`, `"Ramen, Rails & Rooftops"`, `"Old Town Budget Blitz"`. This is the primary heading shown to users; `destination_name` is demoted to a subtitle.
 - **Specificity ratio:** Exactly 4 activities per day. 3 must name a specific venue/dish/experience. 1 must be an unstructured neighborhood exploration — no fixed destination, but still written with full descriptive depth (area vibe, what to look for, an orienting landmark).
 - **Banned patterns:** em dashes (—), "nestled", "vibrant", "bustling", "hidden gem", "a testament to", "boasts", "delve", "tapestry", "unwind", "indulge", "immerse yourself", "whether you're", "from X to Y" openers, "offers a unique".
+- **Activity time:** each activity's `time` is a part-of-day slot: `morning`, `afternoon`, `evening` or `night`. Activities run in chronological order, slots may repeat, and clock times are never used. The prompt asks for this order; the code does not check it. `DailyActivity.time` is `TimeSlot | None`. A `mode="before"` validator (`backend/app/schemas/itinerary.py`) trims and lowercases strings, then coerces anything that is not a slot (clock times, typos, non-strings) to `None`. An AI typo therefore cannot fail a generation, and pre-v4 rows that hold clock times read as `None`. There is no migration.
 
-The current prompt (`ITINERARY_PROMPT_V3`) embeds a full-option Barcelona example (not just a single day) so the model pattern-matches the complete schema including `option_title`, adds inline `REQUIRED` annotations on schema fields, and promotes `option_title` to Rule #1 to prevent the field being silently omitted. It also includes an ERROR REPORTING section so the AI can self-report invalid input. `ITINERARY_PROMPT_V1` and `ITINERARY_PROMPT_V2` have been retired. Any future version should preserve the full-option example, the REQUIRED markers, and the error envelope instructions.
+The current prompt (`ITINERARY_PROMPT_V4`) embeds a full-option Barcelona example (every option-level field, with one day shown) so the model pattern-matches the complete schema including `option_title`, adds inline `REQUIRED` annotations on schema fields, and promotes `option_title` to Rule #1 to prevent the field being silently omitted. It also includes an ERROR REPORTING section so the AI can self-report invalid input. `ITINERARY_PROMPT_V1` and `ITINERARY_PROMPT_V2` have been retired. Any future version should preserve the full-option example, the REQUIRED markers, and the error envelope instructions.
 
 ## Prompt Templates
 
@@ -161,7 +162,7 @@ The current prompt (`ITINERARY_PROMPT_V3`) embeds a full-option Barcelona exampl
 The prompt is one string using `[SYSTEM]\n...\n[USER]\n...`. `_split_prompt()` in `openai_compat.py` splits it at call time into the two-message array.
 
 **Versioning:**
-`PROMPT_VERSION` (`services/generation.py`) is written to `Itinerary.prompt_version` for every option. Bump it when `ITINERARY_PROMPT_V3` changes. There is no database table and no seeding migration.
+`PROMPT_VERSION` (`services/generation.py`) is written to `Itinerary.prompt_version` for every option. Bump it when `ITINERARY_PROMPT_V4` changes. There is no database table and no seeding migration.
 
 ## JSON Columns for Structured Fields
 
