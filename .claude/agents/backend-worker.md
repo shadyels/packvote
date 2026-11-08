@@ -33,4 +33,5 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - When moving a lazily-imported function to a module-level import, check how tests patch it — calling it through the module attribute (`module.fn()`) keeps patches on the defining module effective.
 - A stricter schema validator can turn a 422 into a 500 when the framework's error body echoes the rejected value (e.g. non-finite floats); test the HTTP path, not just the model.
 - Removing a blanket lint ignore (e.g. `F821`) can expose real latent bugs such as unresolved forward references — re-run the linter right after dropping it.
+- When bumping a version value, grep the old version string in identifiers and docs too (`_V3`, `"v3"`): a constant named for the old version holding the new content is a half-done change.
 <!-- END learned-lessons -->

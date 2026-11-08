@@ -31,4 +31,5 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - Before rewriting a doc section, grep the identifiers the old doc names (hooks, components, paths); many may no longer exist and copying them forward ships dead references.
 - A fact supplied by the brief that you cannot verify in the repo must be hedged in the doc (not stated as fact) and listed in the report as unverified.
 - Before rewriting a component list, grep the parent pages' imports for each named component: a component can drop out of one page while still used elsewhere, so the doc needs the usage removed, not the component.
+- Briefs name doc entries by a label that may not match the file's heading; locate the entry by its content, then confirm the heading. Before reporting a sweep hit, check it isn't text you wrote in the same change.
 <!-- END learned-lessons -->
