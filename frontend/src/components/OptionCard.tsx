@@ -64,6 +64,30 @@ function DayStrip({
   count: number;
   onSelect: (d: number) => void;
 }) {
+  const list = useRef<HTMLOListElement>(null);
+  const [fade, setFade] = useState({ start: false, end: false });
+  const measure = () => {
+    const el = list.current;
+    if (!el) return;
+    const start = el.scrollLeft > 0;
+    const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setFade((f) => (f.start === start && f.end === end ? f : { start, end }));
+  };
+  useEffect(() => {
+    measure();
+    // jsdom has no ResizeObserver
+    if (!list.current || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(list.current);
+    return () => {
+      ro.disconnect();
+    };
+  }, [count]);
+  // Fade only the edges with hidden days, so a partial day never reads as a stray dash beside an arrow.
+  const mask =
+    fade.start || fade.end
+      ? `linear-gradient(to right, ${fade.start ? "transparent, #000 24px" : "#000, #000"}, ${fade.end ? "#000 calc(100% - 24px), transparent" : "#000, #000"})`
+      : undefined;
   return (
     <nav aria-label="Days" className="flex items-center gap-1">
       <Button
@@ -78,7 +102,12 @@ function DayStrip({
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
       </Button>
-      <ol className="flex min-w-0 flex-1 [scrollbar-width:none] gap-1 overflow-x-auto">
+      <ol
+        ref={list}
+        onScroll={measure}
+        style={{ maskImage: mask, WebkitMaskImage: mask }}
+        className="flex min-w-0 flex-1 scroll-px-6 [scrollbar-width:none] gap-1 overflow-x-auto"
+      >
         {Array.from({ length: count }, (_, i) => (
           <li key={i} className="min-w-11 flex-1 shrink-0">
             <DayButton
@@ -110,9 +139,9 @@ function DayStrip({
   );
 }
 
-// Offsets are in spacing units (rem-based via --spacing) so they track the pt-5 / leading-4 / leading-6 classes
-// when the user's default font size is not 16px. Node centre from the top of a stop: row 1 is a
-// leading-4 slot label or a leading-6 title (half = 2 or 3 units); later stops add the pt-5 gap.
+// Offsets are in spacing units (rem-based via --spacing) so they track the pt-5 / leading-6 classes
+// when the user's default font size is not 16px. Node centre from the top of a stop: the first row is a
+// leading-6 title (half = 3 units); later stops add the pt-5 gap.
 const GAP = 5;
 const u = (n: number) => `calc(var(--spacing) * ${n.toString()})`;
 
@@ -124,7 +153,7 @@ function Route({ activities }: { activities: DailyActivity[] }) {
         const first = i === 0;
         const last = i === activities.length - 1;
         const label = a.time !== null && a.time !== activities[i - 1]?.time ? a.time : null;
-        const centre = (first ? 0 : GAP) + (label ? 2 : 3);
+        const centre = (first ? 0 : GAP) + 3;
         return (
           <li key={`${a.title}-${i.toString()}`} className="relative pl-6 not-first:pt-5">
             {!(first && last) && (
@@ -139,15 +168,17 @@ function Route({ activities }: { activities: DailyActivity[] }) {
             )}
             <span
               aria-hidden="true"
-              className="absolute left-0 size-2.5 rounded-sm bg-foreground"
+              className="absolute left-0 size-2.5 rounded-[2px] bg-foreground"
               style={{ top: u(centre - 1.25) }}
             />
-            {label && (
-              <p className="font-mono text-xs leading-4 font-medium tracking-wider text-muted-foreground uppercase">
-                {label}
-              </p>
-            )}
-            <p className="text-base leading-6 font-semibold">{a.title}</p>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="min-w-0 text-base leading-6 font-semibold">{a.title}</p>
+              {label && (
+                <p className="shrink-0 font-mono text-xs leading-4 font-medium tracking-wider text-muted-foreground uppercase">
+                  {label}
+                </p>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">{a.description}</p>
           </li>
         );
@@ -263,7 +294,10 @@ export function OptionCard({ option, winner = false, dimmed = false }: OptionCar
                 )}
               </div>
             </div>
-            <div key={day} className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto">
+            <div
+              key={day}
+              className="min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--color-border)_transparent] [scrollbar-gutter:stable] overflow-y-auto"
+            >
               <Route activities={current.activities} />
             </div>
           </div>
