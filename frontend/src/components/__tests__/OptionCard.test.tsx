@@ -90,7 +90,8 @@ describe("OptionCard day-by-day", () => {
     const dialog = await open();
     expect(within(dialog).getAllByText("morning")).toHaveLength(1);
     expect(within(dialog).getAllByText("afternoon")).toHaveLength(1);
-    expect(within(dialog).queryByText("evening")).not.toBeInTheDocument();
+    // The null stop's title row holds only the title.
+    expect(within(dialog).getByText("Free 1").nextElementSibling).toBeNull();
   });
 
   it("shows match_reasoning on the card, not in the dialog", async () => {

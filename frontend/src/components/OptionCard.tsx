@@ -286,7 +286,11 @@ export function OptionCard({ option, winner = false, dimmed = false }: OptionCar
           <div className="flex min-h-0 flex-1 flex-col gap-5">
             <DayStrip day={day} count={days.length} onSelect={setDay} />
             <div className="flex shrink-0 flex-col gap-3">
-              <FlapWord text={`DAY ${pad2(day + 1)}`} label={null} size="board" />
+              <FlapWord
+                text={`DAY ${pad2(day + 1)}`}
+                label={`Day ${(day + 1).toString()}`}
+                size="board"
+              />
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <h3 className="min-w-0 text-2xl font-semibold tracking-tight">{current.title}</h3>
                 {option.option_title && (
