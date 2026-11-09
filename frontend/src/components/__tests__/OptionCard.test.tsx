@@ -4,12 +4,22 @@ import userEvent from "@testing-library/user-event";
 import { OptionCard } from "../OptionCard";
 import type { Itinerary } from "@/types";
 
-const day = (n: number, cost: number | null) => ({
+const act = (title: string, time: string | null) => ({
+  time,
+  title,
+  description: "d",
+  estimated_cost: null,
+});
+
+const day = (n: number) => ({
   day_number: n,
   title: `Title ${n.toString()}`,
   estimated_cost: null,
   activities: [
-    { time: "09:00", title: `Act ${n.toString()}`, description: "d", estimated_cost: cost },
+    act(`Act ${n.toString()}`, "morning"),
+    act(`Lunch ${n.toString()}`, "afternoon"),
+    act(`Walk ${n.toString()}`, "afternoon"),
+    act(`Free ${n.toString()}`, null),
   ],
 });
 
@@ -21,8 +31,8 @@ const option = {
   total_estimated_budget: 1000,
   currency: "USD",
   highlights: [],
-  match_reasoning: "",
-  daily_itinerary: [day(1, 25), day(2, null), day(3, null)],
+  match_reasoning: "Fits the beach budget.",
+  daily_itinerary: [day(1), day(2), day(3)],
 } as unknown as Itinerary;
 
 async function open() {
@@ -31,29 +41,79 @@ async function open() {
   return screen.findByRole("dialog");
 }
 
+const isCurrent = (dialog: HTMLElement, n: number) =>
+  within(dialog)
+    .getByRole("button", { name: `Day ${n.toString()}` })
+    .getAttribute("aria-current") === "step";
+
 describe("OptionCard day-by-day", () => {
   it("opens on day 1 and steps with Next/Previous", async () => {
     const dialog = await open();
-    expect(within(dialog).getByText("1 of 3")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /Previous/ })).toBeDisabled();
-    await userEvent.click(within(dialog).getByRole("button", { name: /Next/ }));
-    expect(within(dialog).getByText("2 of 3")).toBeInTheDocument();
+    expect(within(dialog).getByText("Day 1 of 3")).toBeInTheDocument();
+    expect(isCurrent(dialog, 1)).toBe(true);
+    expect(within(dialog).getByRole("button", { name: "Previous day" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Next day" }));
+    expect(within(dialog).getByText("Day 2 of 3")).toBeInTheDocument();
     expect(within(dialog).getByText("Act 2")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: /Previous/ }));
-    expect(within(dialog).getByText("1 of 3")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Previous day" }));
+    expect(isCurrent(dialog, 1)).toBe(true);
+  });
+
+  it("keeps focus on Next after reaching the last day", async () => {
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Day 2" }));
+    const next = within(dialog).getByRole("button", { name: "Next day" });
+    await userEvent.click(next);
+    expect(isCurrent(dialog, 3)).toBe(true);
+    // jsdom doesn't blur an element that becomes `disabled`, so assert the attributes too.
+    expect(next).toBeEnabled();
+    expect(next).toHaveAttribute("aria-disabled", "true");
+    expect(document.activeElement).toBe(next);
+  });
+
+  it("jumps to a day from the strip", async () => {
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Day 3" }));
+    expect(isCurrent(dialog, 3)).toBe(true);
+    expect(isCurrent(dialog, 1)).toBe(false);
+    expect(within(dialog).getByText("Act 3")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Next day" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+  });
+
+  it("prints a slot label once per run of equal slots, and none for null", async () => {
+    const dialog = await open();
+    expect(within(dialog).getAllByText("morning")).toHaveLength(1);
+    expect(within(dialog).getAllByText("afternoon")).toHaveLength(1);
+    // The null stop's title row holds only the title.
+    expect(within(dialog).getByText("Free 1").nextElementSibling).toBeNull();
+  });
+
+  it("shows match_reasoning on the card, not in the dialog", async () => {
+    const dialog = await open();
+    expect(screen.getByText("Fits the beach budget.")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Fits the beach budget.")).not.toBeInTheDocument();
   });
 
   it("moves with ArrowRight/ArrowLeft and clamps at the ends", async () => {
     const dialog = await open();
     await userEvent.keyboard("{ArrowLeft}");
-    expect(within(dialog).getByText("1 of 3")).toBeInTheDocument();
+    expect(isCurrent(dialog, 1)).toBe(true);
     fireEvent.keyDown(window, { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(within(dialog).getByText("3 of 3")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /Next/ })).toBeDisabled();
+    expect(isCurrent(dialog, 3)).toBe(true);
+    expect(within(dialog).getByRole("button", { name: "Next day" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     fireEvent.keyDown(window, { key: "ArrowLeft" });
-    expect(within(dialog).getByText("2 of 3")).toBeInTheDocument();
+    expect(isCurrent(dialog, 2)).toBe(true);
   });
 
   it("handles arrow keys that the dialog stops from bubbling", async () => {
@@ -61,14 +121,9 @@ describe("OptionCard day-by-day", () => {
     dialog.addEventListener("keydown", (e) => {
       e.stopPropagation();
     });
-    fireEvent.keyDown(within(dialog).getByRole("button", { name: /Next/ }), { key: "ArrowRight" });
-    expect(within(dialog).getByText("2 of 3")).toBeInTheDocument();
-  });
-
-  it("shows per-person cost only when estimated_cost is not null", async () => {
-    const dialog = await open();
-    expect(within(dialog).getByText(/per person/)).toHaveTextContent("~USD25 per person");
-    await userEvent.click(within(dialog).getByRole("button", { name: /Next/ }));
-    expect(within(dialog).queryByText(/per person/)).not.toBeInTheDocument();
+    fireEvent.keyDown(within(dialog).getByRole("button", { name: "Next day" }), {
+      key: "ArrowRight",
+    });
+    expect(isCurrent(dialog, 2)).toBe(true);
   });
 });

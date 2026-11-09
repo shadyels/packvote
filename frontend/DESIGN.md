@@ -279,7 +279,7 @@ The system is flat. Surfaces separate by tone (concrete → white, or night → 
 
 ## Shapes
 
-Corners scale with the size of the object. Split-flap tiles, status flaps, voter chips and the board frame use 4px corners, which reads mechanical. Buttons and inputs use 8px. Cards and ballot rows use 12px. The yellow feature panel and the guest winner panel use 16px, as does the top edge of the bottom-sheet dialog. The generating indicator's bars are the only fully rounded shapes. Each flap tile is split by a 1px horizontal midline (black at 60%), the one decorative geometry in the system and the mark of a split-flap cell.
+Corners scale with the size of the object. Split-flap tiles, status flaps, voter chips and the board frame use 4px corners, which reads mechanical. Buttons and inputs use 8px. Cards and ballot rows use 12px. The yellow feature panel and the guest winner panel use 16px, as does the top edge of the bottom-sheet dialog. The 10px day-route nodes use 2px, so they read as square station marks. The generating indicator's bars are the only fully rounded shapes. Each flap tile is split by a 1px horizontal midline (black at 60%), the one decorative geometry in the system and the mark of a split-flap cell.
 
 ## Components
 
@@ -350,8 +350,18 @@ A ranked list of rows. Each row is a 12px-corner surface row with a 1px rule: a 
 - **Border:** 1px rule. The winning option gets a success-green border and a green Winner status flap. Dimmed options drop to 60% opacity.
 - **Internal Padding:** 16px.
 - **Content:** highlights are one slate line joined with " · ", not tags.
+- **Match reasoning:** one slate paragraph under the highlights, 0.875rem, max 65ch.
 
 Option cards and ballot rows are the one deliberate exception to the app screens' refusal of stacked rounded bordered cards: options carry enough prose to need a container, and ballot rows are things the user picks up and moves. Everything else on the app screens separates by tone and 2px top rules.
+
+### Day Route
+
+The "Day-by-day" dialog on an option card. Its title is the option name. The dialog is fixed-height (90dvh on phones, `min(90dvh, 44rem)` from 640px), and only the route list scrolls. The scroll resets to the top on each day change, so the strip and header never move between days.
+
+- **Day strip:** a gate strip of 2-digit day buttons, each at least 44px tall. Past days get a 1px foreground top rule. They are not 2px as in the trip-header gate strip, because in light mode accent-ink equals foreground, so a 2px past rule would look like the current day. The current day gets a 2px accent-ink top rule and a semibold Geist Mono numeral (600 is loaded for this), with `aria-current="step"`. Upcoming days get a 1px border rule and slate numerals. The strip scrolls horizontally with no scrollbar, and a fade mask covers only the edges that hide days. Ghost Prev and Next arrows sit at each end. They stay focusable there (`aria-disabled`, dimmed). An sr-only live region announces "Day N of M".
+- **Header:** a board-size split-flap "DAY NN" that does not flip on open. On a day change only the digit tiles that changed flip. Below it is the day title (1.5rem, 600). The destination sits in slate on the right, shown only when the option has its own title.
+- **Route:** stops are joined by a 2px foreground line that runs from the first node's centre to the last node's centre. A single stop has no line. Nodes are 10px squares with 2px corners. Corners scale with size, so fully round shapes stay reserved for the generating bars. Each stop has a title row (1rem, 600) with the slot label flush right on the title's baseline, like the time column of a timetable, and the description below it (0.875rem, slate).
+- **Slot label:** Geist Mono Label style (MORNING, AFTERNOON, EVENING, NIGHT). It prints only when the slot differs from the previous stop's slot. A stop with no slot has no label. Stops from itineraries generated before prompt v4 read as no slot.
 
 ### Empty State
 

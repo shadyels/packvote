@@ -70,7 +70,7 @@ export interface Preference {
 }
 
 export interface DailyActivity {
-  time: string | null;
+  time: "morning" | "afternoon" | "evening" | "night" | null;
   title: string;
   description: string;
   estimated_cost: number | null;

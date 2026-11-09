@@ -46,4 +46,5 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - Screenshot evidence: use absolute paths, read route/tab ids from source (never guess `?tab=`), assert the intended state (selected tab name, key text) before each capture, and run an md5 duplicate check over the set before reporting.
 - Layout checks: a document-level `scrollWidth` misses clipping inside `overflow-hidden` containers, so compare scroll/client widths per clipping element; find dead zones of stretched-link rows with `elementFromPoint` on each positioned child, then confirm with a real click.
 - When staging states in a seeded DB, first check the rows match what the brief claims, save every row you mutate to a file, and diff-restore each one; report extra rows you had to touch.
+- In content-sized modals (centred or bottom-anchored), measure control POSITION across states and click twice at the same coordinates — the target moves as height changes. Compare computed styles of state variants (past/current/upcoming) per theme too: a token can resolve to the same colour as another state in one theme.
 <!-- END learned-lessons -->

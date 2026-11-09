@@ -44,9 +44,9 @@ logger = logging.getLogger(__name__)
 # Prompt template (code constant; version recorded on each Itinerary)
 # ---------------------------------------------------------------------------
 
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
 
-ITINERARY_PROMPT_V3 = """\
+ITINERARY_PROMPT_V4 = """\
 [SYSTEM]
 You are an expert travel planner. Generate exactly {num_options} distinct travel itinerary options for a group trip. Respond with valid JSON ONLY — no markdown, no prose outside the JSON.
 
@@ -63,7 +63,7 @@ The JSON must conform exactly to this schema:
           "title": "string — REQUIRED",
           "activities": [
             {{
-              "time": null,
+              "time": "morning | afternoon | evening | night",
               "title": "string — REQUIRED",
               "description": "string — REQUIRED",
               "estimated_cost": null
@@ -93,9 +93,9 @@ Rules:
 - Each option must cover all {trip_duration_days} days of the trip.
 - Each day must have exactly 4 activities.
 - Of each day's 4 activities, exactly 3 must reference a specific named venue, dish, or experience. Exactly 1 must be an unstructured neighborhood exploration (no fixed destination) — but still written with full descriptive depth: describe the area's vibe, what to look for, a landmark to orient around.
-- NEVER use logistics as activities: no check-in, check-out, arrival, departure, hotel settling, packing, transfers, or airport activities. Every activity slot must be a real experience the group will remember.
+- NEVER use logistics as activities: no check-in, check-out, arrival, departure, hotel settling, packing, transfers, or airport activities. Every activity must be a real experience the group will remember.
 - Meals are NOT activities unless they reference a specific, well-known restaurant or food experience by name (e.g. "Dinner at Noma", "Tsukiji tuna auction breakfast", "Michelin-starred lunch at Osteria Francescana"). Generic meals — "lunch at a local restaurant", "dinner in the old town", "grab street food" — are banned.
-- All activity time fields must be null. Activities are ordered sequentially within each day; do not assign clock times.
+- Each activity's "time" is the part of the day it happens: exactly one of the lowercase words morning, afternoon, evening, night. Keep activities in chronological order so slots never go backwards within a day. Repeating a slot is allowed (e.g. two morning activities). Never use clock times.
 - All estimated_cost fields must be null (price data is not available yet).
 - total_estimated_budget must be a realistic float in the stated currency.
 - currency must be a valid 3-letter ISO 4217 code.
@@ -122,25 +122,25 @@ EXAMPLE (one option, one day shown, Barcelona):
       "title": "Sant Antoni to Bunkers",
       "activities": [
         {{
-          "time": null,
+          "time": "morning",
           "title": "Boqueria back-stall breakfast",
           "description": "Squeeze past the tourist clusters to the counter seats at Pinotxo Bar in the back. Chickpea stew and a cava for under €8. Best before 9:30 when the crowds hit.",
           "estimated_cost": null
         }},
         {{
-          "time": null,
+          "time": "morning",
           "title": "Raval morning wander",
           "description": "The blocks south of MACBA shift from skatepark chaos to quiet vintage shops within a few turns. Carrer dels Tallers is the vinyl-and-bookshop strip. Grab a cortado at Federal Café if you need an anchor, otherwise let the neighbourhood happen.",
           "estimated_cost": null
         }},
         {{
-          "time": null,
+          "time": "afternoon",
           "title": "Vermouth at Morro Fi",
           "description": "Standing-room-only vermouth bar in Sant Antoni. House vermut on tap paired with conservas. The tinned mussels are the move. Cash only, closes at 2pm sharp so don't be late.",
           "estimated_cost": null
         }},
         {{
-          "time": null,
+          "time": "evening",
           "title": "Bunkers del Carmel sunset",
           "description": "Abandoned anti-aircraft batteries on a hilltop with the best 360° view of the city. Bring your own drinks from the Carmel market below. Arrive 45min before sunset or you'll be standing.",
           "estimated_cost": null
@@ -488,7 +488,7 @@ def _render_prompt(
 
     preferences_block = _build_preferences_block(preferences)
 
-    return ITINERARY_PROMPT_V3.format(
+    return ITINERARY_PROMPT_V4.format(
         num_options=trip.num_options,
         trip_duration_days=trip_duration_days,
         trip_title=f"<<<USER DATA>>>{sanitize_text(trip.title)}<<<END USER DATA>>>",

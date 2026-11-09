@@ -89,7 +89,7 @@ def _make_itinerary_option(destination: str = "Barcelona") -> ItineraryOption:
                 title="Arrival day",
                 activities=[
                     DailyActivity(
-                        time="10:00",
+                        time="morning",
                         title="Check in",
                         description="Settle into the hotel.",
                         estimated_cost=None,
@@ -381,7 +381,7 @@ class TestRunGeneration:
         result = await db.execute(select(Itinerary).where(Itinerary.trip_id == trip_id))
         itineraries = result.scalars().all()
         assert len(itineraries) == 2
-        assert all(i.prompt_version == "v3" for i in itineraries)
+        assert all(i.prompt_version == "v4" for i in itineraries)
 
     async def test_success_increments_current_iteration(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
