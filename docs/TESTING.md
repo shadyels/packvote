@@ -13,7 +13,7 @@
 - `db` (`AsyncSession`) and `client` (httpx `AsyncClient` over the ASGI app, `get_db` overridden).
 - `MockEmailService` / `mock_email` — overrides the email dependency; every `send_trip_email` call is recorded in `.sent`.
 - `mock_session_factory` — injects the test engine's session factory for background tasks.
-- Autouse: `_fast_bcrypt` (bcrypt cost factor 4) and `_reset_module_state` (clears the Brevo limiter, AI limiter and PIN throttle windows before and after each test).
+- Autouse: `_fast_bcrypt` (bcrypt cost factor 4) and `_reset_module_state` (clears the Brevo limiter, AI limiter, PIN throttle windows and the platform stats cache, limiter, lock and failure backoff before and after each test).
 
 Other shared code:
 - `tests/factories.py` — ORM seed builders `make_user`, `make_trip`, `make_participant`, `make_itinerary`, and `seed_voting_trip` (a VOTING trip with creator, invitee and two itineraries). Each `make_*` adds the row to the session.
@@ -34,7 +34,7 @@ uv run pytest tests/ai -m live   # Live AI tests (manual only — burns API cred
 - Component rendering, user flows, mocked API
 - Test files live in `__tests__/` folders next to the code:
   - `src/__tests__/routes.test.tsx`
-  - `src/pages/__tests__/`: `Dashboard`, `Join`, `Landing`, `Login`, `Trip`, `TripDetail`
+  - `src/pages/__tests__/`: `Dashboard`, `Join`, `Landing`, `Login`, `Stats`, `Trip`, `TripDetail`
   - `src/components/__tests__/`: `Ballot`, `Flap`, `OptionCard`, `PreferenceForm`, `ProtectedRoute`, `ResultsBoard`, `TripForm`
   - `src/hooks/__tests__/useFetch.test.ts`
   - `src/lib/__tests__/`: `api.test.ts`, `trip.test.ts`

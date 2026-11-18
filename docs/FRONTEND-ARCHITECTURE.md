@@ -114,6 +114,7 @@ Defined in `App.tsx`. Every route is a child of `AppShell`.
 | `/trip/:token/vote` | `Trip` | Voting email link. Same page; focuses the ballot when the trip is `VOTING`. |
 | `/dashboard` | `Dashboard` | Requires login (`ProtectedRoute`). |
 | `/dashboard/trip/:tripId` | `TripDetail` | Organizer page. Requires login. |
+| `/stats` | `Stats` | Public, outside `ProtectedRoute`. Platform stats from `GET /stats` via `useFetch` and `stats.get` in `lib/api.ts`. |
 | `*` | `NotFound` | |
 
 **Protected routes:** `ProtectedRoute` shows skeletons while auth is loading, then redirects to `/login` if the user is not authenticated.
