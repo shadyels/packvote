@@ -80,8 +80,14 @@ export default function AppShell() {
       >
         <Outlet />
       </main>
-      <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        PackVote — group trips, decided fairly.
+      <footer className="border-t py-4 text-center text-xs text-muted-foreground">
+        <p>PackVote — group trips, decided fairly.</p>
+        <Link
+          to="/stats"
+          className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-foreground"
+        >
+          Platform stats
+        </Link>
       </footer>
       <Toaster />
     </div>

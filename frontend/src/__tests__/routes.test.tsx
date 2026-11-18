@@ -14,6 +14,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 vi.mock("@/pages/Trip", () => ({ default: () => <p>trip page</p> }));
 vi.mock("@/pages/Join", () => ({ default: () => <p>join page</p> }));
 vi.mock("@/pages/Landing", () => ({ default: () => <p>landing page</p> }));
+vi.mock("@/pages/Stats", () => ({ default: () => <p>stats page</p> }));
 vi.mock("@/pages/TripDetail", () => ({ default: () => <p>trip detail page</p> }));
 
 // jsdom has no matchMedia; the Toaster in AppShell needs it.
@@ -51,6 +52,11 @@ describe("routes", () => {
   it("unknown path renders NotFound", () => {
     at("/nope/nothing");
     expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+  });
+
+  it("/stats renders unauthenticated without redirecting to /login", () => {
+    at("/stats");
+    expect(screen.getByText("stats page")).toBeInTheDocument();
   });
 
   it("/dashboard unauthenticated redirects to /login", () => {

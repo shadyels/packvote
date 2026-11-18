@@ -8,6 +8,7 @@ import Join from "@/pages/Join";
 import Dashboard from "@/pages/Dashboard";
 import TripDetail from "@/pages/TripDetail";
 import Trip from "@/pages/Trip";
+import Stats from "@/pages/Stats";
 import NotFound from "@/pages/NotFound";
 
 /** /join/:token (invitation email links) -> /trip/:token */
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/join/:token" element={<JoinRedirect />} />
         <Route path="/trip/:token" element={<Trip />} />
         <Route path="/trip/:token/vote" element={<Trip />} />
+        <Route path="/stats" element={<Stats />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
