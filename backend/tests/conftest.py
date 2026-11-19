@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import os
 
@@ -15,7 +16,7 @@ from app.core.dependencies import get_email_service, get_session_factory
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.services import participants
+from app.services import participants, stats
 from app.services.ai import rate_limiter as ai_rate_limiter
 from app.services.email import brevo
 from app.services.rate_limit import SlidingWindow
@@ -35,10 +36,17 @@ def _reset_module_state():
     brevo._limiter = SlidingWindow(brevo.MAX_EPD, 86400)
     ai_rate_limiter._limiter = None
     participants._pin_windows.clear()
+    stats._cache = None
+    stats._limiter = SlidingWindow(stats.REQUEST_CAP, 60)
+    stats._lock = asyncio.Lock()
+    stats._failed_until = 0.0
     yield
     brevo._limiter = SlidingWindow(brevo.MAX_EPD, 86400)
     ai_rate_limiter._limiter = None
     participants._pin_windows.clear()
+    stats._cache = None
+    stats._limiter = SlidingWindow(stats.REQUEST_CAP, 60)
+    stats._lock = asyncio.Lock()
 
 
 @pytest.fixture

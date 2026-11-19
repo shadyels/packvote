@@ -4,6 +4,7 @@ import type {
   Participant,
   ParticipantAccessResponse,
   ParticipantTripView,
+  PlatformStats,
   Preference,
   TokenResponse,
   Trip,
@@ -227,4 +228,9 @@ export const admin = {
       `/admin/trips/${tripId.toString()}/participants/${participantId.toString()}/resend-email`,
       { method: "POST" }
     ),
+};
+
+// Platform stats (public)
+export const stats = {
+  get: () => request<PlatformStats>("/stats"),
 };

@@ -249,7 +249,7 @@ When all participants have submitted, `_maybe_trigger_generation` calls `start_g
 - **Retention:** rows outlive their trip. `ai_call_logs.trip_id` is `ON DELETE SET NULL`, so `delete_trip` keeps them. The stored `prompt` contains participants' free-text preferences, so that text is retained after the trip is gone.
 - **Stdout:** `app/main.py` attaches a stdout handler to the `app` logger at INFO (not `basicConfig` — a root handler would double SQLAlchemy echo output and surface httpx's per-request INFO lines).
 
-The ops-level dashboard is Phase 3 (Grafana, admin-only).
+The aggregate view of these rows is the public `/stats` page, served by `GET /stats` (`services/stats.py`). It is aggregate-only: it never returns prompts, raw responses or error messages. Results are cached in process for 60 seconds. A global cap of 120 requests per rolling minute returns 429 when exceeded. If a computation fails or exceeds 10 seconds, the endpoint returns 503 for the next 10 seconds without re-running queries. Latency percentiles and daily activity use at most the 100,000 most recent rows, and `sampling.truncated` reports overflow. A per-client limiter is undecided.
 
 ## Evaluation Dataset
 

@@ -166,3 +166,56 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
 }
+
+export interface PlatformStats {
+  generated_at: string;
+  totals: {
+    trips: number;
+    users: number;
+    participants: number;
+    votes: number;
+    itineraries: number;
+    ai_attempts: number;
+    tokens_in: number;
+    tokens_out: number;
+  };
+  funnel: { status: TripStatus; trips: number }[];
+  generation: {
+    attempts: number;
+    valid_attempts: number;
+    valid_rate: number | null;
+    runs: number;
+    runs_succeeded: number;
+    attempts_per_run: { attempts: number; runs: number }[];
+    finish_reasons: { finish_reason: string | null; attempts: number }[];
+    latency: {
+      p50_ms: number | null;
+      p95_ms: number | null;
+      sample_size: number;
+      histogram: { min_ms: number; max_ms: number | null; attempts: number }[];
+    };
+    orphaned_attempts: number;
+  };
+  by_model: {
+    provider: string;
+    model: string;
+    attempts: number;
+    valid_attempts: number;
+    tokens_in: number;
+    tokens_out: number;
+  }[];
+  by_prompt_version: {
+    prompt_version: string | null;
+    successful_generations: number;
+    itineraries: number;
+  }[];
+  activity: { date: string; trips: number; tokens_in: number; tokens_out: number }[];
+  voting: {
+    avg_participants_per_trip: number | null;
+    trips_reached_voting: number;
+    avg_votes_per_trip: number | null;
+    finalized_trips: number;
+    iterations_to_finalize: { iterations: number; trips: number }[];
+  };
+  sampling: { row_cap: number; truncated: boolean };
+}
