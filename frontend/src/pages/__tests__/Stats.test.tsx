@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import Stats from "../Stats";
 import AppShell from "@/components/AppShell";
 import { ApiError } from "@/lib/api";
-import type { PlatformStats, TripStatus } from "@/types";
+import type { PlatformStats, PromptQuality, TripStatus } from "@/types";
 
 const { mockGet } = vi.hoisted(() => ({ mockGet: vi.fn() }));
 
@@ -56,6 +56,7 @@ const empty: PlatformStats = {
     ai_attempts: 0,
     tokens_in: 0,
     tokens_out: 0,
+    cost_usd: 0,
   },
   funnel: STATUSES.map((status) => ({ status, trips: 0 })),
   generation: {
@@ -87,13 +88,39 @@ const empty: PlatformStats = {
     avg_votes_per_trip: null,
     finalized_trips: 0,
     iterations_to_finalize: [],
+    cost_per_finalized_trip_usd: null,
   },
   sampling: { row_cap: 5000, truncated: false },
+  pricing: { as_of: "2099-01-01", unpriced_models: [] },
+  prompt_quality: null,
+};
+
+const quality: PromptQuality = {
+  run_date: "2099-01-15",
+  model: "gen-model",
+  judge_model: "judge-model",
+  cases: 12,
+  versions: ["v3", "v4"].map((prompt_version, i) => ({
+    prompt_version,
+    cases: 12,
+    judged_cases: i === 0 ? 11 : 12,
+    all_checks_pass_rate: i === 0 ? 0.5 : 0.75,
+    checks: [
+      { check: "time_slots", pass_rate: i === 0 ? 0 : 1, cases: 12, gating: false },
+      { check: "json_valid", pass_rate: 1, cases: 12, gating: true },
+      { check: "destination_respected", pass_rate: i === 0 ? 0.25 : 0.5, cases: 4, gating: true },
+    ],
+    judge: [
+      { criterion: "preference_fit", mean: i === 0 ? 3.5 : 4.25 },
+      { criterion: "budget_realism", mean: null },
+    ],
+    judge_overall: i === 0 ? 3.5 : 4.25,
+  })),
 };
 
 const populated: PlatformStats = {
   ...empty,
-  totals: { ...empty.totals, trips: 12, tokens_in: 1_234_567 },
+  totals: { ...empty.totals, trips: 12, tokens_in: 1_234_567, cost_usd: 0.000412 },
   funnel: STATUSES.map((status, i) => ({ status, trips: i * 2 })),
   generation: {
     ...empty.generation,
@@ -121,6 +148,7 @@ const populated: PlatformStats = {
       valid_attempts: 5,
       tokens_in: 10,
       tokens_out: 5,
+      cost_usd: 0.0004123,
     },
     {
       provider: "google",
@@ -129,11 +157,32 @@ const populated: PlatformStats = {
       valid_attempts: 4,
       tokens_in: 20,
       tokens_out: 9,
+      cost_usd: null,
     },
   ],
   by_prompt_version: [
-    { prompt_version: "v4", successful_generations: 5, itineraries: 15 },
-    { prompt_version: null, successful_generations: 2, itineraries: 6 },
+    {
+      prompt_version: "v4",
+      successful_generations: 5,
+      itineraries: 15,
+      attempts: 7,
+      valid_rate: 0.8571,
+      latency_p50_ms: 3100,
+      latency_p95_ms: 7700,
+      tokens_per_itinerary: 1234.4,
+      cost_per_itinerary_usd: 0.00321,
+    },
+    {
+      prompt_version: null,
+      successful_generations: 2,
+      itineraries: 6,
+      attempts: 0,
+      valid_rate: null,
+      latency_p50_ms: null,
+      latency_p95_ms: null,
+      tokens_per_itinerary: null,
+      cost_per_itinerary_usd: null,
+    },
   ],
   activity: days((i) => (i === 3 ? 4 : 1)),
   voting: {
@@ -142,6 +191,7 @@ const populated: PlatformStats = {
     avg_votes_per_trip: 2.25,
     finalized_trips: 3,
     iterations_to_finalize: [{ iterations: 1, trips: 3 }],
+    cost_per_finalized_trip_usd: 0.0123,
   },
 };
 
@@ -200,7 +250,7 @@ describe("Stats", () => {
   });
 
   it("renders model rows whose provider/model names differ only by a slash split", async () => {
-    const row = { attempts: 1, valid_attempts: 1, tokens_in: 1, tokens_out: 1 };
+    const row = { attempts: 1, valid_attempts: 1, tokens_in: 1, tokens_out: 1, cost_usd: null };
     mockGet.mockResolvedValue({
       ...populated,
       by_model: [
@@ -241,8 +291,8 @@ describe("Stats", () => {
     await screen.findByRole("heading", { name: "What this measures" });
     for (const t of [
       "A run counts as succeeded when the AI returned a usable response, including the rare run PackVote discarded because the trip was reset while the AI was working.",
-      "Failed AI attempts carry no prompt version.",
-      "No cost data: tokens only.",
+      "Runs that failed outright before migration 0002 have no prompt version, so older versions' valid rate and cost leave out their worst runs.",
+      "Costs are list-price equivalents as of 2099-01-01. Actual spend on Gemini's free tier is $0.",
       "Attempts refused by PackVote's own AI rate limiter are not logged.",
       "Emails sent are not stored.",
       "There is no finalization timestamp, so time-to-finalize cannot be shown.",
@@ -257,6 +307,150 @@ describe("Stats", () => {
     expect(
       await screen.findByText("Latency and daily activity use the most recent 5,000 rows.")
     ).toBeInTheDocument();
+  });
+
+  it("shows list-price costs, with a dash for unpriced models", async () => {
+    renderStats();
+    await screen.findByRole("heading", { name: "Platform stats" });
+    const models = screen.getByRole("region", { name: "AI attempts per provider and model." });
+    expect(within(models).getByRole("columnheader", { name: "Cost (list price)" })).toBeVisible();
+    expect(within(models).getByText("$0.0004123")).toBeInTheDocument();
+    expect(within(models).getByText("—")).toBeInTheDocument();
+    const totals = screen.getByRole("table", { name: "Totals" });
+    expect(within(totals).getByRole("rowheader", { name: "Cost at list price" })).toBeVisible();
+    expect(within(totals).getByText("$0.000412")).toBeInTheDocument();
+    expect(screen.getByText("$0.0123")).toBeInTheDocument();
+    expect(screen.getByText(/as of 2099-01-01\. Actual spend on Gemini/)).toBeInTheDocument();
+  });
+
+  it("renders the per-version columns", async () => {
+    renderStats();
+    await screen.findByRole("heading", { name: "Platform stats" });
+    const t = screen.getByRole("region", { name: /Generations and itineraries count/ });
+    for (const h of [
+      "Attempts",
+      "Valid rate",
+      "p50 latency",
+      "p95 latency",
+      "Tokens / itinerary",
+    ]) {
+      expect(within(t).getByRole("columnheader", { name: h })).toBeInTheDocument();
+    }
+    const v4 = within(t).getByText("v4").closest("tr") as HTMLElement;
+    for (const text of ["85.7%", "3.1 s", "7.7 s", "1,234", "$0.00321"]) {
+      expect(within(v4).getByText(text)).toBeInTheDocument();
+    }
+    const old = within(t).getByText("unversioned").closest("tr") as HTMLElement;
+    expect(within(old).getAllByText("—")).toHaveLength(5);
+  });
+
+  it("hides prompt quality when null and shows both versions when present", async () => {
+    const { unmount } = renderStats();
+    await screen.findByRole("heading", { name: "Platform stats" });
+    expect(screen.queryByRole("heading", { name: "Prompt quality" })).toBeNull();
+    expect(screen.queryByText(/self-grading/)).toBeNull();
+    unmount();
+    mockGet.mockResolvedValue({ ...populated, prompt_quality: quality });
+    renderStats();
+    expect(await screen.findByRole("heading", { name: "Prompt quality" })).toBeInTheDocument();
+    const t = screen.getByRole("region", { name: /Offline eval of 12 synthetic cases/ });
+    expect(t).toHaveAccessibleName(/2099-01-15.*gen-model.*judge-model/);
+    expect(within(t).getByRole("columnheader", { name: "v3" })).toBeInTheDocument();
+    expect(within(t).getByRole("columnheader", { name: "v4" })).toBeInTheDocument();
+    const rowOf = (name: string) => within(t).getByText(name).closest("tr") as HTMLElement;
+    expect(within(rowOf("Pass every check")).getByText("50.0%")).toBeInTheDocument();
+    expect(within(rowOf("Pass every check")).getByText("75.0%")).toBeInTheDocument();
+    expect(within(rowOf("Destination respected")).getByText("50.0% (4)")).toBeInTheDocument();
+    expect(within(rowOf("Preference fit")).getByText("4.25")).toBeInTheDocument();
+    expect(within(rowOf("Budget realism")).getAllByText("—")).toHaveLength(2);
+    expect(screen.queryByText(/self-grading bias/)).toBeNull();
+    expect(screen.getByText(/not live traffic/)).toBeInTheDocument();
+    expect(within(rowOf("Judged cases")).getByText("11")).toBeInTheDocument();
+  });
+
+  it("marks non-gating checks as not counted and lists them after gating ones", async () => {
+    mockGet.mockResolvedValue({ ...populated, prompt_quality: quality });
+    renderStats();
+    const t = await screen.findByRole("region", { name: /Offline eval of 12 synthetic cases/ });
+    const slots = within(t).getByText("Has time-of-day slots").closest("tr") as HTMLElement;
+    expect(within(slots).getByText("100.0% (12)")).toBeInTheDocument();
+    const gating = within(t).getByText("Destination respected").closest("tr") as HTMLElement;
+    const note = within(t).getByText(/Not counted in .Pass every check./);
+    const order = (a: HTMLElement, b: HTMLElement) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING;
+    expect(order(gating, note)).toBeTruthy();
+    expect(order(note, slots)).toBeTruthy();
+    expect(order(slots, within(t).getByText("Judged cases"))).toBeTruthy();
+  });
+
+  it("shows the self-grading caveat only when the judge is the generation model", async () => {
+    mockGet.mockResolvedValue({
+      ...populated,
+      prompt_quality: { ...quality, judge_model: quality.model },
+    });
+    renderStats();
+    expect(await screen.findByText(/self-grading bias/)).toBeInTheDocument();
+  });
+
+  it("computes the conversion funnel shares and guards zero", async () => {
+    mockGet.mockResolvedValue({
+      ...populated,
+      totals: { ...populated.totals, trips: 4 },
+      voting: {
+        ...populated.voting,
+        trips_reached_voting: 2,
+        finalized_trips: 1,
+        iterations_to_finalize: [{ iterations: 1, trips: 1 }],
+      },
+    });
+    const { unmount } = renderStats();
+    const funnel = await screen.findByRole("table", { name: /How far trips got/ });
+    expect(within(funnel).getByRole("rowheader", { name: "Created" })).toBeInTheDocument();
+    expect(
+      within(funnel).getByRole("rowheader", { name: "Reached voting (50.0% of created)" })
+    ).toBeInTheDocument();
+    expect(
+      within(funnel).getByRole("rowheader", { name: "Finalized (25.0% of created)" })
+    ).toBeInTheDocument();
+    const round1 = screen.getByText("Finalized in round 1").nextElementSibling;
+    expect(round1).toHaveTextContent("100.0%");
+    expect(screen.getByText("Mean rounds to finalize").nextElementSibling).toHaveTextContent("1.0");
+    unmount();
+
+    mockGet.mockResolvedValue({
+      ...populated,
+      voting: {
+        ...populated.voting,
+        finalized_trips: 4,
+        iterations_to_finalize: [
+          { iterations: 1, trips: 1 },
+          { iterations: 3, trips: 3 },
+        ],
+      },
+    });
+    renderStats();
+    await screen.findByRole("table", { name: /How far trips got/ });
+    expect(screen.getByText("Finalized in round 1").nextElementSibling).toHaveTextContent("25.0%");
+    expect(screen.getByText("Mean rounds to finalize").nextElementSibling).toHaveTextContent("2.5");
+  });
+
+  it("shows dashes and an empty funnel when there are no trips", async () => {
+    mockGet.mockResolvedValue(empty);
+    renderStats();
+    await screen.findByRole("heading", { name: "Conversion funnel" });
+    const funnel = screen.getByRole("table", { name: /How far trips got/ });
+    expect(within(funnel).getByText("No trips yet.")).toBeInTheDocument();
+    expect(screen.getByText("Finalized in round 1").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Mean rounds to finalize").nextElementSibling).toHaveTextContent("—");
+  });
+
+  it("names unpriced models in the caveats", async () => {
+    mockGet.mockResolvedValue({
+      ...populated,
+      pricing: { as_of: "2099-01-01", unpriced_models: ["mystery-1", "mystery-2"] },
+    });
+    renderStats();
+    expect(await screen.findByText(/mystery-1, mystery-2/)).toBeInTheDocument();
   });
 
   it("has exactly one yellow element and no flip on first render", async () => {

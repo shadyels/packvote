@@ -10,13 +10,25 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFetch } from "@/hooks/useFetch";
 import { stats } from "@/lib/api";
 import { STATUS } from "@/lib/trip";
-import type { PlatformStats } from "@/types";
+import type { PlatformStats, PromptQuality } from "@/types";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const flapFigure = (n: number) => (n < 10_000 ? n.toString() : compact.format(n));
 const seconds = (ms: number) => (ms / 1000).toString();
 const secs1 = (ms: number | null) => (ms === null ? "—" : `${(ms / 1000).toFixed(1)} s`);
 const avg = (n: number | null) => (n === null ? "—" : n.toFixed(1));
+const pct = (n: number | null) => (n === null ? "—" : `${(n * 100).toFixed(1)}%`);
+const share = (part: number, whole: number) => (whole === 0 ? null : part / whole);
+/** 4 significant digits so $0.0004 stays readable; null means unpriced. */
+const usd = (n: number | null) =>
+  n === null
+    ? "—"
+    : n === 0
+      ? "$0"
+      : n < 0.0001
+        ? "<$0.0001"
+        : `$${n.toLocaleString("en", { maximumSignificantDigits: 4 })}`;
+const words = (s: string) => s.replace(/_/g, " ");
 const plural = (n: number, one: string, many: string) =>
   `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
@@ -38,7 +50,7 @@ function Figures({ items }: { items: [string, string][] }) {
   return (
     <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 md:grid-cols-5">
       {items.map(([label, value]) => (
-        <div key={label}>
+        <div key={label} className="flex flex-col justify-between">
           <dt className="text-sm text-muted-foreground">{label}</dt>
           <dd className="font-mono text-2xl font-medium tabular-nums">{value}</dd>
         </div>
@@ -53,13 +65,16 @@ function PlainTable({
   rows,
   empty,
   textCols = 1,
+  wrapLabels = false,
 }: {
   caption: string;
   headers: string[];
-  rows: { key: string; cells: ReactNode[] }[];
+  rows: ({ key: string; cells: ReactNode[] } | { key: string; group: string })[];
   empty: string;
   /** Leading columns that hold text; the rest are right-aligned figures. */
   textCols?: number;
+  /** Long row labels may wrap; otherwise every cell stays on one line and the table scrolls. */
+  wrapLabels?: boolean;
 }) {
   return (
     <div>
@@ -77,25 +92,37 @@ function PlainTable({
             <thead className="bg-muted text-muted-foreground">
               <tr>
                 {headers.map((h, i) => (
-                  <th key={h} scope="col" className={`${th} ${i < textCols ? "" : "text-right"}`}>
+                  <th
+                    key={h}
+                    scope="col"
+                    className={`${th} ${i === 0 ? "sticky left-0 bg-muted" : ""} ${i < textCols ? "" : "text-right"}`}
+                  >
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.key} className="border-t">
-                  {r.cells.map((c, i) => (
-                    <td
-                      key={i}
-                      className={`px-3 py-2 ${i < textCols ? "" : "text-right font-mono tabular-nums"}`}
-                    >
-                      {c}
+              {rows.map((r) =>
+                "group" in r ? (
+                  <tr key={r.key} className="border-t">
+                    <td colSpan={headers.length} className="px-3 pt-4 pb-1.5 text-sm font-medium">
+                      {r.group}
                     </td>
-                  ))}
-                </tr>
-              ))}
+                  </tr>
+                ) : (
+                  <tr key={r.key} className="border-t">
+                    {r.cells.map((c, i) => (
+                      <td
+                        key={i}
+                        className={`px-3 py-2 ${wrapLabels && i < textCols ? "" : "whitespace-nowrap"} ${i === 0 ? "sticky left-0 bg-background" : ""} ${i < textCols ? "" : "text-right font-mono tabular-nums"}`}
+                      >
+                        {c}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         </div>
@@ -142,9 +169,104 @@ function Totals({ totals }: { totals: PlatformStats["totals"] }) {
               </td>
             </tr>
           ))}
+          <tr className="border-t">
+            <th scope="row" className="px-3 py-2 text-sm font-normal">
+              Cost at list price
+            </th>
+            <td className="px-3 py-2 text-right font-mono text-sm tabular-nums">
+              {usd(totals.cost_usd)}
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
+  );
+}
+
+function Funnel({ totals, v }: { totals: PlatformStats["totals"]; v: PlatformStats["voting"] }) {
+  const of = (n: number) => `${pct(share(n, totals.trips))} of created`;
+  return (
+    <BarTable
+      caption="How far trips got, as a share of trips created."
+      labelHeader="Stage"
+      valueHeader="Trips"
+      empty="No trips yet."
+      rows={
+        totals.trips === 0
+          ? []
+          : [
+              { key: "created", label: "Created", value: totals.trips },
+              {
+                key: "voting",
+                label: `Reached voting (${of(v.trips_reached_voting)})`,
+                value: v.trips_reached_voting,
+              },
+              {
+                key: "finalized",
+                label: `Finalized (${of(v.finalized_trips)})`,
+                value: v.finalized_trips,
+              },
+            ]
+      }
+    />
+  );
+}
+
+type QualityVersion = PromptQuality["versions"][number];
+
+const CHECK_LABELS: Record<string, string> = {
+  json_valid: "JSON valid",
+  time_field: "Followed its time-field instruction",
+  time_slots: "Has time-of-day slots",
+};
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function Quality({ q }: { q: PromptQuality }) {
+  const all = q.versions.flatMap((p) => p.checks);
+  const names = [...new Set(all.map((c) => c.check))];
+  const isGating = (n: string) => all.find((c) => c.check === n)?.gating ?? true;
+  const criteria = [...new Set(q.versions.flatMap((p) => p.judge.map((j) => j.criterion)))];
+  const row = (key: string, label: string, f: (p: QualityVersion) => string) => ({
+    key,
+    cells: [label, ...q.versions.map(f)],
+  });
+  const checkRow = (n: string) =>
+    row(`check-${n}`, CHECK_LABELS[n] ?? sentence(words(n)), (p) => {
+      const c = p.checks.find((x) => x.check === n);
+      return c ? `${pct(c.pass_rate)} (${c.cases.toString()})` : "—";
+    });
+  const counted = names.filter(isGating);
+  const informational = names.filter((n) => !isGating(n));
+  return (
+    <PlainTable
+      caption={`Offline eval of ${q.cases.toString()} synthetic cases run on ${q.run_date}. Generated by ${q.model}, judged by ${q.judge_model}.`}
+      headers={["Metric", ...q.versions.map((p) => p.prompt_version)]}
+      empty="No eval results."
+      wrapLabels
+      rows={[
+        row("cases", "Cases", (p) => p.cases.toString()),
+        row("all", "Pass every check", (p) => pct(p.all_checks_pass_rate)),
+        { key: "g-checks", group: "Checks: pass rate (applicable cases)" },
+        ...counted.map(checkRow),
+        ...(informational.length > 0
+          ? [
+              { key: "g-info", group: "Not counted in “Pass every check”" },
+              ...informational.map(checkRow),
+            ]
+          : []),
+        { key: "g-judge", group: "Judge: mean score, 1–5" },
+        row("judged", "Judged cases", (p) => p.judged_cases.toString()),
+        ...criteria.map((c) =>
+          row(`judge-${c}`, sentence(words(c)), (p) => {
+            const m = p.judge.find((j) => j.criterion === c)?.mean;
+            return m == null ? "—" : m.toFixed(2);
+          })
+        ),
+        row("overall", "Overall", (p) =>
+          p.judge_overall === null ? "—" : p.judge_overall.toFixed(2)
+        ),
+      ]}
+    />
   );
 }
 
@@ -158,17 +280,33 @@ function Loading() {
   );
 }
 
-function Gaps({ truncated, rowCap }: { truncated: boolean; rowCap: number }) {
+function Gaps({ s }: { s: PlatformStats }) {
+  const { truncated, row_cap: rowCap } = s.sampling;
+  const unpriced = s.pricing.unpriced_models;
   const items = [
     "A run counts as succeeded when the AI returned a usable response, including the rare run PackVote discarded because the trip was reset while the AI was working.",
     "Latency is per AI attempt, failures included.",
-    "Failed AI attempts carry no prompt version.",
-    "No cost data: tokens only.",
+    "Runs that failed outright before migration 0002 have no prompt version, so older versions' valid rate and cost leave out their worst runs.",
+    `Costs are list-price equivalents as of ${s.pricing.as_of}. Actual spend on Gemini's free tier is $0.`,
     "Attempts refused by PackVote's own AI rate limiter are not logged.",
     "Emails sent are not stored.",
     "There is no finalization timestamp, so time-to-finalize cannot be shown.",
     "Deleted trips drop out of every count except AI attempts, which show as orphaned.",
   ];
+  if (unpriced.length > 0)
+    items.push(
+      `No price on file for ${unpriced.join(", ")}; cost for ${unpriced.length === 1 ? "that model" : "those models"} is left out of every total.`
+    );
+  const pq = s.prompt_quality;
+  if (pq) {
+    items.push(
+      `Prompt quality comes from ${pq.cases.toString()} synthetic offline cases, not live traffic.`
+    );
+    if (pq.judge_model === pq.model)
+      items.push(
+        "The LLM judge is the same model family grading its own output, so self-grading bias is possible."
+      );
+  }
   if (truncated)
     items.push(`Latency and daily activity use the most recent ${rowCap.toLocaleString()} rows.`);
   return (
@@ -184,10 +322,16 @@ function Report({ s }: { s: PlatformStats }) {
   const { isAuthenticated } = useAuth();
   const g = s.generation;
   const v = s.voting;
+  const round1 = v.iterations_to_finalize.find((i) => i.iterations === 1)?.trips ?? 0;
+  const rounds = v.iterations_to_finalize.reduce((a, i) => a + i.iterations * i.trips, 0);
   return (
     <>
       <Section title="Totals">
         <Totals totals={s.totals} />
+      </Section>
+
+      <Section title="Conversion funnel">
+        <Funnel totals={s.totals} v={v} />
       </Section>
 
       <Section title="Trips by current status">
@@ -204,10 +348,51 @@ function Report({ s }: { s: PlatformStats }) {
         />
       </Section>
 
+      <Section title="Voting">
+        <Figures
+          items={[
+            ["Avg participants per trip", avg(v.avg_participants_per_trip)],
+            ["Avg votes per trip", avg(v.avg_votes_per_trip)],
+            ["Finalized in round 1", pct(share(round1, v.finalized_trips))],
+            [
+              "Mean rounds to finalize",
+              avg(v.finalized_trips === 0 ? null : rounds / v.finalized_trips),
+            ],
+            ["Cost per finalized trip (list price)", usd(v.cost_per_finalized_trip_usd)],
+          ]}
+        />
+        <BarTable
+          caption="Rounds of options before finalizing."
+          labelHeader="Rounds"
+          valueHeader="Trips"
+          empty="No finalized trips yet."
+          rows={v.iterations_to_finalize.map((i) => ({
+            key: i.iterations.toString(),
+            label: plural(i.iterations, "round", "rounds"),
+            value: i.trips,
+          }))}
+        />
+      </Section>
+
+      <Section title="Last 30 days">
+        <DailyChart
+          title="Trips created per day"
+          days={s.activity}
+          value={(d) => d.trips}
+          unit="trips"
+        />
+        <DailyChart
+          title="Tokens per day (in and out)"
+          days={s.activity}
+          value={(d) => d.tokens_in + d.tokens_out}
+          unit="tokens"
+        />
+      </Section>
+
       <Section title="Generation">
         <Figures
           items={[
-            ["Valid rate", g.valid_rate === null ? "—" : `${(g.valid_rate * 100).toFixed(1)}%`],
+            ["Valid rate", pct(g.valid_rate)],
             ["Runs succeeded", `${g.runs_succeeded.toLocaleString()} / ${g.runs.toLocaleString()}`],
             ["Median latency", secs1(g.latency.p50_ms)],
             ["95th percentile latency", secs1(g.latency.p95_ms)],
@@ -259,18 +444,27 @@ function Report({ s }: { s: PlatformStats }) {
       <Section title="By model">
         <PlainTable
           caption="AI attempts per provider and model."
-          headers={["Provider", "Model", "Attempts", "Valid", "Tokens in", "Tokens out"]}
+          headers={[
+            "Model",
+            "Provider",
+            "Attempts",
+            "Valid",
+            "Tokens in",
+            "Tokens out",
+            "Cost (list price)",
+          ]}
           empty="No AI attempts yet."
           textCols={2}
           rows={s.by_model.map((m) => ({
             key: JSON.stringify([m.provider, m.model]),
             cells: [
-              m.provider,
               m.model,
+              m.provider,
               m.attempts.toLocaleString(),
               m.valid_attempts.toLocaleString(),
               m.tokens_in.toLocaleString(),
               m.tokens_out.toLocaleString(),
+              usd(m.cost_usd),
             ],
           }))}
         />
@@ -278,8 +472,18 @@ function Report({ s }: { s: PlatformStats }) {
 
       <Section title="By prompt version">
         <PlainTable
-          caption="Successful generations only."
-          headers={["Prompt version", "Generations", "Itineraries"]}
+          caption="Generations and itineraries count successful runs; attempts, latency and cost include failures. Cost is at list price."
+          headers={[
+            "Prompt version",
+            "Generations",
+            "Itineraries",
+            "Attempts",
+            "Valid rate",
+            "p50 latency",
+            "p95 latency",
+            "Tokens / itinerary",
+            "Cost / itinerary",
+          ]}
           empty="No successful generations yet."
           rows={s.by_prompt_version.map((p) => ({
             key: p.prompt_version ?? "unversioned",
@@ -287,50 +491,27 @@ function Report({ s }: { s: PlatformStats }) {
               p.prompt_version ?? "unversioned",
               p.successful_generations.toLocaleString(),
               p.itineraries.toLocaleString(),
+              p.attempts.toLocaleString(),
+              pct(p.valid_rate),
+              secs1(p.latency_p50_ms),
+              secs1(p.latency_p95_ms),
+              p.tokens_per_itinerary === null
+                ? "—"
+                : Math.round(p.tokens_per_itinerary).toLocaleString(),
+              usd(p.cost_per_itinerary_usd),
             ],
           }))}
         />
       </Section>
 
-      <Section title="Last 30 days">
-        <DailyChart
-          title="Trips created per day"
-          days={s.activity}
-          value={(d) => d.trips}
-          unit="trips"
-        />
-        <DailyChart
-          title="Tokens per day (in and out)"
-          days={s.activity}
-          value={(d) => d.tokens_in + d.tokens_out}
-          unit="tokens"
-        />
-      </Section>
-
-      <Section title="Voting">
-        <Figures
-          items={[
-            ["Avg participants per trip", avg(v.avg_participants_per_trip)],
-            ["Avg votes per trip", avg(v.avg_votes_per_trip)],
-            ["Finalized trips", v.finalized_trips.toLocaleString()],
-            ["Trips that reached voting", v.trips_reached_voting.toLocaleString()],
-          ]}
-        />
-        <BarTable
-          caption="Rounds of options before finalizing."
-          labelHeader="Rounds"
-          valueHeader="Trips"
-          empty="No finalized trips yet."
-          rows={v.iterations_to_finalize.map((i) => ({
-            key: i.iterations.toString(),
-            label: plural(i.iterations, "round", "rounds"),
-            value: i.trips,
-          }))}
-        />
-      </Section>
+      {s.prompt_quality && (
+        <Section title="Prompt quality">
+          <Quality q={s.prompt_quality} />
+        </Section>
+      )}
 
       <Section title="What this measures">
-        <Gaps truncated={s.sampling.truncated} rowCap={s.sampling.row_cap} />
+        <Gaps s={s} />
       </Section>
 
       <div className="mt-10 border-t-2 border-foreground pt-6">
