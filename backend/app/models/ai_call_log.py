@@ -21,6 +21,7 @@ class AICallLog(Base):
     token_count_input: Mapped[int | None] = mapped_column(Integer)
     token_count_output: Mapped[int | None] = mapped_column(Integer)
     token_count_total: Mapped[int | None] = mapped_column(Integer)
+    prompt_version: Mapped[str | None] = mapped_column(String(20))
     finish_reason: Mapped[str | None] = mapped_column(String(50))
     response_valid: Mapped[bool] = mapped_column(Boolean, default=False)
     error_message: Mapped[str | None] = mapped_column(Text)

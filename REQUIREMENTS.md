@@ -171,7 +171,7 @@ Trade-off accepted: Gemini's free tier is used to improve Google products. The r
 ### Prompt Management
 - Prompts stored in database table: `prompt_templates` *(Superseded: no table. The prompt is a code constant, `ITINERARY_PROMPT_V3` in `services/generation.py`, and each itinerary stores `prompt_version` (`"v3"`). No A/B testing exists.)*
   - Fields: id, name, version, template_text, model_target, is_active, created_at
-- Each AI call logs: prompt_version_id, model_used, provider, latency_ms, token_count, response_valid (bool) *(Superseded: `ai_call_logs` has no prompt-version column; the prompt version is on `itineraries`.)*
+- Each AI call logs: prompt_version_id, model_used, provider, latency_ms, token_count, response_valid (bool) *(Superseded: the column is `ai_call_logs.prompt_version`, a version string stamped per attempt since migration 0002; see `docs/METRICS.md`.)*
 - Basic A/B testing:
   - Traffic split configurable (e.g., 50/50 between prompt v1 and v2)
   - Metrics per version: average response quality, vote outcome correlation, latency

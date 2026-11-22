@@ -10,7 +10,7 @@ import httpx
 import pytest
 from openai import AsyncOpenAI
 
-from app.core.config import get_settings
+from app.core.config import Settings
 from app.models.ai_call_log import AICallLog
 from app.schemas.itinerary import (
     AIGenerationResponse,
@@ -240,7 +240,11 @@ class TestOpenAICompatProviderGenerate:
                 200, json=_fake_completion_payload(_make_valid_response_json())
             )
 
-        provider = _make_provider(extra_body=get_settings().AI_EXTRA_BODY)
+        # Class default, not live settings: guards the shipped shape without
+        # depending on a local env file.
+        provider = _make_provider(
+            extra_body=Settings.model_fields["AI_EXTRA_BODY"].default
+        )
         client = AsyncOpenAI(
             api_key="k",
             base_url="https://example.invalid/v1/",

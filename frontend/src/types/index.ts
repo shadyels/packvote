@@ -178,6 +178,7 @@ export interface PlatformStats {
     ai_attempts: number;
     tokens_in: number;
     tokens_out: number;
+    cost_usd: number;
   };
   funnel: { status: TripStatus; trips: number }[];
   generation: {
@@ -203,11 +204,18 @@ export interface PlatformStats {
     valid_attempts: number;
     tokens_in: number;
     tokens_out: number;
+    cost_usd: number | null;
   }[];
   by_prompt_version: {
     prompt_version: string | null;
     successful_generations: number;
     itineraries: number;
+    attempts: number;
+    valid_rate: number | null;
+    latency_p50_ms: number | null;
+    latency_p95_ms: number | null;
+    tokens_per_itinerary: number | null;
+    cost_per_itinerary_usd: number | null;
   }[];
   activity: { date: string; trips: number; tokens_in: number; tokens_out: number }[];
   voting: {
@@ -216,6 +224,25 @@ export interface PlatformStats {
     avg_votes_per_trip: number | null;
     finalized_trips: number;
     iterations_to_finalize: { iterations: number; trips: number }[];
+    cost_per_finalized_trip_usd: number | null;
   };
   sampling: { row_cap: number; truncated: boolean };
+  pricing: { as_of: string; unpriced_models: string[] };
+  prompt_quality: PromptQuality | null;
+}
+
+export interface PromptQuality {
+  run_date: string;
+  model: string;
+  judge_model: string;
+  cases: number;
+  versions: {
+    prompt_version: string;
+    cases: number;
+    judged_cases: number;
+    all_checks_pass_rate: number;
+    checks: { check: string; pass_rate: number; cases: number; gating: boolean }[];
+    judge: { criterion: string; mean: number | null }[];
+    judge_overall: number | null;
+  }[];
 }

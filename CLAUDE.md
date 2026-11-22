@@ -26,7 +26,7 @@ PackVote is an AI-powered group travel planning app. Users create trips, invite 
 ### Backend
 - **Language:** Python 3.12
 - **Framework:** FastAPI (async ASGI)
-- **ORM:** SQLAlchemy (async) + Alembic (migrations; single `0001_baseline` revision in `backend/alembic/versions/`)
+- **ORM:** SQLAlchemy (async) + Alembic (migrations; two revisions in `backend/alembic/versions/`: `0001_baseline`, `0002_ai_call_log_prompt_version`)
 - **Package Manager:** uv
 - **Database:** PostgreSQL
 - **Email:** Brevo (free tier, 300 emails/day)

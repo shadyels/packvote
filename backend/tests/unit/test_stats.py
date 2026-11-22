@@ -1,10 +1,18 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import event
 
+from app.core.config import get_settings
 from app.models.ai_call_log import AICallLog
 from app.models.participant import Participant
 from app.models.vote import Vote
+from app.schemas.stats import (
+    CheckRate,
+    JudgeScore,
+    PromptQuality,
+    PromptQualityVersion,
+)
 from app.services import stats
 from app.services.rate_limit import SlidingWindow
 from tests.factories import make_itinerary, make_participant, make_trip, make_user
@@ -18,6 +26,10 @@ FORBIDDEN_KEYS = {
     "title",
     "destination",
     "notes",
+    "candidate",
+    "raw",
+    "response",
+    "api_key",
 }
 
 
@@ -76,6 +88,10 @@ async def test_empty_db(client) -> None:
     assert data["voting"]["avg_participants_per_trip"] is None
     assert data["voting"]["avg_votes_per_trip"] is None
     assert data["sampling"] == {"row_cap": stats.ROW_CAP, "truncated": False}
+    assert data["totals"]["cost_usd"] == 0
+    assert data["voting"]["cost_per_finalized_trip_usd"] is None
+    assert data["pricing"]["unpriced_models"] == []
+    assert data["pricing"]["as_of"] == get_settings().AI_PRICES_AS_OF
 
 
 async def test_aggregates(client, db) -> None:
@@ -156,10 +172,23 @@ async def test_aggregates(client, db) -> None:
     }
     assert [f["status"] for f in data["funnel"]][:1] == ["CREATED"]
 
-    assert data["by_prompt_version"] == [
-        {"prompt_version": "v4", "successful_generations": 2, "itineraries": 3},
-        {"prompt_version": "v3", "successful_generations": 1, "itineraries": 1},
+    versions = {v["prompt_version"]: v for v in data["by_prompt_version"]}
+    assert [v["prompt_version"] for v in data["by_prompt_version"]] == [
+        "v4",
+        "v3",
+        None,
     ]
+    assert (
+        versions["v4"]["successful_generations"],
+        versions["v4"]["itineraries"],
+    ) == (2, 3)
+    assert (
+        versions["v3"]["successful_generations"],
+        versions["v3"]["itineraries"],
+    ) == (1, 1)
+    # Logs here carry no prompt_version: all 8 attempts land on the None row.
+    assert versions[None]["attempts"] == 8
+    assert versions["v4"]["attempts"] == 0 and versions["v4"]["valid_rate"] is None
 
     voting = data["voting"]
     assert voting["finalized_trips"] == 2
@@ -220,7 +249,193 @@ async def test_activity_window(client, db) -> None:
     assert all(d["trips"] == 0 for d in days[1:-1])
 
 
-async def test_privacy(client, db) -> None:
+FLASH = "gemini-3.6-flash"
+
+
+def _cost(tokens_in: int, billable_out: int) -> float:
+    price_in, price_out = get_settings().AI_PRICES_USD_PER_1M[FLASH]
+    return (tokens_in * price_in + billable_out * price_out) / 1_000_000
+
+
+async def test_cost_priced_unpriced_and_prefix(client, db) -> None:
+    # Thinking tokens: total - input (500) beats token_count_output (200).
+    _log(
+        db,
+        model_used=FLASH,
+        token_count_input=1000,
+        token_count_output=200,
+        token_count_total=1500,
+    )
+    # No total: falls back to token_count_output.
+    _log(db, model_used=FLASH, token_count_input=2000, token_count_output=100)
+    # "models/" prefix is stripped before the price lookup; it stays its own row.
+    _log(
+        db,
+        model_used=f"models/{FLASH}",
+        token_count_input=1000,
+        token_count_output=0,
+        token_count_total=1000,
+    )
+    _log(db, model_used="mystery-1", token_count_input=50, token_count_output=50)
+    _log(db, model_used="mystery-1", token_count_input=1, token_count_output=1)
+    await db.flush()
+
+    data = await _get(client)
+    by_model = {m["model"]: m for m in data["by_model"]}
+    assert by_model[FLASH]["cost_usd"] == pytest.approx(_cost(3000, 600))
+    assert by_model[f"models/{FLASH}"]["cost_usd"] == pytest.approx(_cost(1000, 0))
+    assert by_model["mystery-1"]["cost_usd"] is None
+    assert data["totals"]["cost_usd"] == pytest.approx(
+        _cost(3000, 600) + _cost(1000, 0)
+    )
+    assert data["pricing"]["unpriced_models"] == ["mystery-1"]
+    assert data["pricing"]["as_of"] == get_settings().AI_PRICES_AS_OF
+    assert stats._cost("mystery-1", 1, 1) is None
+    assert stats._cost(f"models/{FLASH}", 1_000_000, 0) == pytest.approx(0.75)
+
+
+async def test_prompt_version_stats(client, db) -> None:
+    user = make_user(db)
+    await db.flush()
+    trip = make_trip(db, user, status="FINALIZED", current_iteration=1)
+    await db.flush()
+    make_itinerary(db, trip, 1, prompt_version="v4")
+    make_itinerary(db, trip, 1, prompt_version="v4")
+    make_itinerary(db, trip, 1, prompt_version="v3")
+    for attempt, valid, ms, total in [(1, False, 1000, 160), (2, True, 3000, 200)]:
+        _log(
+            db,
+            trip_id=trip.id,
+            attempt=attempt,
+            model_used=FLASH,
+            prompt_version="v4",
+            response_valid=valid,
+            latency_ms=ms,
+            token_count_input=100,
+            token_count_output=10,
+            token_count_total=total,
+        )
+    # v3 ran on a model with no price: cost is unknown, tokens still counted.
+    _log(
+        db,
+        trip_id=trip.id,
+        attempt=1,
+        model_used="mystery-1",
+        prompt_version="v3",
+        response_valid=True,
+        latency_ms=7000,
+        token_count_input=10,
+        token_count_output=5,
+    )
+    # Log-only version (every attempt failed, no itineraries).
+    _log(db, prompt_version="v5", latency_ms=500, token_count_input=1)
+    await db.flush()
+
+    data = await _get(client)
+    v = {x["prompt_version"]: x for x in data["by_prompt_version"]}
+    assert set(v) == {"v3", "v4", "v5"}
+    v4 = v["v4"]
+    assert (v4["attempts"], v4["valid_rate"]) == (2, 0.5)
+    assert (v4["latency_p50_ms"], v4["latency_p95_ms"]) == (1000, 3000)
+    # tokens_in + (total - input) over both attempts, per itinerary.
+    assert v4["tokens_per_itinerary"] == (200 + 160) / 2
+    assert v4["cost_per_itinerary_usd"] == pytest.approx(_cost(200, 160) / 2)
+    v3 = v["v3"]
+    assert (v3["attempts"], v3["valid_rate"], v3["latency_p50_ms"]) == (1, 1.0, 7000)
+    assert v3["tokens_per_itinerary"] == 15
+    assert v3["cost_per_itinerary_usd"] is None
+    v5 = v["v5"]
+    assert (v5["itineraries"], v5["successful_generations"]) == (0, 0)
+    assert (v5["attempts"], v5["valid_rate"], v5["latency_p95_ms"]) == (1, 0.0, 500)
+    assert v5["tokens_per_itinerary"] is None
+    assert v5["cost_per_itinerary_usd"] is None
+    # Newest-first ordering is for versions with itineraries; log-only ones follow.
+    assert [x["prompt_version"] for x in data["by_prompt_version"]][-1] == "v5"
+
+
+async def test_cost_per_finalized_trip(client, db) -> None:
+    user = make_user(db)
+    await db.flush()
+    done = make_trip(db, user, status="FINALIZED", current_iteration=1)
+    voting = make_trip(db, user, status="VOTING", current_iteration=1)
+    await db.flush()
+    for trip, tin, total in [(done, 100, 160), (done, 100, 200), (voting, 9999, 99999)]:
+        _log(
+            db,
+            trip_id=trip.id,
+            model_used=FLASH,
+            token_count_input=tin,
+            token_count_total=total,
+        )
+    await db.flush()
+    cost = (await _get(client))["voting"]["cost_per_finalized_trip_usd"]
+    assert cost == pytest.approx(_cost(200, 160))  # voting trip excluded, one trip
+
+    stats._cache = None
+    _log(db, trip_id=done.id, model_used="mystery-1", token_count_input=1)
+    await db.flush()
+    assert (await _get(client))["voting"]["cost_per_finalized_trip_usd"] is None
+
+
+async def test_cost_per_finalized_trip_none_without_logs(client, db) -> None:
+    user = make_user(db)
+    await db.flush()
+    make_trip(db, user, status="FINALIZED", current_iteration=1)
+    await db.flush()
+    voting = (await _get(client))["voting"]
+    assert voting["finalized_trips"] == 1
+    assert voting["cost_per_finalized_trip_usd"] is None
+
+
+@pytest.fixture
+def quality_file(tmp_path, monkeypatch):
+    quality = PromptQuality(
+        run_date="2026-11-19",
+        model="m",
+        judge_model="j",
+        cases=12,
+        versions=[
+            PromptQualityVersion(
+                prompt_version="v3",
+                cases=12,
+                judged_cases=11,
+                all_checks_pass_rate=0.25,
+                checks=[
+                    CheckRate(check="time_slots", pass_rate=0.0, cases=12, gating=False)
+                ],
+                judge=[JudgeScore(criterion="preference_fit", mean=4.0)],
+                judge_overall=4.0,
+            )
+        ],
+    )
+    path = tmp_path / "results.json"
+    path.write_text(quality.model_dump_json())
+    monkeypatch.setattr(stats, "PROMPT_QUALITY_PATH", path)
+    return path
+
+
+async def test_prompt_quality_present(client, quality_file) -> None:
+    pq = (await _get(client))["prompt_quality"]
+    assert pq["cases"] == 12 and pq["versions"][0]["prompt_version"] == "v3"
+    assert pq["versions"][0]["checks"][0] == {
+        "check": "time_slots",
+        "pass_rate": 0.0,
+        "cases": 12,
+        "gating": False,
+    }
+    assert pq["versions"][0]["judged_cases"] == 11
+
+
+async def test_prompt_quality_absent_or_corrupt(client, quality_file) -> None:
+    quality_file.unlink()
+    assert (await _get(client))["prompt_quality"] is None
+    quality_file.write_text("{not json")
+    stats.load_prompt_quality.cache_clear()
+    stats._cache = None
+    assert (await _get(client))["prompt_quality"] is None
+
+
+async def test_privacy(client, db, quality_file) -> None:
     secrets_ = [
         "S3NT-prompt",
         "S3NT-raw",
@@ -281,6 +496,7 @@ async def test_privacy(client, db) -> None:
 
     resp = await client.get("/stats")
     assert resp.status_code == 200
+    assert resp.json()["prompt_quality"] is not None
     for sentinel in secrets_:
         assert sentinel not in resp.text
     assert "@" not in resp.text

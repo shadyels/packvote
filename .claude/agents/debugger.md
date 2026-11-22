@@ -27,5 +27,5 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 
 <!-- BEGIN learned-lessons (written ONLY by the orchestrator) -->
 ## Learned lessons
-_(none yet)_
+- A test that "only fails because of the local env" is often a correct alarm about that env — read what it asserts and compare it with the reported error before dismissing it. APIs may validate payload shape before credentials, so expect a second error (e.g. invalid key) once the first is fixed; confirm with one live call per layer.
 <!-- END learned-lessons -->

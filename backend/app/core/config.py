@@ -69,6 +69,22 @@ class Settings(BaseSettings):
         "extra_body": {"google": {"thinking_config": {"thinking_level": "minimal"}}}
     }
 
+    # Judge model for `python -m evals.run`; empty = use DEFAULT_AI_MODEL.
+    EVAL_JUDGE_MODEL: str = ""
+
+    # List-price-equivalent cost estimates for /stats: (input, output) USD per 1M
+    # tokens. Source: https://aistudio.google.com/docs/pricing (the old
+    # ai.google.dev/gemini-api/docs/pricing URL redirects there), Paid tier
+    # Standard, read 2026-11-19. Output price includes thinking tokens. These
+    # Gemini 3.6 Flash prices are valid through 2026-12-31 and double to
+    # (1.50, 7.50) from 2027-01-01 per the page. The free tier is free of
+    # charge, so this is what the same usage WOULD cost, not what is billed.
+    # Only verified prices belong here; unlisted models are reported unpriced.
+    AI_PRICES_USD_PER_1M: dict[str, tuple[float, float]] = {
+        "gemini-3.6-flash": (0.75, 3.75)
+    }
+    AI_PRICES_AS_OF: str = "2026-11-19"
+
     @model_validator(mode="after")
     def _reject_default_secret(self) -> "Settings":
         if self.ENVIRONMENT != "development" and (

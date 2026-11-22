@@ -18,6 +18,7 @@ Database is a Railway-managed PostgreSQL add-on — `DATABASE_URL` is injected a
 **Backend:** `uv run alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - Alembic runs on every deploy (idempotent — only unapplied migrations run)
 - Module path must be `app.main:app`, not `main:app` (Railpack auto-detection gets this wrong)
+- `backend/evals/results.json`, if committed, ships with the backend, since the service root is `backend/`. `/stats` serves it as `prompt_quality`. It is read once per process, so a new file takes effect after a redeploy. Nothing in the repo `.gitignore` excludes it. See [AI-ARCHITECTURE.md](AI-ARCHITECTURE.md#eval-harness).
 
 **Frontend:** `pnpm preview --port $PORT --host`
 - Railpack auto-detects pnpm from `pnpm-lock.yaml` and runs `pnpm build`
@@ -56,7 +57,7 @@ If deployed before the var is set, the build bakes in an empty value. Redeploy a
 `vite.config.ts` has `preview: { allowedHosts: true }`. Do not change to a string `"true"` — must be boolean.
 
 **6. One-time database wipe before the baseline migration**
-Migrations were squashed into a single `0001_baseline` revision (`backend/alembic/versions/0001_baseline.py`). An existing database must be wiped before the first deploy of this revision: drop all tables and the `alembic_version` table, then let `alembic upgrade head` (in the start command) create the schema.
+Migrations were squashed into a `0001_baseline` revision (`backend/alembic/versions/0001_baseline.py`), which `0002_ai_call_log_prompt_version` (`backend/alembic/versions/0002_ai_call_log_prompt_version.py`) follows. An existing database from before the squash must be wiped before its first deploy: drop all tables and the `alembic_version` table, then let `alembic upgrade head` (in the start command) create the schema. A database already at `0001` needs no wipe, because `alembic upgrade head` applies `0002` in place.
 
 **7. Startup recovery assumes a single process**
 On startup, `recover_stuck_generations` marks every trip left in `GENERATING` as `GENERATION_FAILED`. This is correct for one uvicorn process. During a zero-downtime deploy, the new instance fails generations still running on the old one; the old run's write-phase CAS then discards its result, so the user must retry. Upgrade path (undecided): a heartbeat/lease column on the trip.

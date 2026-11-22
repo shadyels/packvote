@@ -14,6 +14,7 @@ class StatsTotals(BaseModel):
     ai_attempts: int
     tokens_in: int
     tokens_out: int
+    cost_usd: float  # list-price equivalent, priced models only
 
 
 class StatusCount(BaseModel):
@@ -63,12 +64,19 @@ class ModelStats(BaseModel):
     valid_attempts: int
     tokens_in: int
     tokens_out: int
+    cost_usd: float | None  # None: model has no price entry
 
 
 class PromptVersionStats(BaseModel):
     prompt_version: str | None
     successful_generations: int
     itineraries: int
+    attempts: int
+    valid_rate: float | None
+    latency_p50_ms: int | None
+    latency_p95_ms: int | None
+    tokens_per_itinerary: float | None
+    cost_per_itinerary_usd: float | None
 
 
 class DayActivity(BaseModel):
@@ -89,11 +97,47 @@ class VotingStats(BaseModel):
     avg_votes_per_trip: float | None
     finalized_trips: int
     iterations_to_finalize: list[IterationsCount]
+    cost_per_finalized_trip_usd: float | None
 
 
 class StatsSampling(BaseModel):
     row_cap: int
     truncated: bool
+
+
+class PricingInfo(BaseModel):
+    as_of: str
+    unpriced_models: list[str]
+
+
+class CheckRate(BaseModel):
+    check: str
+    pass_rate: float
+    cases: int
+    gating: bool  # False: informational, not in all_checks_pass_rate
+
+
+class JudgeScore(BaseModel):
+    criterion: str
+    mean: float | None
+
+
+class PromptQualityVersion(BaseModel):
+    prompt_version: str
+    cases: int  # paired: both versions answered
+    judged_cases: int
+    all_checks_pass_rate: float
+    checks: list[CheckRate]
+    judge: list[JudgeScore]
+    judge_overall: float | None
+
+
+class PromptQuality(BaseModel):
+    run_date: str
+    model: str
+    judge_model: str
+    cases: int
+    versions: list[PromptQualityVersion]
 
 
 class PlatformStats(BaseModel):
@@ -106,3 +150,5 @@ class PlatformStats(BaseModel):
     activity: list[DayActivity]
     voting: VotingStats
     sampling: StatsSampling
+    pricing: PricingInfo
+    prompt_quality: PromptQuality | None
