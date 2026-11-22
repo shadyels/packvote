@@ -4,11 +4,15 @@ import math
 import time
 from bisect import bisect_right
 from datetime import UTC, date, datetime, timedelta
+from functools import lru_cache
+from pathlib import Path
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models.ai_call_log import AICallLog
 from app.models.itinerary import Itinerary
 from app.models.participant import Participant
@@ -25,6 +29,8 @@ from app.schemas.stats import (
     LatencyStats,
     ModelStats,
     PlatformStats,
+    PricingInfo,
+    PromptQuality,
     PromptVersionStats,
     StatsSampling,
     StatsTotals,
@@ -42,6 +48,15 @@ FAILURE_BACKOFF_S = 10
 ROW_CAP = 100_000
 ACTIVITY_DAYS = 30
 LATENCY_EDGES_MS = [0, 5000, 10000, 20000, 30000, 60000, 120000]
+# Written by `python -m evals.run`, committed, shipped with the backend.
+PROMPT_QUALITY_PATH = Path(__file__).resolve().parents[2] / "evals" / "results.json"
+# Thinking tokens are billed as output; total - input captures them, which
+# token_count_output alone does not. Fall back to output when total is missing.
+_BILLABLE_OUT = func.coalesce(
+    AICallLog.token_count_total - AICallLog.token_count_input,
+    AICallLog.token_count_output,
+    0,
+)
 
 # ponytail: one global cap for all callers, not per-IP. Upgrade: a per-IP limiter
 # keyed on a trusted X-Forwarded-For if one client can starve the rest.
@@ -93,6 +108,26 @@ def _ratio(num: int, den: int) -> float | None:
     return num / den if den else None
 
 
+def _cost(model: str, tokens_in: int, billable_out: int) -> float | None:
+    """List-price-equivalent USD; None when the model has no price entry."""
+    price = get_settings().AI_PRICES_USD_PER_1M.get(model.removeprefix("models/"))
+    if price is None:
+        return None
+    return (tokens_in * price[0] + billable_out * price[1]) / 1_000_000
+
+
+@lru_cache(maxsize=1)
+def load_prompt_quality() -> PromptQuality | None:
+    """Offline eval results, or None when absent/unreadable (the file is static)."""
+    try:
+        return PromptQuality.model_validate_json(PROMPT_QUALITY_PATH.read_text())
+    except FileNotFoundError:
+        return None
+    except (OSError, ValidationError):
+        logger.warning("prompt quality results unreadable; omitting", exc_info=True)
+        return None
+
+
 def _percentile(sorted_vals: list[int], q: float) -> int | None:
     """Nearest-rank percentile."""
     if not sorted_vals:
@@ -117,7 +152,7 @@ def _utc_date(dt: datetime) -> date:
     return dt.astimezone(UTC).date()
 
 
-async def _totals(db: AsyncSession) -> StatsTotals:
+async def _totals(db: AsyncSession, by_model: list[ModelStats]) -> StatsTotals:
     ai = (
         await db.execute(
             select(
@@ -136,6 +171,7 @@ async def _totals(db: AsyncSession) -> StatsTotals:
         ai_attempts=ai[0],
         tokens_in=int(ai[1]),
         tokens_out=int(ai[2]),
+        cost_usd=sum(m.cost_usd or 0.0 for m in by_model),
     )
 
 
@@ -147,7 +183,9 @@ async def _funnel(db: AsyncSession) -> list[StatusCount]:
     return [StatusCount(status=s, trips=by_status.get(s, 0)) for s in TripStatus]
 
 
-async def _generation(db: AsyncSession) -> tuple[GenerationStats, bool]:
+async def _generation(
+    db: AsyncSession,
+) -> tuple[GenerationStats, bool, dict[str | None, list[int]]]:
     attempts, valid = (
         await db.execute(
             select(
@@ -187,18 +225,22 @@ async def _generation(db: AsyncSession) -> tuple[GenerationStats, bool]:
 
     # ponytail: percentiles computed in Python over the newest ROW_CAP rows
     # (ceiling ~100k rows). Upgrade: percentile_cont on Postgres or a rollup table.
-    lat_rows = list(
-        (
-            await db.scalars(
-                select(AICallLog.latency_ms)
-                .where(AICallLog.latency_ms.is_not(None))
-                .order_by(AICallLog.id.desc())
-                .limit(ROW_CAP + 1)
-            )
-        ).all()
-    )
+    lat_rows = (
+        await db.execute(
+            select(AICallLog.latency_ms, AICallLog.prompt_version)
+            .where(AICallLog.latency_ms.is_not(None))
+            .order_by(AICallLog.id.desc())
+            .limit(ROW_CAP + 1)
+        )
+    ).all()
     truncated = len(lat_rows) > ROW_CAP
-    lat = sorted(lat_rows[:ROW_CAP])
+    kept = lat_rows[:ROW_CAP]
+    lat = sorted(ms for ms, _ in kept)
+    lat_by_version: dict[str | None, list[int]] = {}
+    for ms, pv in kept:
+        lat_by_version.setdefault(pv, []).append(ms)
+    for vals in lat_by_version.values():
+        vals.sort()
 
     return (
         GenerationStats(
@@ -220,6 +262,7 @@ async def _generation(db: AsyncSession) -> tuple[GenerationStats, bool]:
             orphaned_attempts=orphaned or 0,
         ),
         truncated,
+        lat_by_version,
     )
 
 
@@ -232,6 +275,7 @@ async def _by_model(db: AsyncSession) -> list[ModelStats]:
             func.count().filter(AICallLog.response_valid.is_(True)),
             func.coalesce(func.sum(AICallLog.token_count_input), 0),
             func.coalesce(func.sum(AICallLog.token_count_output), 0),
+            func.coalesce(func.sum(_BILLABLE_OUT), 0),
         )
         .group_by(AICallLog.provider, AICallLog.model_used)
         .order_by(func.count().desc())
@@ -244,12 +288,15 @@ async def _by_model(db: AsyncSession) -> list[ModelStats]:
             valid_attempts=v,
             tokens_in=int(ti),
             tokens_out=int(to),
+            cost_usd=_cost(m, int(ti), int(bo)),
         )
-        for p, m, a, v, ti, to in rows
+        for p, m, a, v, ti, to, bo in rows
     ]
 
 
-async def _by_prompt_version(db: AsyncSession) -> list[PromptVersionStats]:
+async def _by_prompt_version(
+    db: AsyncSession, lat_by_version: dict[str | None, list[int]]
+) -> list[PromptVersionStats]:
     # One generation = one (trip, iteration) per prompt version.
     gen = (
         select(
@@ -279,12 +326,57 @@ async def _by_prompt_version(db: AsyncSession) -> list[PromptVersionStats]:
         .tuples()
         .all()
     )
-    return [
-        PromptVersionStats(
-            prompt_version=pv, successful_generations=n, itineraries=itins.get(pv, 0)
+    n_gens = dict(gens)
+
+    # Attempts per version, every model: [attempts, valid, tokens, cost, priced].
+    usage: dict[str | None, list] = {}
+    rows = (
+        await db.execute(
+            select(
+                AICallLog.prompt_version,
+                AICallLog.model_used,
+                func.count(),
+                func.count().filter(AICallLog.response_valid.is_(True)),
+                func.coalesce(func.sum(AICallLog.token_count_input), 0),
+                func.coalesce(func.sum(_BILLABLE_OUT), 0),
+            ).group_by(AICallLog.prompt_version, AICallLog.model_used)
         )
-        for pv, n in gens
-    ]
+    ).all()
+    for pv, model, a, v, ti, bo in rows:
+        u = usage.setdefault(pv, [0, 0, 0, 0.0, True])
+        cost = _cost(model, int(ti), int(bo))
+        u[0] += a
+        u[1] += v
+        u[2] += int(ti) + int(bo)
+        u[3] += cost or 0.0
+        u[4] = u[4] and cost is not None
+
+    # Versions with itineraries (newest first), then log-only ones (None last).
+    order = [pv for pv, _ in gens]
+    order += sorted(
+        (pv for pv in usage if pv not in n_gens), key=lambda v: (v is None, v or "")
+    )
+    out = []
+    for pv in order:
+        attempts, valid, tokens, cost, priced = usage.get(pv, [0, 0, 0, 0.0, True])
+        n_itin = itins.get(pv, 0)
+        lat = lat_by_version.get(pv, [])
+        out.append(
+            PromptVersionStats(
+                prompt_version=pv,
+                successful_generations=n_gens.get(pv, 0),
+                itineraries=n_itin,
+                attempts=attempts,
+                valid_rate=_ratio(valid, attempts),
+                latency_p50_ms=_percentile(lat, 0.5),
+                latency_p95_ms=_percentile(lat, 0.95),
+                tokens_per_itinerary=tokens / n_itin if n_itin and attempts else None,
+                cost_per_itinerary_usd=(
+                    cost / n_itin if n_itin and attempts and priced else None
+                ),
+            )
+        )
+    return out
 
 
 async def _activity(db: AsyncSession) -> tuple[list[DayActivity], bool]:
@@ -349,34 +441,60 @@ async def _voting(db: AsyncSession, totals: StatsTotals) -> VotingStats:
         .all()
     )
     top = max(finalized, default=0)
+    n_finalized = sum(finalized.values())
+    # Cost of every attempt on a FINALIZED trip (failed ones included).
+    spend = (
+        await db.execute(
+            select(
+                AICallLog.model_used,
+                func.coalesce(func.sum(AICallLog.token_count_input), 0),
+                func.coalesce(func.sum(_BILLABLE_OUT), 0),
+            )
+            .join(Trip, Trip.id == AICallLog.trip_id)
+            .where(Trip.status == TripStatus.FINALIZED)
+            .group_by(AICallLog.model_used)
+        )
+    ).all()
+    costs = [_cost(m, int(ti), int(bo)) for m, ti, bo in spend]
     return VotingStats(
         avg_participants_per_trip=_ratio(totals.participants, totals.trips),
         trips_reached_voting=reached,
         avg_votes_per_trip=_ratio(totals.votes, reached),
         # ponytail: the key-0 bucket is unreachable (FINALIZED requires VOTING,
         # which requires current_iteration >= 1), so this equals the rows' sum.
-        finalized_trips=sum(finalized.values()),
+        finalized_trips=n_finalized,
         iterations_to_finalize=[
             IterationsCount(iterations=k, trips=finalized.get(k, 0))
             for k in range(1, top + 1)
         ],
+        cost_per_finalized_trip_usd=(
+            sum(c for c in costs if c is not None) / n_finalized
+            if n_finalized and costs and None not in costs
+            else None
+        ),
     )
 
 
 async def _compute(db: AsyncSession) -> PlatformStats:
-    totals = await _totals(db)
-    generation, lat_truncated = await _generation(db)
+    by_model = await _by_model(db)
+    totals = await _totals(db, by_model)
+    generation, lat_truncated, lat_by_version = await _generation(db)
     activity, act_truncated = await _activity(db)
     return PlatformStats(
         generated_at=datetime.now(UTC),
         totals=totals,
         funnel=await _funnel(db),
         generation=generation,
-        by_model=await _by_model(db),
-        by_prompt_version=await _by_prompt_version(db),
+        by_model=by_model,
+        by_prompt_version=await _by_prompt_version(db, lat_by_version),
         activity=activity,
         voting=await _voting(db, totals),
         sampling=StatsSampling(
             row_cap=ROW_CAP, truncated=lat_truncated or act_truncated
         ),
+        pricing=PricingInfo(
+            as_of=get_settings().AI_PRICES_AS_OF,
+            unpriced_models=sorted({m.model for m in by_model if m.cost_usd is None}),
+        ),
+        prompt_quality=load_prompt_quality(),
     )

@@ -40,6 +40,7 @@ def _reset_module_state():
     stats._limiter = SlidingWindow(stats.REQUEST_CAP, 60)
     stats._lock = asyncio.Lock()
     stats._failed_until = 0.0
+    stats.load_prompt_quality.cache_clear()
     yield
     brevo._limiter = SlidingWindow(brevo.MAX_EPD, 86400)
     ai_rate_limiter._limiter = None
@@ -47,6 +48,7 @@ def _reset_module_state():
     stats._cache = None
     stats._limiter = SlidingWindow(stats.REQUEST_CAP, 60)
     stats._lock = asyncio.Lock()
+    stats.load_prompt_quality.cache_clear()
 
 
 @pytest.fixture

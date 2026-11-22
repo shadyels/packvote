@@ -466,6 +466,7 @@ def _render_prompt(
     preferences: list[Preference],
     *,
     group_size: int,
+    template: str = ITINERARY_PROMPT_V4,
 ) -> str:
     trip_duration_days = _compute_trip_duration(trip, preferences)
 
@@ -488,7 +489,7 @@ def _render_prompt(
 
     preferences_block = _build_preferences_block(preferences)
 
-    return ITINERARY_PROMPT_V4.format(
+    return template.format(
         num_options=trip.num_options,
         trip_duration_days=trip_duration_days,
         trip_title=f"<<<USER DATA>>>{sanitize_text(trip.title)}<<<END USER DATA>>>",
@@ -652,6 +653,7 @@ def _add_call_logs(
         log.trip_id = trip_id
         log.iteration_number = iteration_number
         log.attempt = attempt
+        log.prompt_version = PROMPT_VERSION
         db.add(log)
         logger.info(
             "ai_call trip=%s iteration=%s attempt=%s provider=%s model=%s "

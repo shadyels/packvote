@@ -26,9 +26,11 @@ from app.services.ai.json_utils import AIInputError, AIOptionCountError
 from app.services.ai.rate_limiter import LocalRateLimitError
 from app.services.ai.service import AIService
 from app.services.generation import (
+    PROMPT_VERSION,
     _build_preferences_block,
     _compute_trip_duration,
     _humanize_error,
+    _render_prompt,
     run_generation,
 )
 
@@ -339,6 +341,22 @@ def session_factory_fixture(engine):
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
+class TestRenderPrompt:
+    def test_template_is_honoured(self):
+        from evals.prompts import ITINERARY_PROMPT_V3
+
+        trip, prefs = _make_trip(), [_make_pref()]
+        default = _render_prompt(trip, prefs, group_size=2)
+        v3 = _render_prompt(trip, prefs, group_size=2, template=ITINERARY_PROMPT_V3)
+        assert "Never use clock times" in default
+        assert "All activity time fields must be null" in v3
+        assert "Never use clock times" not in v3
+        custom = _render_prompt(
+            trip, prefs, group_size=2, template="{num_options}|{trip_duration_days}"
+        )
+        assert custom == "3|7"
+
+
 class TestRunGeneration:
     async def test_success_sets_status_voting(
         self, db: AsyncSession, trip_with_preferences: Trip, session_factory_fixture
@@ -444,6 +462,7 @@ class TestRunGeneration:
         assert [log.attempt for log in logs] == [1, 2]
         assert [log.response_valid for log in logs] == [False, True]
         assert all(log.iteration_number == 1 for log in logs)
+        assert all(log.prompt_version == PROMPT_VERSION for log in logs)
         ai_call_lines = [
             r for r in caplog.records if r.getMessage().startswith("ai_call ")
         ]
