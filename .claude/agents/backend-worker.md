@@ -34,4 +34,6 @@ End every report with a `LESSONS:` block: 0-3 short, GENERALIZABLE lessons that 
 - A stricter schema validator can turn a 422 into a 500 when the framework's error body echoes the rejected value (e.g. non-finite floats); test the HTTP path, not just the model.
 - Removing a blanket lint ignore (e.g. `F821`) can expose real latent bugs such as unresolved forward references — re-run the linter right after dropping it.
 - When bumping a version value, grep the old version string in identifiers and docs too (`_V3`, `"v3"`): a constant named for the old version holding the new content is a half-done change.
+- When a schema field has a lenient validator that coerces bad values to None, a "schema valid" check can't catch them — inspect the raw parsed JSON for anything the schema silently repairs.
+- When one check must apply to variants with different instructions (v3 "times null" vs v4 "times required"), make the gating check "followed its own instruction" and keep the cross-variant feature check informational. To make a live-config test env-independent, read the class default (`Settings.model_fields[...].default`), not a literal copy of today's value.
 <!-- END learned-lessons -->
