@@ -1,0 +1,642 @@
+[
+  {
+    "case_id": "c01",
+    "trip": {
+      "title": "Long weekend away",
+      "destination": null,
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 3,
+      "num_options": 2
+    },
+    "group_size": 2,
+    "preferences": [
+      {
+        "budget_min": 300,
+        "budget_max": 600,
+        "currency": "USD",
+        "interests": "cheap street food, free walking tours",
+        "activity_tags": [
+          "food",
+          "culture"
+        ]
+      },
+      {
+        "budget_min": 300,
+        "budget_max": 500,
+        "currency": "USD",
+        "interests": "museums on free-entry days, parks",
+        "activity_tags": [
+          "culture",
+          "relaxation"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c02",
+    "trip": {
+      "title": "Lisbon trip",
+      "destination": "Lisbon, Portugal",
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 4,
+      "num_options": 3
+    },
+    "group_size": 3,
+    "preferences": [
+      {
+        "budget_min": 1500,
+        "budget_max": 5000,
+        "currency": "EUR",
+        "interests": "tile museums, fado nights, pastry crawls",
+        "activity_tags": [
+          "food",
+          "culture",
+          "nightlife"
+        ]
+      },
+      {
+        "budget_min": 2000,
+        "budget_max": 4500,
+        "currency": "EUR",
+        "interests": "day trip to Sintra, viewpoints",
+        "activity_tags": [
+          "sightseeing",
+          "hiking"
+        ]
+      },
+      {
+        "budget_min": 1500,
+        "budget_max": 6000,
+        "currency": "EUR",
+        "interests": "surf lesson, seafood",
+        "activity_tags": [
+          "beach",
+          "food"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c03",
+    "trip": {
+      "title": "Mixed budgets getaway",
+      "destination": null,
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 5,
+      "num_options": 3
+    },
+    "group_size": 4,
+    "preferences": [
+      {
+        "budget_min": 200,
+        "budget_max": 400,
+        "currency": "USD",
+        "interests": "camping, long hikes, cooking over a fire",
+        "activity_tags": [
+          "hiking",
+          "camping"
+        ]
+      },
+      {
+        "budget_min": 3000,
+        "budget_max": 6000,
+        "currency": "USD",
+        "interests": "spa days, tasting menus, boutique hotels",
+        "activity_tags": [
+          "luxury",
+          "food",
+          "relaxation"
+        ]
+      },
+      {
+        "budget_min": 250,
+        "budget_max": 500,
+        "currency": "USD",
+        "interests": "hiking, stargazing",
+        "activity_tags": [
+          "hiking",
+          "nature"
+        ]
+      },
+      {
+        "budget_min": 2500,
+        "budget_max": 5000,
+        "currency": "USD",
+        "interests": "wine tasting, quiet resorts",
+        "activity_tags": [
+          "wine",
+          "relaxation"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c04",
+    "trip": {
+      "title": "Kyoto on a budget",
+      "destination": "Kyoto, Japan",
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 6,
+      "num_options": 3
+    },
+    "group_size": 5,
+    "preferences": [
+      {
+        "budget_min": 600,
+        "budget_max": 1200,
+        "currency": "USD",
+        "interests": "temples, matcha, cheap ramen",
+        "activity_tags": [
+          "culture",
+          "food"
+        ]
+      },
+      {
+        "budget_min": 500,
+        "budget_max": 1000,
+        "currency": "USD",
+        "interests": "gardens, cycling",
+        "activity_tags": [
+          "nature",
+          "sightseeing"
+        ]
+      },
+      {
+        "budget_min": 700,
+        "budget_max": 1300,
+        "currency": "USD",
+        "interests": "markets, craft workshops",
+        "activity_tags": [
+          "shopping",
+          "culture"
+        ]
+      },
+      {
+        "budget_min": 600,
+        "budget_max": 1100,
+        "currency": "USD",
+        "interests": "night photography, izakaya",
+        "activity_tags": [
+          "nightlife",
+          "photography"
+        ]
+      },
+      {
+        "budget_min": 500,
+        "budget_max": 900,
+        "currency": "USD",
+        "interests": "quiet mornings, tea houses",
+        "activity_tags": [
+          "relaxation",
+          "culture"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c05",
+    "trip": {
+      "title": "Friends reunion",
+      "destination": null,
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 7,
+      "num_options": 3
+    },
+    "group_size": 6,
+    "preferences": [
+      {
+        "budget_min": 1000,
+        "budget_max": 2500,
+        "currency": "USD",
+        "interests": "beaches, snorkeling, seafood",
+        "activity_tags": [
+          "beach",
+          "food"
+        ]
+      },
+      {
+        "budget_min": 1200,
+        "budget_max": 3000,
+        "currency": "USD",
+        "interests": "history, old towns, architecture",
+        "activity_tags": [
+          "culture",
+          "sightseeing"
+        ]
+      },
+      {
+        "budget_min": 800,
+        "budget_max": 2000,
+        "currency": "USD",
+        "interests": "live music, bars, dancing",
+        "activity_tags": [
+          "nightlife",
+          "music"
+        ]
+      },
+      {
+        "budget_min": 1000,
+        "budget_max": 2500,
+        "currency": "USD",
+        "interests": "easy hikes, viewpoints",
+        "activity_tags": [
+          "hiking",
+          "nature"
+        ]
+      },
+      {
+        "budget_min": 900,
+        "budget_max": 2200,
+        "currency": "USD",
+        "interests": "cooking classes, local markets",
+        "activity_tags": [
+          "food",
+          "culture"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c06",
+    "trip": {
+      "title": "Big group in CDMX",
+      "destination": "Mexico City, Mexico",
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 4,
+      "num_options": 3
+    },
+    "group_size": 8,
+    "preferences": [
+      {
+        "budget_min": 1500,
+        "budget_max": 4000,
+        "currency": "USD",
+        "interests": "tacos, mezcal, street food tours",
+        "activity_tags": [
+          "food",
+          "nightlife"
+        ]
+      },
+      {
+        "budget_min": 2000,
+        "budget_max": 5000,
+        "currency": "USD",
+        "interests": "anthropology museum, murals, Frida Kahlo house",
+        "activity_tags": [
+          "culture",
+          "art"
+        ]
+      },
+      {
+        "budget_min": 1500,
+        "budget_max": 3500,
+        "currency": "USD",
+        "interests": "lucha libre, markets",
+        "activity_tags": [
+          "entertainment",
+          "shopping"
+        ]
+      },
+      {
+        "budget_min": 1800,
+        "budget_max": 4500,
+        "currency": "USD",
+        "interests": "pyramids day trip, cenotes",
+        "activity_tags": [
+          "sightseeing",
+          "adventure"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c07",
+    "trip": {
+      "title": "Two-day escape",
+      "destination": null,
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 2,
+      "num_options": 3
+    },
+    "group_size": 2,
+    "preferences": [
+      {
+        "budget_min": 400,
+        "budget_max": 900,
+        "currency": "USD",
+        "interests": "clubs, late-night food, rooftop bars",
+        "activity_tags": [
+          "nightlife",
+          "food"
+        ]
+      },
+      {
+        "budget_min": 400,
+        "budget_max": 900,
+        "currency": "USD",
+        "interests": "silent nature, lakes, no crowds, early nights",
+        "activity_tags": [
+          "nature",
+          "relaxation"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c08",
+    "trip": {
+      "title": "Rockies trip",
+      "destination": "Banff, Canada",
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 5,
+      "num_options": 2
+    },
+    "group_size": 3,
+    "preferences": [
+      {
+        "budget_min": 800,
+        "budget_max": 1500,
+        "currency": "CAD",
+        "interests": "day hikes, wildlife spotting, cheap lodging",
+        "activity_tags": [
+          "hiking",
+          "nature"
+        ]
+      },
+      {
+        "budget_min": 700,
+        "budget_max": 1400,
+        "currency": "CAD",
+        "interests": "canoeing, hot springs",
+        "activity_tags": [
+          "adventure",
+          "relaxation"
+        ]
+      },
+      {
+        "budget_min": 600,
+        "budget_max": 1200,
+        "currency": "CAD",
+        "interests": "photography at sunrise, scenic drives",
+        "activity_tags": [
+          "photography",
+          "sightseeing"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c09",
+    "trip": {
+      "title": "Cousins trip",
+      "destination": null,
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 6,
+      "num_options": 4
+    },
+    "group_size": 7,
+    "preferences": [
+      {
+        "budget_min": 300,
+        "budget_max": 700,
+        "currency": "USD",
+        "interests": "beach hostels, snorkeling, cheap eats",
+        "activity_tags": [
+          "beach",
+          "adventure"
+        ]
+      },
+      {
+        "budget_min": 4000,
+        "budget_max": 8000,
+        "currency": "USD",
+        "interests": "five-star hotels, private tours, fine dining",
+        "activity_tags": [
+          "luxury",
+          "food"
+        ]
+      },
+      {
+        "budget_min": 500,
+        "budget_max": 1500,
+        "currency": "USD",
+        "interests": "street art, thrift shopping, coffee shops",
+        "activity_tags": [
+          "art",
+          "shopping"
+        ]
+      },
+      {
+        "budget_min": 3500,
+        "budget_max": 7000,
+        "currency": "USD",
+        "interests": "golf, spa, rooftop cocktails",
+        "activity_tags": [
+          "luxury",
+          "relaxation",
+          "nightlife"
+        ]
+      },
+      {
+        "budget_min": 400,
+        "budget_max": 900,
+        "currency": "USD",
+        "interests": "hiking, camping, bonfires",
+        "activity_tags": [
+          "hiking",
+          "camping"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c10",
+    "trip": {
+      "title": "Marrakech weekend",
+      "destination": "Marrakech, Morocco",
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 3,
+      "num_options": 3
+    },
+    "group_size": 4,
+    "preferences": [
+      {
+        "budget_min": 2000,
+        "budget_max": 5000,
+        "currency": "EUR",
+        "interests": "riads, hammam, rooftop dinners",
+        "activity_tags": [
+          "luxury",
+          "relaxation",
+          "food"
+        ]
+      },
+      {
+        "budget_min": 1800,
+        "budget_max": 4500,
+        "currency": "EUR",
+        "interests": "souks, spice markets, tile workshops",
+        "activity_tags": [
+          "shopping",
+          "culture"
+        ]
+      },
+      {
+        "budget_min": 2200,
+        "budget_max": 5500,
+        "currency": "EUR",
+        "interests": "desert day trip, camel ride",
+        "activity_tags": [
+          "adventure",
+          "sightseeing"
+        ]
+      },
+      {
+        "budget_min": 2000,
+        "budget_max": 5000,
+        "currency": "EUR",
+        "interests": "cooking class, tea ritual",
+        "activity_tags": [
+          "food",
+          "culture"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c11",
+    "trip": {
+      "title": "Student budget break",
+      "destination": null,
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 4,
+      "num_options": 3
+    },
+    "group_size": 5,
+    "preferences": [
+      {
+        "budget_min": 150,
+        "budget_max": 350,
+        "currency": "GBP",
+        "interests": "free festivals, picnics, public beaches",
+        "activity_tags": [
+          "beach",
+          "entertainment"
+        ]
+      },
+      {
+        "budget_min": 150,
+        "budget_max": 300,
+        "currency": "GBP",
+        "interests": "museums with student discounts, libraries, cafes",
+        "activity_tags": [
+          "culture",
+          "relaxation"
+        ]
+      },
+      {
+        "budget_min": 200,
+        "budget_max": 400,
+        "currency": "GBP",
+        "interests": "nightlife on a budget, live gigs",
+        "activity_tags": [
+          "nightlife",
+          "music"
+        ]
+      },
+      {
+        "budget_min": 100,
+        "budget_max": 250,
+        "currency": "GBP",
+        "interests": "hiking, cheap hostels",
+        "activity_tags": [
+          "hiking",
+          "nature"
+        ]
+      },
+      {
+        "budget_min": 200,
+        "budget_max": 350,
+        "currency": "GBP",
+        "interests": "street food, markets",
+        "activity_tags": [
+          "food",
+          "shopping"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "c12",
+    "trip": {
+      "title": "Anniversary group trip",
+      "destination": null,
+      "proposed_start_date": "2027-03-01T00:00:00+00:00",
+      "days": 7,
+      "num_options": 3
+    },
+    "group_size": 8,
+    "preferences": [
+      {
+        "budget_min": 2500,
+        "budget_max": 6000,
+        "currency": "USD",
+        "interests": "vineyards, long lunches, cycling between estates",
+        "activity_tags": [
+          "wine",
+          "food"
+        ]
+      },
+      {
+        "budget_min": 3000,
+        "budget_max": 7000,
+        "currency": "USD",
+        "interests": "scuba diving, remote islands",
+        "activity_tags": [
+          "adventure",
+          "beach"
+        ]
+      },
+      {
+        "budget_min": 2000,
+        "budget_max": 5000,
+        "currency": "USD",
+        "interests": "opera, ballet, grand architecture",
+        "activity_tags": [
+          "culture",
+          "art"
+        ]
+      },
+      {
+        "budget_min": 2500,
+        "budget_max": 6500,
+        "currency": "USD",
+        "interests": "ski-free mountains, alpine spas, quiet cabins",
+        "activity_tags": [
+          "nature",
+          "relaxation"
+        ]
+      },
+      {
+        "budget_min": 3000,
+        "budget_max": 6000,
+        "currency": "USD",
+        "interests": "street food, night markets, karaoke",
+        "activity_tags": [
+          "food",
+          "nightlife"
+        ]
+      },
+      {
+        "budget_min": 2000,
+        "budget_max": 5500,
+        "currency": "USD",
+        "interests": "temples, meditation retreats",
+        "activity_tags": [
+          "culture",
+          "relaxation"
+        ]
+      }
+    ]
+  }
+]
