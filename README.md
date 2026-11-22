@@ -36,6 +36,12 @@ Planning a group trip means juggling mismatched schedules, budgets, and interest
 
 ---
 
+## Results
+
+Stats dashboard public [/stats](https://packvote.shadyels.com/stats)
+
+---
+
 ## Tech Stack
 
 ### Backend

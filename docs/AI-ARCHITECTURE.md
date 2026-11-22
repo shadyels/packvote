@@ -243,17 +243,17 @@ When all participants have submitted, `_maybe_trigger_generation` calls `start_g
 **One row per network attempt**, not per generation. A generation that succeeds on its second try writes two rows; one that exhausts retries writes three.
 
 - **Provider (`openai_compat.py`)** appends a transient `AICallLog` to the `calls` list threaded `generation.py → AIService → provider`, *after* `limiter.reserve()` succeeds. Local-limiter rejections made no network call, so they are **not recorded**. It fills: `provider`, `model_used` (as reported by the API in `completion.model`, not the configured name), `prompt` (rendered), `raw_response`, `latency_ms` (the `create()` call only — excludes retry backoff), `token_count_input`/`_output`/`_total` from `completion.usage`, `finish_reason`, `response_valid`, `error_message`, `created_at` (per attempt).
-- **Orchestrator (`generation.py` `_add_call_logs`)** stamps the context only it knows — `trip_id`, `iteration_number`, `attempt` (1-based) — adds the rows to the session, and emits one INFO line per attempt:
+- **Orchestrator (`generation.py` `_add_call_logs`)** stamps the context only it knows — `trip_id`, `iteration_number`, `attempt` (1-based) and `prompt_version` — adds the rows to the session, and emits one INFO line per attempt:
   `ai_call trip=… iteration=… attempt=… provider=… model=… latency_ms=… tokens_in=… tokens_out=… tokens_total=… finish=… valid=… error=…`
   Rows are committed on both the success and the failure path.
 - **Retention:** rows outlive their trip. `ai_call_logs.trip_id` is `ON DELETE SET NULL`, so `delete_trip` keeps them. The stored `prompt` contains participants' free-text preferences, so that text is retained after the trip is gone.
 - **Stdout:** `app/main.py` attaches a stdout handler to the `app` logger at INFO (not `basicConfig` — a root handler would double SQLAlchemy echo output and surface httpx's per-request INFO lines).
 
-The aggregate view of these rows is the public `/stats` page, served by `GET /stats` (`services/stats.py`). It is aggregate-only: it never returns prompts, raw responses or error messages. Results are cached in process for 60 seconds. A global cap of 120 requests per rolling minute returns 429 when exceeded. If a computation fails or exceeds 10 seconds, the endpoint returns 503 for the next 10 seconds without re-running queries. Latency percentiles and daily activity use at most the 100,000 most recent rows, and `sampling.truncated` reports overflow. A per-client limiter is undecided.
+The aggregate view of these rows is the public `/stats` page, served by `GET /stats` (`services/stats.py`). It is aggregate-only: it never returns prompts, raw responses or error messages. It covers totals, the conversion funnel, generation health, list-price cost by model and by prompt version, cost per finalized trip, and offline prompt quality from `backend/evals/results.json`. Every metric, formula and caveat is defined in [METRICS.md](METRICS.md). Results are cached in process for 60 seconds. A global cap of 120 requests per rolling minute returns 429 when exceeded. If a computation fails or exceeds 10 seconds, the endpoint returns 503 for the next 10 seconds without re-running queries. Latency percentiles and daily activity use at most the 100,000 most recent rows, and `sampling.truncated` reports overflow. A per-client limiter is undecided.
 
 ## Evaluation Dataset
 
-`ai_call_logs` is the system of record for comparing models, prompts and configs over time: append-only, one row per attempt. It has no prompt-version column; the prompt version lives on `itineraries.prompt_version`. Join to `itineraries` / `votes` / `trips` via `(trip_id, iteration_number)` while the trip exists.
+`ai_call_logs` is the system of record for comparing models, prompts and configs over time: append-only, one row per attempt. It has a `prompt_version` column (added by migration `0002`), stamped on every attempt by the generation path. Rows from before `0002` that the backfill could not match stay `NULL`. The same version is on `itineraries.prompt_version`. Join to `itineraries` / `votes` / `trips` via `(trip_id, iteration_number)` while the trip exists.
 
 **Grouping attempts into runs:** order by `id`; `attempt` resets to `1` at the start of each generation. **Thinking tokens** are derived: `token_count_total − token_count_input − token_count_output` (non-zero means `thinking_level: minimal` still spent some).
 
@@ -263,3 +263,21 @@ The aggregate view of these rows is the public `/stats` page, served by `GET /st
 3. **Golden set + replay harness.** Export ~30 diverse valid prompts as JSONL `{prompt, reference_output, model, metrics, label}`; replay through `OpenAICompatProvider` with a `calls` list (capture works unchanged); score validity, option count, latency, tokens, and pairwise LLM-as-judge vs. the reference. Small batches — the free-tier limiter applies.
 4. **Regression gate.** Replay the golden set before changing `DEFAULT_AI_MODEL` or `AI_EXTRA_BODY`; compare scorecards.
 5. **Prompt A/B.** Not built: there is no traffic split. `Itinerary.prompt_version` records which prompt produced each option, so per-version comparisons are possible later.
+
+## Eval Harness
+
+Run from `backend/`:
+
+```bash
+cd backend && uv run python -m evals.run
+```
+
+`backend/evals/run.py` compares the two itinerary prompt versions offline. `v3` is the production prompt from before time-of-day slots were added (copied into `backend/evals/prompts.py`). `v4` is `ITINERARY_PROMPT_V4`. For each case in `backend/evals/cases.json`, the harness makes one real model call per version and one judge call per schema-valid response. It spends real provider quota.
+
+- **Direct calls.** It calls the provider directly through `OpenAICompatProvider` and never opens a DB session, so nothing it does reaches `ai_call_logs`.
+- **Sequential, rate-limiter aware.** Cases run one at a time. Each call reserves quota from `get_limiter()`. A local rate-limit rejection sleeps for `retry_after_seconds` and retries, except `context_length`, which is not retried. A provider 429 waits 60 seconds and is retried once.
+- **Deterministic checks** (`backend/evals/checks.py`): `json_valid`, `schema_valid`, `option_count`, `day_count`, `time_field`, and `destination_respected` for fixed-destination cases. `time_slots` is reported but does not gate `all_checks_pass_rate`.
+- **Judge.** The model in `EVAL_JUDGE_MODEL` scores four criteria from 1 to 5 at temperature 0. An empty `EVAL_JUDGE_MODEL` means `DEFAULT_AI_MODEL`. Judge calls reuse `AI_EXTRA_BODY`, so the double-nested shape described above applies to them too.
+- **Paired cases.** A case counts only when both versions returned a response, so the columns compare the same cases.
+- **Abort rule.** If fewer than half of the cases are answered by both versions, the run exits without writing results. The output then says so, and the provider errors above it are the place to look.
+- **Output.** It writes `backend/evals/results.json` with aggregates only. Per-case detail prints to stdout and is not saved. `/stats` serves the file as `prompt_quality`, and omits the field when the file is absent or unreadable. The file is read once per process, so a new file takes effect after the next deploy or restart. See [METRICS.md](METRICS.md#prompt-quality) for the fields.
